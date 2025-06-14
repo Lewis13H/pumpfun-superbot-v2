@@ -18,12 +18,14 @@
     "@coral-xyz/anchor": "^0.31.1",
     "@solana/web3.js": "^1.98.2",
     "@triton-one/yellowstone-grpc": "^4.0.2",
+    "date-fns": "^4.1.0",
     "dotenv": "^16.5.0",
     "node-cron": "^4.1.0",
     "pg": "^8.16.0",
     "ws": "^8.18.2"
   },
   "devDependencies": {
+    "@types/pg": "^8.15.4",
     "nodemon": "^3.1.10",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3"
