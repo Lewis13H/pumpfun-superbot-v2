@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pump Monitor Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .stats { display: flex; gap: 20px; margin-bottom: 20px; }
+        .stat-box { 
+            padding: 20px; 
+            background: #f0f0f0; 
+            border-radius: 8px;
+            text-align: center;
+        }
+        .tokens-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        .token-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .price { font-weight: bold; color: #0066cc; }
+        .new-token { background: #e6ffe6; }
+    </style>
+</head>
+<body>
+    <h1>Pump.fun Token Monitor</h1>
+    
+    <div class="stats">
+        <div class="stat-box">
+            <h3>Active Tokens</h3>
+            <div id="token-count">0</div>
+        </div>
+        <div class="stat-box">
+            <h3>New Today</h3>
+            <div id="new-today">0</div>
+        </div>
+        <div class="stat-box">
+            <h3>Last Update</h3>
+            <div id="last-update">-</div>
+        </div>
+    </div>
+
+    <div id="tokens" class="tokens-grid"></div>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:8080');
+        
+        ws.onopen = () => {
+            console.log('✅ Connected to WebSocket');
+        };
+        
+        ws.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            
+            if (msg.type === 'tokens') {
+                updateTokenList(msg.data);
+            } else if (msg.type === 'new_token') {
+                highlightNewToken(msg.data);
+            }
+            
+            document.getElementById('last-update').textContent = 
+                new Date(msg.timestamp).toLocaleTimeString();
+        };
+
+        function updateTokenList(tokens) {
+            const container = document.getElementById('tokens');
+            const tokenCount = document.getElementById('token-count');
+            
+            tokenCount.textContent = tokens.length;
+            
+            // Add Number() conversion here!
+            container.innerHTML = tokens.map(token => `
+                <div class="token-card" id="token-${token.address}">
+                    <h4>${token.symbol || 'Loading...'}</h4>
+                    <p>${token.name || token.address.slice(0, 8) + '...'}</p>
+                    <p class="price">$${parseFloat(token.current_price || 0).toFixed(6)}</p>
+                    <p>MCap: $${formatNumber(token.current_mcap || 0)}</p>
+                    <p>Liquidity: $${formatNumber(token.current_liquidity || 0)}</p>
+                    ${token.vanity_id ? 
+                        `<a href="https://pump.fun/${token.vanity_id}" target="_blank">View on Pump.fun</a>` : 
+                        ''
+                    }
+                </div>
+            `).join('');
+        }
+
+        function highlightNewToken(token) {
+            const newToday = document.getElementById('new-today');
+            newToday.textContent = parseInt(newToday.textContent) + 1;
+            
+            setTimeout(() => {
+                const card = document.getElementById(`token-${token.address}`);
+                if (card) {
+                    card.classList.add('new-token');
+                    setTimeout(() => card.classList.remove('new-token'), 5000);
+                }
+            }, 100);
+        }
+
+        function formatNumber(num) {
+            // Make sure it's a number
+            const n = parseFloat(num) || 0;
+            if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+            if (n >= 1e3) return (n / 1e3).toFixed(2) + 'K';
+            return n.toFixed(2);
+        }
+        
+        ws.onerror = (error) => {
+            console.error('❌ WebSocket error:', error);
+        };
+        
+        ws.onclose = () => {
+            console.log('❌ WebSocket disconnected');
+            setTimeout(() => {
+                window.location.reload();
+            }, 5000);
+        };
+    </script>
+</body>
+</html>
