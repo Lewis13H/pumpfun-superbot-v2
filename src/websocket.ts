@@ -24,6 +24,16 @@ export class DashboardServer {
     });
   }
 
+  // Add missing start method
+  async start() {
+    console.log(`🌐 Dashboard server listening on port ${config.websocket.port}`);
+  }
+
+  // Add missing stop method
+  async stop() {
+    this.wss.close();
+  }
+
   async sendActiveTokens(ws?: WebSocket) {
     const tokens = await db.getActiveTokens();
     const message = JSON.stringify({
@@ -35,12 +45,12 @@ export class DashboardServer {
     if (ws) {
       ws.send(message);
     } else {
-      this.broadcast(message);
+      this.broadcastString(message);
     }
   }
 
   broadcastNewToken(token: any) {
-    this.broadcast(JSON.stringify({
+    this.broadcastString(JSON.stringify({
       type: 'new_token',
       data: token,
       timestamp: new Date()
@@ -48,14 +58,21 @@ export class DashboardServer {
   }
 
   broadcastPriceUpdate(count: number) {
-    this.broadcast(JSON.stringify({
+    this.broadcastString(JSON.stringify({
       type: 'price_update',
       count,
       timestamp: new Date()
     }));
   }
 
-  private broadcast(message: string) {
+  // NEW: Public method that accepts objects and converts to JSON
+  broadcast(data: any) {
+    const message = typeof data === 'string' ? data : JSON.stringify(data);
+    this.broadcastString(message);
+  }
+
+  // RENAMED: The original broadcast method that sends strings
+  private broadcastString(message: string) {
     this.clients.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {
         client.send(message);

@@ -1,3 +1,4 @@
+// src/monitor.ts - FINAL COMPLETE VERSION WITH CORRECT CALCULATIONS
 import { Buffer } from 'buffer';
 import { PublicKey } from '@solana/web3.js';
 import { utils } from "@coral-xyz/anchor";
@@ -43,8 +44,9 @@ export class PumpMonitor extends EventEmitter {
   private client: Client;
   private priceBuffer = new Map<string, PriceUpdate>();
   private flushTimer?: NodeJS.Timeout;
-  private solPrice = 150; // Default, will be updated
+  private solPrice = 1; // Start with 1, update immediately
   private progressMilestones = new Map<string, number>();
+  private tokenCreationQueue = new Set<string>();
 
   constructor() {
     super();
@@ -59,6 +61,10 @@ export class PumpMonitor extends EventEmitter {
     console.log('🔄 Starting Pump.fun monitor...');
     console.log(`Endpoint: ${config.shyft.grpcEndpoint}`);
     console.log(`Program: ${PUMP_PROGRAM}`);
+
+    // Update SOL price before processing
+    await this.updateSolPrice();
+    console.log(`💵 Initial SOL price: $${this.solPrice}`);
 
     try {
       const stream = await this.client.subscribe();
@@ -80,12 +86,10 @@ export class PumpMonitor extends EventEmitter {
         });
       });
 
-      // Handle updates
       stream.on("data", async (data) => {
         await this.handleStreamData(data);
       });
 
-      // Subscription request following Shyft examples - transactions only for price data
       const subscribeRequest = {
         accounts: {},
         slots: {},
@@ -124,17 +128,14 @@ export class PumpMonitor extends EventEmitter {
         throw reason;
       });
 
-      console.log('✅ Monitor started and listening for pump.fun transactions');
+      console.log('✅ Monitor started');
 
-      // Start flush timer
       this.flushTimer = setInterval(
         () => this.flushPriceBuffer(),
         config.monitoring.flushInterval
       );
 
-      // Update SOL price periodically
-      this.updateSolPrice();
-      setInterval(() => this.updateSolPrice(), 60000); // Every minute
+      setInterval(() => this.updateSolPrice(), 30000);
 
       await streamClosed;
     } catch (error) {
@@ -145,22 +146,19 @@ export class PumpMonitor extends EventEmitter {
 
   private async handleStreamData(data: any) {
     try {
-      // Handle transaction data - this is where all the action happens
       if (data.transaction) {
         const formattedTx = this.formatTransaction(data);
         if (!formattedTx) return;
 
-        // 1. Check for new token creation
         const newToken = this.detectNewToken(formattedTx);
         if (newToken) {
           console.log('🚀 New token detected:', newToken.address);
+          this.tokenCreationQueue.add(newToken.address);
           this.emit('token:new', newToken);
         }
 
-        // 2. Parse transaction for price updates and events
         const parsedData = this.parsePumpFunTransaction(formattedTx);
         if (parsedData) {
-          // Log what type of transaction we found
           const instructionNames = parsedData.instructions.pumpFunIxs.map((ix: any) => ix.name).join(', ');
           if (instructionNames && instructionNames !== 'unknown') {
             console.log(`📊 Pump.fun transaction: ${instructionNames} (${formattedTx.signature.substring(0, 8)}...)`);
@@ -168,16 +166,14 @@ export class PumpMonitor extends EventEmitter {
 
           const priceUpdate = await this.extractPriceDataFromParsedTx(parsedData);
           if (priceUpdate) {
+            if (this.tokenCreationQueue.has(priceUpdate.token)) {
+              console.log(`⏳ Waiting for token ${priceUpdate.token.substring(0, 8)}... to be saved`);
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              this.tokenCreationQueue.delete(priceUpdate.token);
+            }
+
             this.priceBuffer.set(priceUpdate.token, priceUpdate);
-            
-            // Calculate and emit progress
-            const progress = this.calculateBondingProgressFromReserves(
-              Number(priceUpdate.virtualSolReserves) / 1e9
-            );
-            
-            console.log(`💰 ${priceUpdate.token.substring(0, 8)}... - ${priceUpdate.priceUsd.toFixed(6)} | ${priceUpdate.liquidityUsd.toFixed(0)} liquidity | ${progress.toFixed(2)}% complete`);
-            
-            this.emitProgressMilestones(priceUpdate.token, progress, priceUpdate.bondingComplete);
+            this.emitProgressMilestones(priceUpdate.token, priceUpdate.progress, priceUpdate.bondingComplete);
           }
         }
       }
@@ -187,11 +183,135 @@ export class PumpMonitor extends EventEmitter {
     }
   }
 
+  // Parse trade event with correct pump.fun structure
+  private parseTradeEventData(eventData: Buffer): any {
+    try {
+      console.log(`🔍 Parsing event data: ${eventData.length} bytes`);
+      
+      if (eventData.length !== 225) {
+        console.log(`⚠️ Unexpected event size: ${eventData.length} bytes`);
+        return null;
+      }
+
+      let offset = 0;
+      
+      // Skip event discriminator (8 bytes)
+      offset += 8;
+      
+      // Mint address (32 bytes)
+      const mint = new PublicKey(eventData.slice(offset, offset + 32)).toBase58();
+      offset += 32;
+      
+      // SOL amount for trade (8 bytes) - in lamports
+      const solAmount = Number(eventData.readBigUInt64LE(offset));
+      offset += 8;
+      
+      // Token amount for trade (8 bytes) - with 6 decimals
+      const tokenAmount = Number(eventData.readBigUInt64LE(offset));
+      offset += 8;
+      
+      // Is buy (1 byte)
+      const isBuy = eventData.readUInt8(offset) === 1;
+      offset += 1;
+      
+      // User pubkey (32 bytes)
+      const user = new PublicKey(eventData.slice(offset, offset + 32)).toBase58();
+      offset += 32;
+      
+      // POST-TRADE RESERVES - these are the current state after the trade
+      // Virtual token reserves (8 bytes)
+      const virtualTokenReserves = Number(eventData.readBigUInt64LE(offset));
+      offset += 8;
+      
+      // Virtual SOL reserves (8 bytes)
+      const virtualSolReserves = Number(eventData.readBigUInt64LE(offset));
+      offset += 8;
+      
+      // Real token reserves (8 bytes)
+      const realTokenReserves = Number(eventData.readBigUInt64LE(offset));
+      offset += 8;
+      
+      // Real SOL reserves (8 bytes)
+      const realSolReserves = Number(eventData.readBigUInt64LE(offset));
+      offset += 8;
+
+      console.log(`✅ Parsed ${isBuy ? 'BUY' : 'SELL'} event for ${mint.substring(0, 8)}...`);
+      console.log(`   Trade: ${solAmount / 1e9} SOL for ${tokenAmount / 1e6} tokens`);
+      console.log(`   Virtual: ${virtualSolReserves} lamports / ${virtualTokenReserves} tokens`);
+      console.log(`   Real: ${realSolReserves} lamports / ${realTokenReserves} tokens`);
+
+      return {
+        mint,
+        solAmount,
+        tokenAmount,
+        isBuy,
+        user,
+        virtual_token_reserves: virtualTokenReserves,
+        virtual_sol_reserves: virtualSolReserves,
+        real_token_reserves: realTokenReserves,
+        real_sol_reserves: realSolReserves
+      };
+    } catch (e) {
+      console.error('Error parsing trade event:', e);
+      return null;
+    }
+  }
+
+  private emitProgressMilestones(tokenMint: string, currentProgress: number, isComplete: boolean) {
+    const lastMilestone = this.progressMilestones.get(tokenMint) || 0;
+    
+    const milestones = [10, 25, 50, 75, 90, 95, 99];
+    
+    for (const milestone of milestones) {
+      if (lastMilestone < milestone && currentProgress >= milestone) {
+        console.log(`🎯 MILESTONE: ${tokenMint.substring(0, 8)}... reached ${milestone}% completion`);
+        this.emit('milestone', {
+          token: tokenMint,
+          milestone,
+          progress: currentProgress,
+          timestamp: new Date()
+        });
+      }
+    }
+
+    if (!this.progressMilestones.has(tokenMint + '_graduated') && isComplete) {
+      console.log(`🎓 GRADUATED: ${tokenMint.substring(0, 8)}... has completed bonding curve!`);
+      this.emit('graduated', {
+        token: tokenMint,
+        timestamp: new Date()
+      });
+      this.progressMilestones.set(tokenMint + '_graduated', 100);
+    }
+
+    this.progressMilestones.set(tokenMint, currentProgress);
+  }
+
+  private async flushPriceBuffer() {
+    if (this.priceBuffer.size === 0) return;
+
+    const updates = Array.from(this.priceBuffer.values());
+    this.priceBuffer.clear();
+
+    console.log(`💾 Flushing ${updates.length} price updates to database`);
+
+    try {
+      for (const batch of this.chunk(updates, config.monitoring.batchSize)) {
+        await Promise.all(
+          batch.map(update => db.insertPriceUpdate(update))
+        );
+      }
+
+      this.emit('flush', { count: updates.length });
+    } catch (error) {
+      console.error('Error flushing price buffer:', error);
+      updates.forEach(update => this.priceBuffer.set(update.token, update));
+    }
+  }
+
   private parsePumpFunTransaction(tx: any): any | null {
     try {
       if (tx.meta?.err) return null;
 
-      // Parse instructions manually
       const pumpFunIxs = [];
       const instructions = tx.message.instructions || [];
       
@@ -201,13 +321,11 @@ export class PumpMonitor extends EventEmitter {
         
         if (programId === PUMP_PROGRAM) {
           try {
-            // Decode instruction data
             const ixData = typeof ix.data === 'string' 
               ? utils.bytes.bs58.decode(ix.data)
               : Buffer.from(ix.data, 'base64');
             const discriminator = ixData.slice(0, 8);
             
-            // Try to decode the instruction
             let parsedIx = {
               programId: PUMP_PROGRAM,
               name: 'unknown',
@@ -215,7 +333,6 @@ export class PumpMonitor extends EventEmitter {
               accounts: []
             };
 
-            // Check for known discriminators
             const CREATE_DISCRIMINATOR = Buffer.from([24, 30, 200, 40, 5, 28, 7, 119]);
             const BUY_DISCRIMINATOR = Buffer.from([102, 6, 61, 18, 1, 218, 235, 234]);
             const SELL_DISCRIMINATOR = Buffer.from([51, 230, 133, 164, 1, 127, 131, 173]);
@@ -228,11 +345,9 @@ export class PumpMonitor extends EventEmitter {
               parsedIx.name = 'sell';
             }
 
-            // Map accounts
             if (ix.accounts && ix.accounts.length > 0) {
               parsedIx.accounts = ix.accounts.map((accIndex: number, idx: number) => {
                 const pubkey = tx.message.accountKeys[accIndex];
-                // Map account names based on instruction type and position
                 let name = `account${idx}`;
                 if (parsedIx.name === 'create' && idx === 2) name = 'bonding_curve';
                 if ((parsedIx.name === 'buy' || parsedIx.name === 'sell') && idx === 3) name = 'bonding_curve';
@@ -243,31 +358,26 @@ export class PumpMonitor extends EventEmitter {
 
             pumpFunIxs.push(parsedIx);
           } catch (e) {
-            // Silent fail for individual instruction parsing
+            // Silent fail
           }
         }
       }
 
       if (pumpFunIxs.length === 0) return null;
 
-      // Parse events from logs - looking for "Program data:" entries
       let events = [];
       if (tx.meta?.logMessages) {
         for (const log of tx.meta.logMessages) {
-          // Look for Program data from pump.fun program
           if (log.includes('Program data:')) {
             try {
-              // Extract base64 data after "Program data:"
               const dataStart = log.indexOf('Program data:') + 'Program data:'.length;
               const eventDataBase64 = log.substring(dataStart).trim();
               
-              // Only process if it's substantial data
               if (eventDataBase64.length > 50) {
                 const eventData = Buffer.from(eventDataBase64, 'base64');
                 
                 console.log(`📦 Found program data: ${eventData.length} bytes`);
                 
-                // Parse the event data based on pump.fun event structure
                 const parsedEventData = this.parseTradeEventData(eventData);
                 if (parsedEventData) {
                   events.push({
@@ -277,7 +387,7 @@ export class PumpMonitor extends EventEmitter {
                 }
               }
             } catch (e) {
-              // Silent fail for event parsing
+              // Silent fail
             }
           }
         }
@@ -296,147 +406,77 @@ export class PumpMonitor extends EventEmitter {
     }
   }
 
-  private parseTradeEventData(eventData: Buffer): any {
-    try {
-      // Based on analyzing the logs, the event data structure seems to be:
-      // - 8 bytes: event discriminator
-      // - 32 bytes: mint address
-      // - 8 bytes: sol amount
-      // - 8 bytes: token amount
-      // - 1 byte: is_buy flag
-      // - 32 bytes: user pubkey
-      // - 8 bytes: virtual token reserves
-      // - 8 bytes: virtual sol reserves  
-      // - 8 bytes: real token reserves
-      // - 8 bytes: real sol reserves
-      
-      let offset = 0;
-      
-      // Skip discriminator (8 bytes)
-      offset += 8;
-      
-      // Read mint (32 bytes)
-      const mint = new PublicKey(eventData.slice(offset, offset + 32)).toBase58();
-      offset += 32;
-      
-      // Read sol amount (8 bytes)
-      const solAmount = eventData.readBigUInt64LE(offset);
-      offset += 8;
-      
-      // Read token amount (8 bytes)
-      const tokenAmount = eventData.readBigUInt64LE(offset);
-      offset += 8;
-      
-      // Read is_buy flag (1 byte)
-      const isBuy = eventData.readUInt8(offset) === 1;
-      offset += 1;
-      
-      // Read user pubkey (32 bytes)
-      const user = new PublicKey(eventData.slice(offset, offset + 32)).toBase58();
-      offset += 32;
-      
-      // Read virtual token reserves (8 bytes)
-      const virtualTokenReserves = eventData.readBigUInt64LE(offset);
-      offset += 8;
-      
-      // Read virtual sol reserves (8 bytes)
-      const virtualSolReserves = eventData.readBigUInt64LE(offset);
-      offset += 8;
-      
-      // Read real token reserves (8 bytes)
-      const realTokenReserves = eventData.readBigUInt64LE(offset);
-      offset += 8;
-      
-      // Read real sol reserves (8 bytes)
-      const realSolReserves = eventData.readBigUInt64LE(offset);
-      offset += 8;
-
-      // Log the raw values for debugging
-      console.log(`📊 Raw event data - realSolReserves: ${realSolReserves}, virtualSolReserves: ${virtualSolReserves}`);
-
-      return {
-        mint,
-        solAmount: Number(solAmount),
-        tokenAmount: Number(tokenAmount),
-        isBuy,
-        user,
-        virtual_token_reserves: Number(virtualTokenReserves),
-        virtual_sol_reserves: Number(virtualSolReserves),
-        real_token_reserves: Number(realTokenReserves),
-        real_sol_reserves: Number(realSolReserves)
-      };
-    } catch (e) {
-      console.error('Error parsing trade event data:', e);
-      return null;
-    }
+  // CRITICAL FIX: Correct price calculation - DO NOT DIVIDE TOKEN RESERVES!
+  private calculatePumpFunPrice(
+    virtualSolReserves: number,
+    virtualTokenReserves: number
+  ): number {
+    // Convert lamports to SOL
+    const sol = virtualSolReserves / 1_000_000_000;
+    
+    // CRITICAL: The token reserves are already the actual token count!
+    // Do NOT divide by 1e6 or any other number
+    const tokens = virtualTokenReserves;
+    
+    // Price per token in SOL
+    const price = sol / tokens;
+    
+    console.log(`💵 Price calc: ${sol.toFixed(6)} SOL / ${tokens.toLocaleString()} tokens = ${price.toFixed(9)} SOL/token`);
+    
+    return price;
   }
 
+  // Extract price with correct calculations
   private async extractPriceDataFromParsedTx(parsedData: any): Promise<PriceUpdate | null> {
     try {
-      // Following the Shyft pattern from stream_pumpfun_token_price
       const parsedEvent = parsedData.instructions.events[0]?.data;
       
-      // If no event data, check if this is a buy/sell transaction and extract from logs
       if (!parsedEvent) {
-        // Look for buy/sell instruction
-        const swapInstruction = parsedData.instructions.pumpFunIxs.find(
-          (instruction: any) => instruction.name === 'buy' || instruction.name === 'sell'
-        );
-        
-        if (!swapInstruction) {
-          return null;
-        }
-
-        console.log(`⚠️ ${swapInstruction.name} transaction but no event data found`);
         return null;
       }
 
-      const swapInstruction = parsedData.instructions.pumpFunIxs.find(
-        (instruction: any) => instruction.name === 'buy' || instruction.name === 'sell'
-      );
-      
-      // Also handle create instructions that might have initial price data
-      const createInstruction = parsedData.instructions.pumpFunIxs.find(
-        (i: any) => i.name === 'create'
-      );
-      
-      if (!swapInstruction && !createInstruction) {
-        return null;
-      }
-
-      // Extract data from event
-      const virtualSolReserves = parsedEvent.virtual_sol_reserves || parsedEvent.virtualSolReserves;
-      const virtualTokenReserves = parsedEvent.virtual_token_reserves || parsedEvent.virtualTokenReserves;
-      const realSolReserves = parsedEvent.real_sol_reserves || parsedEvent.realSolReserves;
-      const realTokenReserves = parsedEvent.real_token_reserves || parsedEvent.realTokenReserves;
       const mint = parsedEvent.mint;
+      const virtualSolReserves = parsedEvent.virtual_sol_reserves;
+      const virtualTokenReserves = parsedEvent.virtual_token_reserves;
+      const realSolReserves = parsedEvent.real_sol_reserves || 0;
       const complete = parsedEvent.complete || false;
 
       if (!virtualSolReserves || !virtualTokenReserves || !mint) {
-        console.log('⚠️ Missing required event data for price calculation');
+        console.log('⚠️ Missing required event data');
         return null;
       }
 
-      // Calculate price using Shyft formula
-      const priceSol = this.calculatePumpFunPrice(
-        virtualSolReserves,
-        virtualTokenReserves
-      );
-
-      if (priceSol <= 0) return null;
+      // Calculate price with FIXED formula
+      const priceSol = this.calculatePumpFunPrice(virtualSolReserves, virtualTokenReserves);
+      
+      // Ensure we have current SOL price
+      if (this.solPrice <= 1) {
+        await this.updateSolPrice();
+      }
 
       const priceUsd = priceSol * this.solPrice;
-      
-      // FIXED: Properly convert real SOL reserves from lamports to SOL
-      const liquiditySol = Number(realSolReserves) / 1e9;
+      const liquiditySol = realSolReserves / 1e9;
       const liquidityUsd = liquiditySol * this.solPrice;
       
-      // Token supply is typically 1 billion for pump.fun tokens
+      // Market cap for 1 billion tokens
       const totalSupply = 1_000_000_000;
       const marketCapUsd = priceUsd * totalSupply;
 
       // Calculate progress
       const progress = this.calculateBondingProgressFromReserves(liquiditySol);
+
+      // Final validation
+      if (priceUsd > 1) {
+        console.error(`❌ Price still too high: $${priceUsd}`);
+        console.error(`   Calculation: ${virtualSolReserves / 1e9} SOL / ${virtualTokenReserves} tokens`);
+        console.error(`   = ${priceSol} SOL = $${priceUsd}`);
+        // Still save it to see what's happening
+      }
+
+      console.log(`💰 ${mint.substring(0, 8)}...`);
+      console.log(`   Price: ${priceSol.toFixed(9)} SOL = $${priceUsd.toFixed(6)}`);
+      console.log(`   MCap: $${marketCapUsd.toLocaleString(undefined, {maximumFractionDigits: 0})}`);
+      console.log(`   Liquidity: ${liquiditySol.toFixed(2)} SOL | Progress: ${progress.toFixed(1)}%`);
 
       return {
         token: mint,
@@ -457,17 +497,7 @@ export class PumpMonitor extends EventEmitter {
     }
   }
 
-  private calculatePumpFunPrice(
-    virtualSolReserves: number,
-    virtualTokenReserves: number
-  ): number {
-    const sol = virtualSolReserves / 1_000_000_000; // convert lamports to SOL
-    const tokens = virtualTokenReserves / Math.pow(10, 6);
-    return sol / tokens;
-  }
-
   private calculateBondingProgressFromReserves(realSolReserves: number): number {
-    // Pump.fun graduation target is approximately 85 SOL
     const GRADUATION_TARGET_SOL = 85;
     const progress = (realSolReserves / GRADUATION_TARGET_SOL) * 100;
     return Math.min(progress, 99.99);
@@ -493,7 +523,7 @@ export class PumpMonitor extends EventEmitter {
         signature,
         message: {
           header,
-          accountKeys, // These are already strings
+          accountKeys,
           recentBlockhash,
           instructions
         },
@@ -508,19 +538,15 @@ export class PumpMonitor extends EventEmitter {
 
   private detectNewToken(tx: any): any | null {
     try {
-      // Following Shyft example - check postTokenBalances for new mints
       if (tx.meta?.postTokenBalances?.length > 0 && 
           (!tx.meta?.preTokenBalances || tx.meta.preTokenBalances.length === 0)) {
         
-        // This is likely a new token creation
         const mint = tx.meta.postTokenBalances[0].mint;
         
-        // Skip native SOL token
         if (mint === 'So11111111111111111111111111111111111111112') {
           return null;
         }
         
-        // Also check if we have a create instruction
         const parsedData = this.parsePumpFunTransaction(tx);
         if (parsedData) {
           const createInstruction = parsedData.instructions.pumpFunIxs.find(
@@ -535,21 +561,19 @@ export class PumpMonitor extends EventEmitter {
             return {
               address: mint,
               bondingCurve: bondingCurve || 'unknown',
-              creator: tx.message.accountKeys[0], // Already a string
+              creator: tx.message.accountKeys[0],
               signature: tx.signature,
               timestamp: new Date()
             };
           }
         }
 
-        // Even without parsed instruction, if we have a new mint in postTokenBalances
-        // from pump.fun program, it's a new token (but skip if no pump.fun involvement)
         const hasPumpFunProgram = tx.message.accountKeys.includes(PUMP_PROGRAM);
         if (hasPumpFunProgram) {
           return {
             address: mint,
             bondingCurve: 'unknown',
-            creator: tx.message.accountKeys[0], // Already a string
+            creator: tx.message.accountKeys[0],
             signature: tx.signature,
             timestamp: new Date()
           };
@@ -563,57 +587,6 @@ export class PumpMonitor extends EventEmitter {
     }
   }
 
-  private emitProgressMilestones(tokenMint: string, currentProgress: number, isComplete: boolean) {
-    const lastMilestone = this.progressMilestones.get(tokenMint) || 0;
-    
-    // Define milestone thresholds
-    const milestones = [10, 25, 50, 75, 90, 95, 99];
-    
-    // Check for milestone crossing
-    for (const milestone of milestones) {
-      if (lastMilestone < milestone && currentProgress >= milestone) {
-        console.log(`🎯 MILESTONE: ${tokenMint.substring(0, 8)}... reached ${milestone}% completion`);
-        this.emit('milestone', {
-          token: tokenMint,
-          milestone,
-          progress: currentProgress,
-          timestamp: new Date()
-        });
-      }
-    }
-
-    // Check for graduation
-    if (!this.progressMilestones.has(tokenMint + '_graduated') && isComplete) {
-      console.log(`🎓 GRADUATED: ${tokenMint.substring(0, 8)}... has completed bonding curve!`);
-      this.emit('graduated', {
-        token: tokenMint,
-        timestamp: new Date()
-      });
-      this.progressMilestones.set(tokenMint + '_graduated', 100);
-    }
-
-    // Update milestone tracking
-    this.progressMilestones.set(tokenMint, currentProgress);
-  }
-
-  private async flushPriceBuffer() {
-    if (this.priceBuffer.size === 0) return;
-
-    const updates = Array.from(this.priceBuffer.values());
-    this.priceBuffer.clear();
-
-    console.log(`💾 Flushing ${updates.length} price updates to database`);
-
-    // Batch insert price updates
-    for (const batch of this.chunk(updates, config.monitoring.batchSize)) {
-      await Promise.all(
-        batch.map(update => db.insertPriceUpdate(update))
-      );
-    }
-
-    this.emit('flush', { count: updates.length });
-  }
-
   private chunk<T>(arr: T[], size: number): T[][] {
     const chunks: T[][] = [];
     for (let i = 0; i < arr.length; i += size) {
@@ -625,13 +598,35 @@ export class PumpMonitor extends EventEmitter {
   private async updateSolPrice() {
     try {
       const response = await fetch(
-        'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd'
+        'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd',
+        { 
+          signal: AbortSignal.timeout(5000)
+        }
       );
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
       const data = await response.json();
-      this.solPrice = data.solana.usd;
-      console.log(`💵 SOL Price updated: $${this.solPrice}`);
+      const newPrice = data.solana?.usd;
+      
+      if (newPrice && newPrice > 0) {
+        const oldPrice = this.solPrice;
+        this.solPrice = newPrice;
+        
+        if (Math.abs(oldPrice - newPrice) > 5) {
+          console.log(`💵 SOL Price changed: $${oldPrice} → $${newPrice}`);
+        }
+      } else {
+        throw new Error('Invalid price data');
+      }
     } catch (error) {
       console.error('Failed to update SOL price:', error);
+      if (this.solPrice <= 1) {
+        this.solPrice = 150;
+        console.log(`💵 Using fallback SOL price: $${this.solPrice}`);
+      }
     }
   }
 

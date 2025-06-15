@@ -1,30 +1,82 @@
+// src/metadata.ts - Token Metadata Fetcher
+import { PublicKey } from '@solana/web3.js';
 import { config } from './config';
 import { db } from './database';
 
-const SHYFT_API_URL = 'https://api.shyft.to/sol/v1';
-const PUMP_FUN_API_URL = 'https://frontend-api.pump.fun';
-
 export class MetadataFetcher {
   private queue: string[] = [];
-  private processing = false;
-  private retryQueue = new Map<string, number>(); // token -> retry count
-  private fetchedTokens = new Set<string>(); // Track already fetched tokens
+  private isProcessing = false;
+  private rateLimitDelay = 100; // 10 requests per second = 100ms between requests
 
-  async fetchTokenMetadata(mint: string) {
-    // Skip if already fetched
-    if (this.fetchedTokens.has(mint)) {
-      console.log(`⏭️ Skipping already fetched token: ${mint}`);
-      return null;
+  constructor() {
+    // Start processing queue
+    setInterval(() => this.processQueue(), 1000);
+  }
+
+  // Add token to metadata fetch queue
+  enqueue(tokenAddress: string) {
+    if (!this.queue.includes(tokenAddress)) {
+      this.queue.push(tokenAddress);
+      console.log(`📋 Queued ${tokenAddress.substring(0, 8)}... for metadata fetch`);
+    }
+  }
+
+  private async processQueue() {
+    if (this.isProcessing || this.queue.length === 0) return;
+
+    this.isProcessing = true;
+    const tokenAddress = this.queue.shift();
+
+    if (tokenAddress) {
+      try {
+        const metadata = await this.fetchTokenMetadata(tokenAddress);
+        if (metadata) {
+          await db.upsertToken(
+            {
+              address: tokenAddress,
+              bondingCurve: metadata.bondingCurve || 'unknown',
+              vanityId: metadata.vanityId,
+              symbol: metadata.symbol,
+              name: metadata.name,
+              imageUri: metadata.imageUri
+            },
+            new Date(), // Use current time as we don't have the original
+            metadata.creator || 'unknown',
+            'metadata-fetch'
+          );
+          console.log(`✅ Metadata fetched for ${metadata.symbol || tokenAddress.substring(0, 8)}`);
+        }
+      } catch (error) {
+        console.error(`Error fetching metadata for ${tokenAddress}:`, error);
+        // Re-queue on error
+        this.queue.push(tokenAddress);
+      }
+
+      // Rate limiting
+      await new Promise(resolve => setTimeout(resolve, this.rateLimitDelay));
     }
 
-    // Skip native SOL
-    if (mint === 'So11111111111111111111111111111111111111112') {
+    this.isProcessing = false;
+  }
+
+  private async fetchTokenMetadata(tokenAddress: string): Promise<any> {
+    try {
+      // First, try to get pump.fun specific metadata
+      const pumpMetadata = await this.fetchPumpFunMetadata(tokenAddress);
+      if (pumpMetadata) return pumpMetadata;
+
+      // Fallback to standard Solana token metadata
+      return await this.fetchSolanaTokenMetadata(tokenAddress);
+    } catch (error) {
+      console.error('Error in fetchTokenMetadata:', error);
       return null;
     }
+  }
 
+  private async fetchPumpFunMetadata(tokenAddress: string): Promise<any> {
     try {
       const response = await fetch(
-        `${SHYFT_API_URL}/token/get_info?network=mainnet-beta&token_address=${mint}`,
+        `https://api.shyft.to/sol/v1/token/get_info?network=mainnet-beta&token_address=${tokenAddress}`,
         {
           headers: {
             'x-api-key': config.shyft.apiKey
@@ -32,120 +84,102 @@ export class MetadataFetcher {
         }
       );
 
-      if (response.status === 429) {
-        throw new Error('Shyft API error: 429');
-      }
-
       if (!response.ok) {
         throw new Error(`Shyft API error: ${response.status}`);
       }
 
       const data = await response.json();
       if (!data.success || !data.result) {
-        throw new Error('Invalid response from Shyft API');
+        return null;
       }
 
-      const token = data.result;
-      
+      const result = data.result;
+
       // Extract pump.fun vanity ID from metadata if available
-      let vanityId = null;
-      if (token.metadata?.uri) {
-        try {
-          const match = token.metadata.uri.match(/\/([^/]+)$/);
-          if (match) vanityId = match[1];
-        } catch (e) {
-          // Ignore
+      let vanityId: string | undefined;
+      if (result.metadata_uri) {
+        // Pump.fun URIs often contain the vanity ID
+        const match = result.metadata_uri.match(/pump\.fun\/([A-Za-z0-9]+)/);
+        if (match) {
+          vanityId = match[1];
         }
       }
-
-      // Mark as fetched
-      this.fetchedTokens.add(mint);
 
       return {
-        symbol: token.symbol || 'UNKNOWN',
-        name: token.name || 'Unknown Token',
-        imageUri: token.image || null,
-        vanityId
+        address: tokenAddress,
+        symbol: result.symbol || 'UNKNOWN',
+        name: result.name || 'Unknown Token',
+        imageUri: result.image_uri || result.image,
+        vanityId,
+        bondingCurve: result.mint_authority || 'unknown',
+        creator: result.owner || result.update_authority
       };
     } catch (error) {
-      throw error;
+      console.error('Error fetching pump.fun metadata:', error);
+      return null;
     }
   }
 
-  enqueue(mint: string) {
-    // Skip if already in queue or already fetched
-    if (this.queue.includes(mint) || this.fetchedTokens.has(mint)) {
-      return;
-    }
-    
-    // Skip native SOL
-    if (mint === 'So11111111111111111111111111111111111111112') {
-      return;
-    }
-
-    this.queue.push(mint);
-    this.processQueue();
-  }
-
-  private async processQueue() {
-    if (this.processing || this.queue.length === 0) return;
-    
-    this.processing = true;
-    
-    while (this.queue.length > 0) {
-      const mint = this.queue.shift()!;
-      const retryCount = this.retryQueue.get(mint) || 0;
-      
-      try {
-        const metadata = await this.fetchTokenMetadata(mint);
-        if (metadata) {
-          await db.upsertToken(
-            {
-              address: mint,
-              bondingCurve: '', // Will be updated by main process
-              ...metadata
-            },
-            new Date(),
-            '',
-            ''
-          );
-          console.log(`✅ Metadata fetched for ${metadata.symbol} (${mint})`);
+  private async fetchSolanaTokenMetadata(tokenAddress: string): Promise<any> {
+    try {
+      // Alternative: Use Solana's Metaplex metadata
+      const response = await fetch(
+        `https://api.shyft.to/sol/v1/nft/read?network=mainnet-beta&token_address=${tokenAddress}`,
+        {
+          headers: {
+            'x-api-key': config.shyft.apiKey
+          }
         }
-        
-        // Remove from retry queue on success
-        this.retryQueue.delete(mint);
-        
-        // Rate limiting: wait 100ms between requests
-        await new Promise(resolve => setTimeout(resolve, 100));
-      } catch (error: any) {
-        console.error(`Error fetching metadata for ${mint}:`, error);
-        
-        // Handle rate limiting
-        if (error.message.includes('429')) {
-          // Exponential backoff
-          const backoffTime = Math.min(1000 * Math.pow(2, retryCount), 30000);
-          console.log(`⏳ Rate limited. Retrying ${mint} in ${backoffTime}ms (attempt ${retryCount + 1})`);
-          
-          this.retryQueue.set(mint, retryCount + 1);
-          
-          // Re-add to queue after delay
-          setTimeout(() => {
-            if (retryCount < 3) { // Max 3 retries
-              this.enqueue(mint);
-            } else {
-              console.error(`❌ Max retries reached for ${mint}`);
-              this.retryQueue.delete(mint);
-            }
-          }, backoffTime);
-          
-          // Longer pause after rate limit
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        } else {
-          console.error(`Failed to process token ${mint}:`, error);
-        }
+      );
+
+      if (!response.ok) {
+        return null;
       }
+
+      const data = await response.json();
+      if (!data.success || !data.result) {
+        return null;
+      }
+
+      const result = data.result;
+      return {
+        address: tokenAddress,
+        symbol: result.symbol || 'UNKNOWN',
+        name: result.name || 'Unknown Token',
+        imageUri: result.image || result.cached_image_uri,
+        bondingCurve: 'unknown',
+        creator: result.creator_address || result.owner
+      };
+    } catch (error) {
+      console.error('Error fetching Solana metadata:', error);
+      return null;
     }
-    
-    this.processing = false;
   }
 }
+
+// src/config.ts - Configuration file
+import * as dotenv from 'dotenv';
+dotenv.config();
+
+export const config = {
+  database: {
+    url: process.env.DATABASE_URL || 'postgresql://localhost:5432/pump_monitor',
+    poolSize: 20
+  },
+  
+  shyft: {
+    apiKey: process.env.SHYFT_API_KEY || '',
+    grpcEndpoint: process.env.SHYFT_GRPC_ENDPOINT || 'grpc.shyft.to',
+    grpcToken: process.env.SHYFT_GRPC_TOKEN || ''
+  },
+  
+  websocket: {
+    port: parseInt(process.env.WS_PORT || '8080')
+  },
+  
+  monitoring: {
+    flushInterval: 5000, // 5 seconds
+    batchSize: parseInt(process.env.BATCH_SIZE || '100'),
+    archiveThreshold: parseInt(process.env.ARCHIVE_THRESHOLD || '15000')
+  }
+};
