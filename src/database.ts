@@ -22,9 +22,10 @@ export interface PriceUpdate {
   liquiditySol: number;
   liquidityUsd: number;
   marketCapUsd: number;
-  virtualSolReserves: bigint;
-  virtualTokenReserves: bigint;
+  virtualSolReserves: number;
+  virtualTokenReserves: number;
   bondingComplete: boolean;
+  progress?: number;
 }
 
 export const db = {
@@ -50,20 +51,29 @@ export const db = {
     ]);
   },
 
-  async insertPriceUpdate(update: PriceUpdate) {
-    await pool.query(`
+  async insertPriceUpdate(update: PriceUpdate): Promise<void> {
+    const query = `
       INSERT INTO price_updates (
-        token, price_sol, price_usd, liquidity_sol, liquidity_usd,
-        market_cap_usd, virtual_sol_reserves, virtual_token_reserves,
-        bonding_complete
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `, [
-      update.token, update.priceSol, update.priceUsd,
-      update.liquiditySol, update.liquidityUsd, update.marketCapUsd,
-      update.virtualSolReserves.toString(), 
-      update.virtualTokenReserves.toString(),
-      update.bondingComplete
-    ]);
+        time, token, price_sol, price_usd, 
+        liquidity_sol, liquidity_usd, market_cap_usd,
+        bonding_complete, progress
+      ) VALUES (
+        NOW(), $1, $2, $3, $4, $5, $6, $7, $8
+      )
+    `;
+    
+    const values = [
+      update.token,
+      update.priceSol,
+      update.priceUsd,
+      update.liquiditySol,
+      update.liquidityUsd,
+      update.marketCapUsd,
+      update.bondingComplete,
+      update.progress ?? null // Use null if progress is undefined
+    ];
+    
+    await pool.query(query, values);
 
     // Update last active timestamp
     await pool.query(

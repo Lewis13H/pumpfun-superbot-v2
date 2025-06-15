@@ -15,7 +15,7 @@ export const config = {
   monitoring: {
     archiveThreshold: parseInt(process.env.ARCHIVE_THRESHOLD || '15000'),
     batchSize: parseInt(process.env.BATCH_SIZE || '100'),
-    flushInterval: parseInt(process.env.FLUSH_INTERVAL || '5000'), // 5 seconds
+    flushInterval: parseInt(process.env.FLUSH_INTERVAL || '30000'), // 5 seconds
     metadataRateLimit: parseInt(process.env.METADATA_RATE_LIMIT || '10') // requests per second
   },
   websocket: {
