@@ -35,7 +35,7 @@ async function upsertToken(
   token: Token,
   createdAt: Date,
   creator: string,
-  signature: string
+  _signature: string
 ): Promise<void> {
   const query = `
     INSERT INTO tokens (
@@ -113,6 +113,35 @@ async function bulkInsertPriceUpdates(updates: PriceUpdate[]): Promise<void> {
   await pool.query(query, values);
 }
 
+async function updateTokenMetadata(
+  address: string,
+  metadata: {
+    symbol?: string;
+    name?: string;
+    imageUri?: string;
+    vanityId?: string;
+  }
+): Promise<void> {
+  const query = `
+    UPDATE tokens 
+    SET 
+      symbol = COALESCE($2, symbol),
+      name = COALESCE($3, name),
+      image_uri = COALESCE($4, image_uri),
+      vanity_id = COALESCE($5, vanity_id),
+      last_updated = NOW()
+    WHERE address = $1
+  `;
+
+  await pool.query(query, [
+    address,
+    metadata.symbol,
+    metadata.name,
+    metadata.imageUri,
+    metadata.vanityId
+  ]);
+}
+
 async function getActiveTokens(): Promise<any[]> {
   const query = `
     SELECT * FROM active_tokens 
@@ -128,12 +157,13 @@ async function checkTokenExists(address: string): Promise<boolean> {
     'SELECT 1 FROM tokens WHERE address = $1',
     [address]
   );
-  return result.rowCount > 0;
+  return (result.rowCount ?? 0) > 0;
 }
 
 // Export database interface
 export const db = {
   upsertToken,
+  updateTokenMetadata,
   insertPriceUpdate,
   bulkInsertPriceUpdates,
   getActiveTokens,

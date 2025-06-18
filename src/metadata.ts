@@ -177,23 +177,16 @@ export class MetadataFetcher extends EventEmitter {
 
   private async saveMetadata(address: string, metadata: any) {
     try {
-      await db.upsertToken(
-        {
-          address,
-          bondingCurve: '', // Will be set by monitor
-          symbol: metadata.symbol,
-          name: metadata.name,
-          imageUri: metadata.imageUri,
-          vanityId: metadata.vanityId
-        },
-        new Date(),
-        '',
-        ''
-      );
+      await db.updateTokenMetadata(address, {
+      symbol: metadata.symbol,
+      name: metadata.name,
+      imageUri: metadata.imageUri,
+      vanityId: metadata.vanityId
+    });
       
-      console.log(`✅ Metadata saved for ${metadata.symbol} (${address})`);
+      console.log(`✅ Metadata saved for ${metadata.symbol}`);
     } catch (error) {
-      console.error(`Error saving metadata:`, error);
+      console.error(`Failed to save metadata for ${address}:`, error);
     }
   }
 

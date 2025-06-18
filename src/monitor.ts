@@ -1,4 +1,4 @@
-// src/monitor.ts - FINAL VERSION WITH VALIDATION
+// src/monitor.ts
 import { Buffer } from 'buffer';
 import { PublicKey } from '@solana/web3.js';
 import { utils } from "@coral-xyz/anchor";
