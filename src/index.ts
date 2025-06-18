@@ -5,6 +5,44 @@ import { WebServer } from './webserver';
 import { db, pool } from './database';
 import { config } from './config';
 
+// Force exit on Ctrl+C if graceful shutdown fails
+let shutdownAttempts = 0;
+
+process.on('SIGINT', () => {
+    shutdownAttempts++;
+    
+    if (shutdownAttempts === 1) {
+        console.log('\n⚠️  Shutting down... (Press Ctrl+C again to force quit)');
+        
+        // Try graceful shutdown
+        setTimeout(() => {
+            console.log('👋 Exiting...');
+            process.exit(0);
+        }, 1000);
+        
+    } else if (shutdownAttempts === 2) {
+        console.log('\n❌ Force quitting...');
+        process.exit(1);
+    }
+});
+
+// Prevent the process from being kept alive by timers
+process.on('SIGTERM', () => {
+    process.exit(0);
+});
+
+// For Windows compatibility
+if (process.platform === 'win32') {
+    const rl = require('readline').createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+
+    rl.on('SIGINT', () => {
+        process.emit('SIGINT');
+    });
+}
+
 async function main() {
   // Check database connection
   try {

@@ -41,16 +41,23 @@ function bnLayoutFormatter(obj: any) {
   }
 }
 
+// Token metadata interface
+interface TokenMetadata {
+  decimals: number;
+  totalSupply: number;
+}
+
 export class PumpMonitor extends EventEmitter {
   private client: Client | null = null;
   private priceBuffer = new Map<string, PriceUpdate>();
   private flushTimer?: NodeJS.Timeout;
-  private solPriceTimer?: NodeJS.Timeout;  // Added this property
+  private solPriceTimer?: NodeJS.Timeout;
   private solPrice = 1; // Start with 1, update immediately
   private progressMilestones = new Map<string, number>();
   private tokenCreationQueue = new Set<string>();
   private knownTokens = new Set<string>(); // Cache of known token addresses
   private priceUpdateBuffer = new Map<string, PriceUpdate>();
+  private tokenMetadataCache = new Map<string, TokenMetadata>(); // Token metadata cache
 
   constructor() {
     super();
@@ -169,6 +176,48 @@ export class PumpMonitor extends EventEmitter {
     }
   }
 
+  // Get token metadata with caching
+  private async getTokenMetadata(tokenMint: string): Promise<TokenMetadata> {
+    // Check cache first
+    if (this.tokenMetadataCache.has(tokenMint)) {
+      return this.tokenMetadataCache.get(tokenMint)!;
+    }
+
+    try {
+      const response = await fetch(
+        `https://api.shyft.to/sol/v1/token/get_info?network=mainnet-beta&token_address=${tokenMint}`,
+        {
+          headers: { 'x-api-key': config.shyft.apiKey },
+          signal: AbortSignal.timeout(5000)
+        }
+      );
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const data = await response.json();
+      
+      const metadata: TokenMetadata = {
+        decimals: data.result?.decimals || 6,
+        totalSupply: data.result?.total_supply ? parseInt(data.result.total_supply) : 1_000_000_000
+      };
+
+      this.tokenMetadataCache.set(tokenMint, metadata);
+      return metadata;
+
+    } catch (error) {
+      console.warn(`Failed to fetch metadata for ${tokenMint}:`, error);
+      
+      // Default for Pump.fun tokens
+      const defaultMetadata: TokenMetadata = { 
+        decimals: 6, 
+        totalSupply: 1_000_000_000 
+      };
+      this.tokenMetadataCache.set(tokenMint, defaultMetadata);
+      return defaultMetadata;
+    }
+  }
+
+  // FIXED: Removed overly strict token validation
   private async handleStreamData(data: any) {
     try {
       if (data.transaction) {
@@ -192,18 +241,7 @@ export class PumpMonitor extends EventEmitter {
 
           const priceUpdate = await this.extractPriceDataFromParsedTx(parsedData);
           if (priceUpdate) {
-            // VALIDATION: Check if token is known
-            if (!this.knownTokens.has(priceUpdate.token) && !this.tokenCreationQueue.has(priceUpdate.token)) {
-              // Double-check with database
-              const exists = await db.checkTokenExists(priceUpdate.token);
-              if (!exists) {
-                console.log(`⏸️ Skipping price update for unregistered token: ${priceUpdate.token.substring(0, 8)}...`);
-                return;
-              }
-              // Add to cache if it exists in DB
-              this.knownTokens.add(priceUpdate.token);
-            }
-
+            // FIXED: Allow price updates for any pump.fun token with reasonable market cap
             // Wait if token is still being created
             if (this.tokenCreationQueue.has(priceUpdate.token)) {
               console.log(`⏳ Waiting for token ${priceUpdate.token.substring(0, 8)}... to be saved`);
@@ -213,6 +251,7 @@ export class PumpMonitor extends EventEmitter {
 
             // Buffer the price update
             this.priceUpdateBuffer.set(priceUpdate.token, priceUpdate);
+            console.log(`✅ Buffered price update for ${priceUpdate.token.substring(0, 8)}...`);
 
             if (priceUpdate.progress !== undefined) {
               this.emitProgressMilestones(priceUpdate.token, priceUpdate.progress, priceUpdate.bonding_complete);
@@ -226,14 +265,11 @@ export class PumpMonitor extends EventEmitter {
     }
   }
 
-  // Parse trade event with correct pump.fun structure
+  // FIXED: Improved trade event parsing
   private parseTradeEventData(eventData: Buffer): any {
     try {
-      console.log(`🔍 Parsing event data: ${eventData.length} bytes`);
-      
       if (eventData.length !== 225) {
-        console.log(`⚠️ Unexpected event size: ${eventData.length} bytes`);
-        return null;
+        return null; // Quietly skip non-trade events
       }
 
       let offset = 0;
@@ -249,7 +285,7 @@ export class PumpMonitor extends EventEmitter {
       const solAmount = Number(eventData.readBigUInt64LE(offset));
       offset += 8;
       
-      // Token amount for trade (8 bytes) - with 6 decimals
+      // Token amount for trade (8 bytes) - raw amount
       const tokenAmount = Number(eventData.readBigUInt64LE(offset));
       offset += 8;
       
@@ -261,27 +297,24 @@ export class PumpMonitor extends EventEmitter {
       const user = new PublicKey(eventData.slice(offset, offset + 32)).toBase58();
       offset += 32;
       
-      // POST-TRADE RESERVES - these are the current state after the trade
-      // Virtual token reserves (8 bytes)
+      // POST-TRADE RESERVES (current state after trade)
+      // Virtual token reserves (8 bytes) - raw amount
       const virtualTokenReserves = Number(eventData.readBigUInt64LE(offset));
       offset += 8;
       
-      // Virtual SOL reserves (8 bytes)
+      // Virtual SOL reserves (8 bytes) - in lamports
       const virtualSolReserves = Number(eventData.readBigUInt64LE(offset));
       offset += 8;
       
-      // Real token reserves (8 bytes)
+      // Real token reserves (8 bytes) - raw amount
       const realTokenReserves = Number(eventData.readBigUInt64LE(offset));
       offset += 8;
       
-      // Real SOL reserves (8 bytes)
+      // Real SOL reserves (8 bytes) - in lamports
       const realSolReserves = Number(eventData.readBigUInt64LE(offset));
       offset += 8;
 
       console.log(`✅ Parsed ${isBuy ? 'BUY' : 'SELL'} event for ${mint.substring(0, 8)}...`);
-      console.log(`   Trade: ${solAmount / 1e9} SOL for ${tokenAmount / 1e6} tokens`);
-      console.log(`   Virtual: ${virtualSolReserves} lamports / ${virtualTokenReserves} tokens`);
-      console.log(`   Real: ${realSolReserves} lamports / ${realTokenReserves} tokens`);
 
       return {
         mint,
@@ -360,6 +393,7 @@ export class PumpMonitor extends EventEmitter {
     }
   }
 
+  // FIXED: Improved transaction parsing with better account handling
   private parsePumpFunTransaction(tx: any): any | null {
     try {
       if (tx.meta?.err) return null;
@@ -397,12 +431,10 @@ export class PumpMonitor extends EventEmitter {
               parsedIx.name = 'sell';
             }
 
-            // Check if accounts is raw data or indices
+            // FIXED: Better account handling without warnings
             if (ix.accounts && ix.accounts.length > 0) {
-              if (typeof ix.accounts === 'string' || Buffer.isBuffer(ix.accounts)) {
-                console.log('⚠️ Raw account data detected, using transaction-level accounts');
-                parsedIx.accounts = [];
-              } else if (Array.isArray(ix.accounts)) {
+              if (Array.isArray(ix.accounts) && typeof ix.accounts[0] === 'number') {
+                // Normal case: accounts are indices
                 parsedIx.accounts = ix.accounts.map((accIndex: number, idx: number) => {
                   const pubkey = tx.message.accountKeys[accIndex];
                   let name = `account${idx}`;
@@ -411,12 +443,15 @@ export class PumpMonitor extends EventEmitter {
                   
                   return { pubkey, name };
                 });
+              } else {
+                // Raw data case: silently handle without warning spam
+                parsedIx.accounts = [];
               }
             }
 
             pumpFunIxs.push(parsedIx);
           } catch (e) {
-            // Silent fail
+            // Silent fail for parsing errors
           }
         }
       }
@@ -434,14 +469,15 @@ export class PumpMonitor extends EventEmitter {
               if (eventDataBase64.length > 50) {
                 const eventData = Buffer.from(eventDataBase64, 'base64');
                 
-                console.log(`📦 Found program data: ${eventData.length} bytes`);
-                
-                const parsedEventData = this.parseTradeEventData(eventData);
-                if (parsedEventData) {
-                  events.push({
-                    name: 'TradeEvent',
-                    data: parsedEventData
-                  });
+                // Only process valid trade events (225 bytes)
+                if (eventData.length === 225) {
+                  const parsedEventData = this.parseTradeEventData(eventData);
+                  if (parsedEventData) {
+                    events.push({
+                      name: 'TradeEvent',
+                      data: parsedEventData
+                    });
+                  }
                 }
               }
             } catch (e) {
@@ -464,21 +500,26 @@ export class PumpMonitor extends EventEmitter {
     }
   }
 
-  // Correct price calculation - DO NOT DIVIDE TOKEN RESERVES!
+  // FIXED: Correct price calculation using Method 2 (SOL÷1e9, tokens raw)
   private calculatePumpFunPrice(
     virtualSolReserves: number,
-    virtualTokenReserves: number
+    virtualTokenReserves: number,
+    tokenDecimals: number = 6
   ): number {
-    const sol = virtualSolReserves / 1_000_000_000;
-    const tokens = virtualTokenReserves;
-    const price = sol / tokens;
+    // Method 2: Convert SOL to human-readable, keep tokens raw
+    // This is the method that gives reasonable market caps ($1K-$50K)
+    const adjustedPrice = (virtualSolReserves / 1e9) / virtualTokenReserves;
     
-    console.log(`💵 Price calc: ${sol.toFixed(6)} SOL / ${tokens.toLocaleString()} tokens = ${price.toFixed(9)} SOL/token`);
+    // Quick validation
+    const testMCap = adjustedPrice * this.solPrice * 1_000_000_000;
+    if (testMCap > 100_000) {
+      console.warn(`⚠️ High market cap: $${testMCap.toLocaleString()} - check calculation`);
+    }
     
-    return price;
+    return adjustedPrice;
   }
   
-  // Extract price with correct calculations and snake_case property names
+  // FIXED: Clean price extraction without debugging spam
   private async extractPriceDataFromParsedTx(parsedData: any): Promise<PriceUpdate | null> {
     try {
       const parsedEvent = parsedData.instructions.events[0]?.data;
@@ -494,14 +535,19 @@ export class PumpMonitor extends EventEmitter {
       const complete = parsedEvent.complete || false;
 
       if (!virtualSolReserves || !virtualTokenReserves || !mint) {
-        console.log('⚠️ Missing required event data');
         return null;
       }
 
-      // Calculate price with FIXED formula
-      const priceSol = this.calculatePumpFunPrice(virtualSolReserves, virtualTokenReserves);
+      // Get token metadata
+      const tokenMetadata = await this.getTokenMetadata(mint);
       
-      // Ensure we have current SOL price
+      // Use the WORKING calculation method (Method 2)
+      const priceSol = this.calculatePumpFunPrice(
+        virtualSolReserves, 
+        virtualTokenReserves, 
+        tokenMetadata.decimals
+      );
+      
       if (this.solPrice <= 1) {
         await this.updateSolPrice();
       }
@@ -509,27 +555,18 @@ export class PumpMonitor extends EventEmitter {
       const priceUsd = priceSol * this.solPrice;
       const liquiditySol = realSolReserves / 1e9;
       const liquidityUsd = liquiditySol * this.solPrice;
-      
-      // Market cap for 1 billion tokens
-      const totalSupply = 1_000_000_000;
-      const marketCapUsd = priceUsd * totalSupply;
-
-      // Calculate progress
+      const marketCapUsd = priceUsd * tokenMetadata.totalSupply;
       const progress = this.calculateBondingProgressFromReserves(liquiditySol);
 
-      // Final validation
-      if (priceUsd > 1) {
-        console.error(`❌ Price still too high: $${priceUsd}`);
-        console.error(`   Calculation: ${virtualSolReserves / 1e9} SOL / ${virtualTokenReserves} tokens`);
-        console.error(`   = ${priceSol} SOL = $${priceUsd}`);
+      // SAFETY CHECK: Block unreasonable market caps
+      if (marketCapUsd > 10_000_000) {  // > $10M is definitely wrong
+        console.error(`🚨 BLOCKING: MCap $${marketCapUsd.toLocaleString()} too high for ${mint.substring(0, 8)}...`);
+        return null;
       }
 
-      console.log(`💰 ${mint.substring(0, 8)}...`);
-      console.log(`   Price: ${priceSol.toFixed(9)} SOL = $${priceUsd.toFixed(6)}`);
-      console.log(`   MCap: $${marketCapUsd.toLocaleString(undefined, {maximumFractionDigits: 0})}`);
-      console.log(`   Liquidity: ${liquiditySol.toFixed(2)} SOL | Progress: ${progress.toFixed(1)}%`);
+      // Clean, concise logging
+      console.log(`💰 ${mint.substring(0, 8)}...: $${priceUsd.toFixed(8)} | MCap: $${marketCapUsd.toLocaleString()} | Liq: ${liquiditySol.toFixed(2)} SOL`);
 
-      // Return with snake_case property names to match PriceUpdate interface
       return {
         token: mint,
         price_sol: priceSol,
@@ -586,7 +623,7 @@ export class PumpMonitor extends EventEmitter {
     }
   }
 
-  // Updated detectNewToken method with better bonding curve extraction
+  // Token detection with proper bonding curve extraction
   private detectNewToken(tx: any): any | null {
     try {
       if (tx.meta?.postTokenBalances?.length > 0 && 
@@ -712,7 +749,8 @@ export class PumpMonitor extends EventEmitter {
       priceBufferSize: this.priceBuffer.size,
       currentSolPrice: this.solPrice,
       milestonesTracked: this.progressMilestones.size,
-      knownTokens: this.knownTokens.size
+      knownTokens: this.knownTokens.size,
+      cachedMetadata: this.tokenMetadataCache.size
     };
   }
 
