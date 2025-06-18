@@ -1,4 +1,4 @@
-// src/monitor.ts - FINAL COMPLETE VERSION WITH CORRECT CALCULATIONS
+// src/monitor.ts - FINAL VERSION WITH VALIDATION
 import { Buffer } from 'buffer';
 import { PublicKey } from '@solana/web3.js';
 import { utils } from "@coral-xyz/anchor";
@@ -47,6 +47,7 @@ export class PumpMonitor extends EventEmitter {
   private solPrice = 1; // Start with 1, update immediately
   private progressMilestones = new Map<string, number>();
   private tokenCreationQueue = new Set<string>();
+  private knownTokens = new Set<string>(); // Cache of known token addresses
 
   constructor() {
     super();
@@ -61,6 +62,9 @@ export class PumpMonitor extends EventEmitter {
     console.log('🔄 Starting Pump.fun monitor...');
     console.log(`Endpoint: ${config.shyft.grpcEndpoint}`);
     console.log(`Program: ${PUMP_PROGRAM}`);
+
+    // Load existing tokens into cache
+    await this.loadKnownTokens();
 
     // Update SOL price before processing
     await this.updateSolPrice();
@@ -137,10 +141,27 @@ export class PumpMonitor extends EventEmitter {
 
       setInterval(() => this.updateSolPrice(), 30000);
 
+      // Refresh known tokens cache every 5 minutes
+      setInterval(() => this.loadKnownTokens(), 300000);
+
       await streamClosed;
     } catch (error) {
       console.error('Failed to start monitor:', error);
       throw error;
+    }
+  }
+
+  private async loadKnownTokens() {
+    try {
+      const result = await db.query(
+        'SELECT address FROM tokens WHERE NOT archived AND bonding_curve != $1',
+        ['unknown']
+      );
+      this.knownTokens.clear();
+      result.rows.forEach(row => this.knownTokens.add(row.address));
+      console.log(`📊 Loaded ${this.knownTokens.size} known tokens`);
+    } catch (error) {
+      console.error('Error loading known tokens:', error);
     }
   }
 
@@ -154,6 +175,7 @@ export class PumpMonitor extends EventEmitter {
         if (newToken) {
           console.log('🚀 New token detected:', newToken.address);
           this.tokenCreationQueue.add(newToken.address);
+          this.knownTokens.add(newToken.address); // Add to cache immediately
           this.emit('token:new', newToken);
         }
 
@@ -166,6 +188,19 @@ export class PumpMonitor extends EventEmitter {
 
           const priceUpdate = await this.extractPriceDataFromParsedTx(parsedData);
           if (priceUpdate) {
+            // VALIDATION: Check if token is known
+            if (!this.knownTokens.has(priceUpdate.token) && !this.tokenCreationQueue.has(priceUpdate.token)) {
+              // Double-check with database
+              const exists = await db.checkTokenExists(priceUpdate.token);
+              if (!exists) {
+                console.log(`⏸️ Skipping price update for unregistered token: ${priceUpdate.token.substring(0, 8)}...`);
+                return;
+              }
+              // Add to cache if it exists in DB
+              this.knownTokens.add(priceUpdate.token);
+            }
+
+            // Wait if token is still being created
             if (this.tokenCreationQueue.has(priceUpdate.token)) {
               console.log(`⏳ Waiting for token ${priceUpdate.token.substring(0, 8)}... to be saved`);
               await new Promise(resolve => setTimeout(resolve, 1000));
@@ -295,13 +330,26 @@ export class PumpMonitor extends EventEmitter {
     console.log(`💾 Flushing ${updates.length} price updates to database`);
 
     try {
-      for (const batch of this.chunk(updates, config.monitoring.batchSize)) {
-        await Promise.all(
-          batch.map(update => db.insertPriceUpdate(update))
-        );
+      // Filter out updates for unknown tokens
+      const validUpdates = [];
+      for (const update of updates) {
+        if (this.knownTokens.has(update.token) || await db.checkTokenExists(update.token)) {
+          validUpdates.push(update);
+          this.knownTokens.add(update.token); // Add to cache
+        } else {
+          console.log(`⏸️ Skipping price update for non-existent token: ${update.token.substring(0, 8)}...`);
+        }
       }
 
-      this.emit('flush', { count: updates.length });
+      if (validUpdates.length > 0) {
+        for (const batch of this.chunk(validUpdates, config.monitoring.batchSize)) {
+          await Promise.all(
+            batch.map(update => db.insertPriceUpdate(update))
+          );
+        }
+      }
+
+      this.emit('flush', { count: validUpdates.length });
     } catch (error) {
       console.error('Error flushing price buffer:', error);
       updates.forEach(update => this.priceBuffer.set(update.token, update));
@@ -345,15 +393,21 @@ export class PumpMonitor extends EventEmitter {
               parsedIx.name = 'sell';
             }
 
+            // Check if accounts is raw data or indices
             if (ix.accounts && ix.accounts.length > 0) {
-              parsedIx.accounts = ix.accounts.map((accIndex: number, idx: number) => {
-                const pubkey = tx.message.accountKeys[accIndex];
-                let name = `account${idx}`;
-                if (parsedIx.name === 'create' && idx === 2) name = 'bonding_curve';
-                if ((parsedIx.name === 'buy' || parsedIx.name === 'sell') && idx === 3) name = 'bonding_curve';
-                
-                return { pubkey, name };
-              });
+              if (typeof ix.accounts === 'string' || Buffer.isBuffer(ix.accounts)) {
+                console.log('⚠️ Raw account data detected, using transaction-level accounts');
+                parsedIx.accounts = [];
+              } else if (Array.isArray(ix.accounts)) {
+                parsedIx.accounts = ix.accounts.map((accIndex: number, idx: number) => {
+                  const pubkey = tx.message.accountKeys[accIndex];
+                  let name = `account${idx}`;
+                  if (parsedIx.name === 'create' && idx === 2) name = 'bonding_curve';
+                  if ((parsedIx.name === 'buy' || parsedIx.name === 'sell') && idx === 3) name = 'bonding_curve';
+                  
+                  return { pubkey, name };
+                });
+              }
             }
 
             pumpFunIxs.push(parsedIx);
@@ -406,19 +460,13 @@ export class PumpMonitor extends EventEmitter {
     }
   }
 
-  // CRITICAL FIX: Correct price calculation - DO NOT DIVIDE TOKEN RESERVES!
+  // Correct price calculation - DO NOT DIVIDE TOKEN RESERVES!
   private calculatePumpFunPrice(
     virtualSolReserves: number,
     virtualTokenReserves: number
   ): number {
-    // Convert lamports to SOL
     const sol = virtualSolReserves / 1_000_000_000;
-    
-    // CRITICAL: The token reserves are already the actual token count!
-    // Do NOT divide by 1e6 or any other number
     const tokens = virtualTokenReserves;
-    
-    // Price per token in SOL
     const price = sol / tokens;
     
     console.log(`💵 Price calc: ${sol.toFixed(6)} SOL / ${tokens.toLocaleString()} tokens = ${price.toFixed(9)} SOL/token`);
@@ -470,7 +518,6 @@ export class PumpMonitor extends EventEmitter {
         console.error(`❌ Price still too high: $${priceUsd}`);
         console.error(`   Calculation: ${virtualSolReserves / 1e9} SOL / ${virtualTokenReserves} tokens`);
         console.error(`   = ${priceSol} SOL = $${priceUsd}`);
-        // Still save it to see what's happening
       }
 
       console.log(`💰 ${mint.substring(0, 8)}...`);
@@ -536,6 +583,7 @@ export class PumpMonitor extends EventEmitter {
     }
   }
 
+  // Updated detectNewToken method with better bonding curve extraction
   private detectNewToken(tx: any): any | null {
     try {
       if (tx.meta?.postTokenBalances?.length > 0 && 
@@ -547,37 +595,63 @@ export class PumpMonitor extends EventEmitter {
           return null;
         }
         
-        const parsedData = this.parsePumpFunTransaction(tx);
-        if (parsedData) {
-          const createInstruction = parsedData.instructions.pumpFunIxs.find(
-            (ix: any) => ix.name === 'create'
-          );
-
-          if (createInstruction && Array.isArray(createInstruction.accounts)) {
-            const bondingCurve = createInstruction.accounts.find(
-              (acc: any) => acc.name === 'bonding_curve'
-            )?.pubkey;
-
-            return {
-              address: mint,
-              bondingCurve: bondingCurve || 'unknown',
-              creator: tx.message.accountKeys[0],
-              signature: tx.signature,
-              timestamp: new Date()
-            };
+        let bondingCurve = null;
+        
+        // For pump.fun token creation, the structure is consistent:
+        // Account 0: Creator/Signer
+        // Account 1: Token mint (new token)
+        // Account 2: Bonding curve PDA
+        // Account 3: Associated bonding curve account
+        // Account 4+: Other pump.fun accounts
+        
+        // Verify this is a pump.fun transaction
+        const hasPumpProgram = tx.message.accountKeys.includes(PUMP_PROGRAM);
+        if (hasPumpProgram && tx.message.accountKeys.length >= 3) {
+          // The bonding curve is always at index 2 for pump.fun create transactions
+          bondingCurve = tx.message.accountKeys[2];
+          
+          // Validate it's not a system program or token program
+          if (bondingCurve && 
+              !bondingCurve.startsWith('11111') && 
+              !bondingCurve.startsWith('So111') &&
+              !bondingCurve.startsWith('TokenkegQ') &&
+              bondingCurve.length >= 32) {
+            console.log(`✅ Found bonding curve: ${bondingCurve} for token ${mint.substring(0, 8)}...`);
+          } else {
+            // If index 2 doesn't look right, try to find it via instruction parsing
+            const instructions = tx.message.instructions || [];
+            for (const ix of instructions) {
+              const programId = tx.message.accountKeys[ix.programIdIndex];
+              if (programId === PUMP_PROGRAM && ix.accounts && ix.accounts.length >= 3) {
+                // Get the account at index 2 of the instruction accounts
+                const bondingCurveIndex = ix.accounts[2];
+                bondingCurve = tx.message.accountKeys[bondingCurveIndex];
+                console.log(`📍 Found bonding curve via instruction: ${bondingCurve}`);
+                break;
+              }
+            }
           }
         }
 
-        const hasPumpFunProgram = tx.message.accountKeys.includes(PUMP_PROGRAM);
-        if (hasPumpFunProgram) {
-          return {
-            address: mint,
-            bondingCurve: 'unknown',
-            creator: tx.message.accountKeys[0],
-            signature: tx.signature,
-            timestamp: new Date()
-          };
+        // Validation - don't save without valid bonding curve
+        if (!bondingCurve || bondingCurve === 'unknown' || bondingCurve === 'undefined' || bondingCurve.length < 32) {
+          console.error(`❌ No valid bonding curve found for token ${mint}`);
+          console.log('Transaction:', tx.signature);
+          console.log('Accounts:', tx.message.accountKeys?.slice(0, 5));
+          
+          // Don't save tokens without proper bonding curves
+          return null;
         }
+
+        console.log(`✅ New token ${mint.substring(0, 8)}... with bonding curve ${bondingCurve.substring(0, 8)}...`);
+
+        return {
+          address: mint,
+          bondingCurve,
+          creator: tx.message.accountKeys[0],
+          signature: tx.signature,
+          timestamp: new Date()
+        };
       }
 
       return null;
@@ -634,7 +708,8 @@ export class PumpMonitor extends EventEmitter {
     return {
       priceBufferSize: this.priceBuffer.size,
       currentSolPrice: this.solPrice,
-      milestonesTracked: this.progressMilestones.size
+      milestonesTracked: this.progressMilestones.size,
+      knownTokens: this.knownTokens.size
     };
   }
 

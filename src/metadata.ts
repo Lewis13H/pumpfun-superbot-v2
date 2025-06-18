@@ -1,10 +1,19 @@
-// src/metadata.ts - Token Metadata Fetcher
+// src/metadata.ts - Token Metadata Fetcher (FIXED)
 import { PublicKey } from '@solana/web3.js';
 import { config } from './config';
 import { db } from './database';
 
+// Define the token type to match what monitor emits
+interface TokenData {
+  address: string;
+  bondingCurve: string;
+  creator: string;
+  signature: string;
+  timestamp: Date;
+}
+
 export class MetadataFetcher {
-  private queue: string[] = [];
+  private queue: TokenData[] = [];
   private isProcessing = false;
   private rateLimitDelay = 100; // 10 requests per second = 100ms between requests
 
@@ -13,11 +22,13 @@ export class MetadataFetcher {
     setInterval(() => this.processQueue(), 1000);
   }
 
-  // Add token to metadata fetch queue
-  enqueue(tokenAddress: string) {
-    if (!this.queue.includes(tokenAddress)) {
-      this.queue.push(tokenAddress);
-      console.log(`📋 Queued ${tokenAddress.substring(0, 8)}... for metadata fetch`);
+  // Add token to metadata fetch queue - FIXED to accept full token object
+  enqueue(token: TokenData) {
+    // Check if already in queue
+    const exists = this.queue.some(t => t.address === token.address);
+    if (!exists) {
+      this.queue.push(token);
+      console.log(`📋 Queued ${token.address.substring(0, 8)}... for metadata fetch`);
     }
   }
 
@@ -25,31 +36,31 @@ export class MetadataFetcher {
     if (this.isProcessing || this.queue.length === 0) return;
 
     this.isProcessing = true;
-    const tokenAddress = this.queue.shift();
+    const token = this.queue.shift(); // Now we have the full token object
 
-    if (tokenAddress) {
+    if (token) {
       try {
-        const metadata = await this.fetchTokenMetadata(tokenAddress);
+        const metadata = await this.fetchTokenMetadata(token.address);
         if (metadata) {
           await db.upsertToken(
             {
-              address: tokenAddress,
-              bondingCurve: metadata.bondingCurve || 'unknown',
+              address: token.address,
+              bondingCurve: token.bondingCurve, // USE ORIGINAL BONDING CURVE
               vanityId: metadata.vanityId,
               symbol: metadata.symbol,
               name: metadata.name,
               imageUri: metadata.imageUri
             },
-            new Date(), // Use current time as we don't have the original
-            metadata.creator || 'unknown',
-            'metadata-fetch'
+            token.timestamp,
+            token.creator,
+            token.signature
           );
-          console.log(`✅ Metadata fetched for ${metadata.symbol || tokenAddress.substring(0, 8)}`);
+          console.log(`✅ Metadata fetched for ${metadata.symbol || token.address.substring(0, 8)}`);
         }
       } catch (error) {
-        console.error(`Error fetching metadata for ${tokenAddress}:`, error);
+        console.error(`Error fetching metadata for ${token.address}:`, error);
         // Re-queue on error
-        this.queue.push(tokenAddress);
+        this.queue.push(token);
       }
 
       // Rate limiting
@@ -59,6 +70,7 @@ export class MetadataFetcher {
     this.isProcessing = false;
   }
 
+  // FIXED: Return only metadata, not bonding curve
   private async fetchTokenMetadata(tokenAddress: string): Promise<any> {
     try {
       // First, try to get pump.fun specific metadata
@@ -73,6 +85,7 @@ export class MetadataFetcher {
     }
   }
 
+  // FIXED: Don't return bondingCurve from API
   private async fetchPumpFunMetadata(tokenAddress: string): Promise<any> {
     try {
       const response = await fetch(
@@ -106,13 +119,11 @@ export class MetadataFetcher {
       }
 
       return {
-        address: tokenAddress,
         symbol: result.symbol || 'UNKNOWN',
         name: result.name || 'Unknown Token',
         imageUri: result.image_uri || result.image,
-        vanityId,
-        bondingCurve: result.mint_authority || 'unknown',
-        creator: result.owner || result.update_authority
+        vanityId
+        // NO bondingCurve here - it comes from blockchain, not API
       };
     } catch (error) {
       console.error('Error fetching pump.fun metadata:', error);
@@ -120,6 +131,7 @@ export class MetadataFetcher {
     }
   }
 
+  // FIXED: Don't return bondingCurve from API
   private async fetchSolanaTokenMetadata(tokenAddress: string): Promise<any> {
     try {
       // Alternative: Use Solana's Metaplex metadata
@@ -143,21 +155,28 @@ export class MetadataFetcher {
 
       const result = data.result;
       return {
-        address: tokenAddress,
         symbol: result.symbol || 'UNKNOWN',
         name: result.name || 'Unknown Token',
         imageUri: result.image || result.cached_image_uri,
-        bondingCurve: 'unknown',
-        creator: result.creator_address || result.owner
+        vanityId: null
+        // NO bondingCurve here - it comes from blockchain, not API
       };
     } catch (error) {
       console.error('Error fetching Solana metadata:', error);
       return null;
     }
   }
+
+  // Add a method to get queue status
+  getQueueStatus() {
+    return {
+      queueLength: this.queue.length,
+      isProcessing: this.isProcessing
+    };
+  }
 }
 
-// src/config.ts - Configuration file
+// src/config.ts remains the same
 import * as dotenv from 'dotenv';
 dotenv.config();
 

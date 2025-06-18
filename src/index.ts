@@ -23,19 +23,23 @@ async function main() {
   monitor.on('token:new', async (token) => {
     console.log(`🚀 New token: ${token.address}`);
     
-    // Save to database
+    // Save minimal token data immediately
     await db.upsertToken(
       {
         address: token.address,
         bondingCurve: token.bondingCurve,
+        vanityId: null,  // Will be updated when metadata is fetched
+        symbol: null,    // Will be updated when metadata is fetched
+        name: null,      // Will be updated when metadata is fetched
+        imageUri: null   // Will be updated when metadata is fetched
       },
       token.timestamp,
       token.creator,
       token.signature
     );
     
-    // Queue for metadata fetch (FIXED: use enqueue, not queueToken)
-    metadata.enqueue(token.address);
+    // Queue for metadata fetch - pass full token object
+    metadata.enqueue(token);
     
     // Notify dashboard
     dashboard.broadcast({
@@ -117,6 +121,17 @@ async function main() {
       console.error('Error archiving tokens:', error);
     }
   }, 3600000); // Every hour
+
+  // Check for tokens with unknown bonding curves
+  setInterval(async () => {
+    const unknownCount = await pool.query(
+      "SELECT COUNT(*) as count FROM tokens WHERE bonding_curve = 'unknown'"
+    );
+    
+    if (unknownCount.rows[0].count > 0) {
+      console.error(`⚠️ WARNING: ${unknownCount.rows[0].count} tokens with unknown bonding curves!`);
+    }
+  }, 60000); // Every minute
 
   // Graceful shutdown
   process.on('SIGINT', async () => {
