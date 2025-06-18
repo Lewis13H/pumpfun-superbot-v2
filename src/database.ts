@@ -1,149 +1,142 @@
-import { Pool, PoolClient } from 'pg';
+import { Pool } from 'pg';
 import { config } from './config';
 
-// Lazy initialization of pool to ensure config is loaded
-let poolInstance: Pool | null = null;
+// Create connection pool
+export const pool = new Pool({
+  connectionString: config.database.connectionString,
+  max: config.database.poolSize,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
 
-export function getPool(): Pool {
-  if (!poolInstance) {
-    poolInstance = new Pool({
-      connectionString: config.database.url,
-      max: config.database.poolSize
-    });
-  }
-  return poolInstance;
-}
-
-// Export pool getter for compatibility
-export const pool = {
-  query: (...args: any[]) => getPool().query(...args),
-  end: () => getPool().end()
-};
-
+// Type definitions
 export interface Token {
   address: string;
   bondingCurve: string;
-  vanityId?: string;
   symbol?: string;
   name?: string;
   imageUri?: string;
+  vanityId?: string;
 }
 
 export interface PriceUpdate {
   token: string;
-  priceSol: number;
-  priceUsd: number;
-  liquiditySol: number;
-  liquidityUsd: number;
-  marketCapUsd: number;
-  virtualSolReserves: number;
-  virtualTokenReserves: number;
-  bondingComplete: boolean;
+  price_sol: number;
+  price_usd: number;
+  liquidity_sol: number;
+  liquidity_usd: number;
+  market_cap_usd: number;
+  bonding_complete: boolean;
   progress?: number;
 }
 
-export const db = {
-  async upsertToken(token: Token, createdAt: Date, creator: string, signature: string) {
-    // Validate bonding curve
-    if (!token.bondingCurve || token.bondingCurve === 'unknown' || token.bondingCurve.length < 32) {
-      console.error(`❌ Rejected token ${token.address} - invalid bonding curve: ${token.bondingCurve}`);
-      console.error(`   Creator: ${creator}`);
-      console.error(`   Signature: ${signature}`);
-      
-      // Don't throw error - just skip this token
-      return;
-    }
+// Database functions
+async function upsertToken(
+  token: Token,
+  createdAt: Date,
+  creator: string,
+  signature: string
+): Promise<void> {
+  const query = `
+    INSERT INTO tokens (
+      address, bonding_curve, vanity_id, symbol, name, 
+      image_uri, created_at, creator
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    ON CONFLICT (address) DO UPDATE SET
+      bonding_curve = EXCLUDED.bonding_curve,
+      vanity_id = COALESCE(tokens.vanity_id, EXCLUDED.vanity_id),
+      symbol = COALESCE(tokens.symbol, EXCLUDED.symbol),
+      name = COALESCE(tokens.name, EXCLUDED.name),
+      image_uri = COALESCE(tokens.image_uri, EXCLUDED.image_uri)
+  `;
+  
+  await pool.query(query, [
+    token.address,
+    token.bondingCurve,
+    token.vanityId || null,
+    token.symbol || null,
+    token.name || null,
+    token.imageUri || null,
+    createdAt,
+    creator
+  ]);
+}
 
-    await pool.query(`
-      INSERT INTO tokens (
-        address, bonding_curve, vanity_id, symbol, name, image_uri,
-        created_at, creator, creation_signature
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      ON CONFLICT (address) DO UPDATE SET
-        vanity_id = COALESCE(tokens.vanity_id, $3),
-        symbol = COALESCE(tokens.symbol, $4),
-        name = COALESCE(tokens.name, $5),
-        image_uri = COALESCE(tokens.image_uri, $6),
-        metadata_fetched_at = CASE 
-          WHEN $3 IS NOT NULL THEN NOW() 
-          ELSE tokens.metadata_fetched_at 
-        END
-    `, [
-      token.address, token.bondingCurve, token.vanityId,
-      token.symbol, token.name, token.imageUri,
-      createdAt, creator, signature
-    ]);
-  },
+async function insertPriceUpdate(update: PriceUpdate): Promise<void> {
+  const query = `
+    INSERT INTO price_updates (
+      time, token, price_sol, price_usd, 
+      liquidity_sol, liquidity_usd, market_cap_usd, bonding_complete
+    ) VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7)
+  `;
+  
+  await pool.query(query, [
+    update.token,
+    update.price_sol,
+    update.price_usd,
+    update.liquidity_sol,
+    update.liquidity_usd,
+    update.market_cap_usd,
+    update.bonding_complete
+  ]);
+}
 
-  async insertPriceUpdate(update: PriceUpdate): Promise<void> {
-    // First check if token exists
-    const tokenExists = await pool.query(
-      'SELECT 1 FROM tokens WHERE address = $1',
-      [update.token]
+async function bulkInsertPriceUpdates(updates: PriceUpdate[]): Promise<void> {
+  if (updates.length === 0) return;
+  
+  const values: any[] = [];
+  const placeholders: string[] = [];
+  let paramCount = 1;
+  
+  updates.forEach(update => {
+    placeholders.push(
+      `(NOW(), $${paramCount++}, $${paramCount++}, $${paramCount++}, $${paramCount++}, $${paramCount++}, $${paramCount++}, $${paramCount++})`
     );
-
-    if (tokenExists.rows.length === 0) {
-      console.warn(`⚠️ Skipping price update for unknown token: ${update.token}`);
-      return;
-    }
-
-    const query = `
-      INSERT INTO price_updates (
-        time, token, price_sol, price_usd, 
-        liquidity_sol, liquidity_usd, market_cap_usd,
-        bonding_complete, progress
-      ) VALUES (
-        NOW(), $1, $2, $3, $4, $5, $6, $7, $8
-      )
-    `;
-    
-    const values = [
+    values.push(
       update.token,
-      update.priceSol,
-      update.priceUsd,
-      update.liquiditySol,
-      update.liquidityUsd,
-      update.marketCapUsd,
-      update.bondingComplete,
-      update.progress ?? null
-    ];
-    
-    await pool.query(query, values);
-
-    // Update last active timestamp
-    await pool.query(
-      'UPDATE tokens SET last_active_at = NOW() WHERE address = $1',
-      [update.token]
+      update.price_sol,
+      update.price_usd,
+      update.liquidity_sol,
+      update.liquidity_usd,
+      update.market_cap_usd,
+      update.bonding_complete
     );
+  });
+  
+  const query = `
+    INSERT INTO price_updates (
+      time, token, price_sol, price_usd, 
+      liquidity_sol, liquidity_usd, market_cap_usd, bonding_complete
+    ) VALUES ${placeholders.join(', ')}
+  `;
+  
+  await pool.query(query, values);
+}
 
-    // Mark as graduated if bonding complete
-    if (update.bondingComplete) {
-      await pool.query(`
-        UPDATE tokens 
-        SET graduated = true, graduated_at = NOW() 
-        WHERE address = $1 AND NOT graduated
-      `, [update.token]);
-    }
-  },
+async function getActiveTokens(): Promise<any[]> {
+  const query = `
+    SELECT * FROM active_tokens 
+    ORDER BY current_mcap DESC NULLS LAST
+  `;
+  
+  const result = await pool.query(query);
+  return result.rows;
+}
 
-  async getActiveTokens(): Promise<any[]> {
-    const result = await pool.query(
-      'SELECT * FROM active_tokens ORDER BY current_mcap DESC NULLS LAST'
-    );
-    return result.rows;
-  },
+async function checkTokenExists(address: string): Promise<boolean> {
+  const result = await pool.query(
+    'SELECT 1 FROM tokens WHERE address = $1',
+    [address]
+  );
+  return result.rowCount > 0;
+}
 
-  // ADD THIS FUNCTION
-  async checkTokenExists(address: string): Promise<boolean> {
-    const result = await pool.query(
-      'SELECT 1 FROM tokens WHERE address = $1 AND bonding_curve != $2',
-      [address, 'unknown']
-    );
-    return result.rows.length > 0;
-  },
-
-  // ADD THIS FUNCTION FOR DIRECT QUERY ACCESS
-  async query(text: string, params?: any[]): Promise<any> {
-    return pool.query(text, params);
-  }
+// Export database interface
+export const db = {
+  upsertToken,
+  insertPriceUpdate,
+  bulkInsertPriceUpdates,
+  getActiveTokens,
+  checkTokenExists,
+  query: (text: string, params?: any[]) => pool.query(text, params)
 };

@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Token Details - Pump Monitor</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: #0d0d0d;
+            color: #e4e4e7;
+        }
+
+        /* Header */
+        .header {
+            background: #1a1a1a;
+            border-bottom: 1px solid #262626;
+            padding: 16px 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .back-button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #e4e4e7;
+            text-decoration: none;
+            padding: 8px 16px;
+            background: #27272a;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+
+        .back-button:hover {
+            background: #3b3b3b;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 24px auto;
+            padding: 0 24px;
+        }
+
+        /* Token Header */
+        .token-header {
+            background: #1a1a1a;
+            border: 1px solid #262626;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .token-title {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .token-icon-large {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: #27272a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .token-icon-large img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .token-names {
+            flex: 1;
+        }
+
+        .token-symbol-large {
+            font-size: 32px;
+            font-weight: 700;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .token-name-large {
+            font-size: 16px;
+            color: #71717a;
+            margin-top: 4px;
+        }
+
+        .token-badges {
+            display: flex;
+            gap: 8px;
+        }
+
+        .badge {
+            padding: 4px 12px;
+            background: #27272a;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge.graduated {
+            background: #10b981;
+            color: #fff;
+        }
+
+        .badge.new {
+            background: #3b82f6;
+            color: #fff;
+        }
+
+        /* Price Section */
+        .price-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 24px;
+        }
+
+        .price-item {
+            text-align: center;
+        }
+
+        .price-label {
+            font-size: 12px;
+            color: #71717a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .price-value {
+            font-size: 28px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .price-change-large {
+            font-size: 18px;
+            margin-top: 4px;
+        }
+
+        .price-change-large.positive {
+            color: #10b981;
+        }
+
+        .price-change-large.negative {
+            color: #ef4444;
+        }
+
+        /* Content Grid */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+        }
+
+        /* Chart Container */
+        .chart-container {
+            background: #1a1a1a;
+            border: 1px solid #262626;
+            border-radius: 12px;
+            padding: 24px;
+            height: 500px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #71717a;
+        }
+
+        /* Info Cards */
+        .info-card {
+            background: #1a1a1a;
+            border: 1px solid #262626;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .info-card h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #fff;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #262626;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: #71717a;
+            font-size: 14px;
+        }
+
+        .info-value {
+            color: #e4e4e7;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        /* Links Section */
+        .links-section {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+
+        .external-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: #27272a;
+            border: 1px solid #3b3b3b;
+            border-radius: 8px;
+            color: #e4e4e7;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .external-link:hover {
+            background: #3b3b3b;
+            border-color: #3b82f6;
+        }
+
+        /* Copy Button */
+        .copy-address {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #27272a;
+            border: 1px solid #3b3b3b;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .copy-address:hover {
+            background: #3b3b3b;
+        }
+
+        .copy-address.copied {
+            background: #10b981;
+            color: #fff;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            margin-top: 16px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #27272a;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #3b82f6;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #71717a;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .price-section {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .token-symbol-large {
+                font-size: 24px;
+            }
+            
+            .price-value {
+                font-size: 20px;
+            }
+            
+            .links-section {
+                flex-direction: column;
+            }
+            
+            .external-link {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <a href="/" class="back-button">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m15 18-6-6 6-6"/>
+                </svg>
+                Back to Explorer
+            </a>
+            
+            <div class="connection-status">
+                <div class="status-dot connected" id="status-dot"></div>
+                <span id="status-text">Connected</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Token Header -->
+        <div class="token-header">
+            <div class="token-title">
+                <div class="token-icon-large" id="token-icon">
+                    <span>?</span>
+                </div>
+                <div class="token-names">
+                    <div class="token-symbol-large">
+                        <span id="token-symbol">Loading...</span>
+                        <div class="token-badges" id="token-badges"></div>
+                    </div>
+                    <div class="token-name-large" id="token-name">-</div>
+                </div>
+            </div>
+            
+            <div class="price-section">
+                <div class="price-item">
+                    <div class="price-label">Price</div>
+                    <div class="price-value" id="price-usd">$0.00</div>
+                    <div class="price-change-large positive" id="price-change">+0.00%</div>
+                </div>
+                <div class="price-item">
+                    <div class="price-label">Market Cap</div>
+                    <div class="price-value" id="market-cap">$0</div>
+                </div>
+                <div class="price-item">
+                    <div class="price-label">Liquidity</div>
+                    <div class="price-value" id="liquidity">$0</div>
+                </div>
+                <div class="price-item">
+                    <div class="price-label">24h Volume</div>
+                    <div class="price-value" id="volume">$0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content Grid -->
+        <div class="content-grid">
+            <!-- Chart Section -->
+            <div>
+                <div class="chart-container">
+                    <p>Price chart coming soon...</p>
+                </div>
+            </div>
+
+            <!-- Info Section -->
+            <div>
+                <!-- Token Info -->
+                <div class="info-card">
+                    <h3>Token Information</h3>
+                    <div class="info-row">
+                        <span class="info-label">Contract Address</span>
+                        <div class="copy-address" id="copy-address" onclick="copyAddress()">
+                            <span id="address-short">-</span>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Created</span>
+                        <span class="info-value" id="created-at">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Creator</span>
+                        <span class="info-value" id="creator">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Supply</span>
+                        <span class="info-value">1,000,000,000</span>
+                    </div>
+                </div>
+
+                <!-- Bonding Curve Progress -->
+                <div class="info-card" id="bonding-card">
+                    <h3>Bonding Curve Progress</h3>
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-text">
+                            <span id="progress-percent">0%</span>
+                            <span id="progress-sol">0 SOL</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Links -->
+                <div class="info-card">
+                    <h3>Links & Resources</h3>
+                    <div class="links-section">
+                        <a href="#" id="pump-link" target="_blank" class="external-link">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                <polyline points="15 3 21 3 21 9"></polyline>
+                                <line x1="10" y1="14" x2="21" y2="3"></line>
+                            </svg>
+                            View on Pump.fun
+                        </a>
+                        <a href="#" id="solscan-link" target="_blank" class="external-link">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <path d="m21 21-4.35-4.35"></path>
+                            </svg>
+                            Solscan
+                        </a>
+                        <a href="#" id="dexscreener-link" target="_blank" class="external-link">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 3v18h18"></path>
+                                <path d="m19 9-5 5-4-4-3 3"></path>
+                            </svg>
+                            DexScreener
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get token address from URL
+        const tokenAddress = window.location.pathname.split('/').pop();
+        let tokenData = null;
+        let ws = null;
+
+        // Initialize WebSocket
+        function initWebSocket() {
+            const wsUrl = `ws://${window.location.hostname}:8080`;
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('✅ Connected to WebSocket');
+                // Request specific token data
+                ws.send(JSON.stringify({ 
+                    type: 'subscribe_token', 
+                    address: tokenAddress 
+                }));
+            };
+
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'token_update' && msg.data.address === tokenAddress) {
+                    updateTokenData(msg.data);
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('❌ WebSocket error:', error);
+            };
+
+            ws.onclose = () => {
+                console.log('❌ WebSocket disconnected');
+                setTimeout(initWebSocket, 5000);
+            };
+        }
+
+        // Load initial token data
+        async function loadTokenData() {
+            try {
+                // In a real implementation, this would fetch from your API
+                // For now, we'll use mock data
+                const mockData = {
+                    address: tokenAddress,
+                    symbol: 'PUMP',
+                    name: 'Pump Token',
+                    image_uri: null,
+                    current_price: 0.000156,
+                    current_mcap: 156000,
+                    current_liquidity: 45000,
+                    created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
+                    creator: 'Gh9ZwEmdL...',
+                    vanity_id: 'pump123',
+                    graduated: false,
+                    bonding_progress: 65
+                };
+                
+                updateTokenData(mockData);
+            } catch (error) {
+                console.error('Failed to load token data:', error);
+            }
+        }
+
+        // Update token data
+        function updateTokenData(data) {
+            tokenData = data;
+            
+            // Update icon
+            const iconEl = document.getElementById('token-icon');
+            if (data.image_uri) {
+                iconEl.innerHTML = `<img src="${data.image_uri}" alt="${data.symbol}" onerror="this.style.display='none'">`;
+            } else {
+                iconEl.innerHTML = `<span>${(data.symbol || '?').charAt(0).toUpperCase()}</span>`;
+            }
+            
+            // Update basic info
+            document.getElementById('token-symbol').textContent = data.symbol || 'Unknown';
+            document.getElementById('token-name').textContent = data.name || tokenAddress.slice(0, 16) + '...';
+            
+            // Update badges
+            const badgesEl = document.getElementById('token-badges');
+            badgesEl.innerHTML = '';
+            if (data.graduated) {
+                badgesEl.innerHTML += '<span class="badge graduated">Graduated</span>';
+            }
+            const isNew = new Date(data.created_at) > new Date(Date.now() - 86400000);
+            if (isNew) {
+                badgesEl.innerHTML += '<span class="badge new">New</span>';
+            }
+            
+            // Update prices
+            document.getElementById('price-usd').textContent = '$' + formatPrice(data.current_price || 0);
+            document.getElementById('market-cap').textContent = '$' + formatNumber(data.current_mcap || 0);
+            document.getElementById('liquidity').textContent = '$' + formatNumber(data.current_liquidity || 0);
+            document.getElementById('volume').textContent = '$' + formatNumber(data.volume_24h || 0);
+            
+            // Mock price change
+            const change = (Math.random() * 200 - 100).toFixed(2);
+            const changeEl = document.getElementById('price-change');
+            changeEl.textContent = (change >= 0 ? '+' : '') + change + '%';
+            changeEl.className = 'price-change-large ' + (change >= 0 ? 'positive' : 'negative');
+            
+            // Update info
+            document.getElementById('address-short').textContent = 
+                tokenAddress.slice(0, 6) + '...' + tokenAddress.slice(-4);
+            document.getElementById('created-at').textContent = 
+                new Date(data.created_at).toLocaleString();
+            document.getElementById('creator').textContent = 
+                data.creator ? data.creator.slice(0, 6) + '...' + data.creator.slice(-4) : '-';
+            
+            // Update progress
+            if (!data.graduated) {
+                const progress = data.bonding_progress || 0;
+                document.getElementById('progress-fill').style.width = progress + '%';
+                document.getElementById('progress-percent').textContent = progress + '%';
+                document.getElementById('progress-sol').textContent = 
+                    ((progress / 100) * 85000).toFixed(0) + ' / 85,000 SOL';
+            } else {
+                document.getElementById('bonding-card').style.display = 'none';
+            }
+            
+            // Update links
+            if (data.vanity_id) {
+                document.getElementById('pump-link').href = `https://pump.fun/${data.vanity_id}`;
+            } else {
+                document.getElementById('pump-link').style.display = 'none';
+            }
+            document.getElementById('solscan-link').href = `https://solscan.io/token/${tokenAddress}`;
+            document.getElementById('dexscreener-link').href = `https://dexscreener.com/solana/${tokenAddress}`;
+        }
+
+        // Copy address function
+        function copyAddress() {
+            navigator.clipboard.writeText(tokenAddress).then(() => {
+                const copyBtn = document.getElementById('copy-address');
+                copyBtn.classList.add('copied');
+                const originalText = document.getElementById('address-short').textContent;
+                document.getElementById('address-short').textContent = 'Copied!';
+                
+                setTimeout(() => {
+                    copyBtn.classList.remove('copied');
+                    document.getElementById('address-short').textContent = originalText;
+                }, 2000);
+            });
+        }
+
+        // Format helpers
+        function formatPrice(price) {
+            if (price === 0) return '0.00';
+            if (price < 0.000001) return price.toExponential(2);
+            if (price < 0.01) return price.toFixed(6);
+            if (price < 1) return price.toFixed(4);
+            return price.toFixed(2);
+        }
+
+        function formatNumber(num) {
+            const n = parseFloat(num) || 0;
+            if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+            if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+            if (n >= 1e3) return (n / 1e3).toFixed(2) + 'K';
+            return n.toFixed(2);
+        }
+
+        // Initialize
+        loadTokenData();
+        initWebSocket();
+    </script>
+</body>
+</html>

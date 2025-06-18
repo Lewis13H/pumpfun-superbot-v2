@@ -6,6 +6,7 @@ import Client, { CommitmentLevel } from '@triton-one/yellowstone-grpc';
 import { EventEmitter } from 'events';
 import { config } from './config';
 import { db, PriceUpdate } from './database';
+import fetch from 'node-fetch';
 
 const PUMP_PROGRAM = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
 
@@ -41,26 +42,28 @@ function bnLayoutFormatter(obj: any) {
 }
 
 export class PumpMonitor extends EventEmitter {
-  private client: Client;
+  private client: Client | null = null;
   private priceBuffer = new Map<string, PriceUpdate>();
   private flushTimer?: NodeJS.Timeout;
+  private solPriceTimer?: NodeJS.Timeout;  // Added this property
   private solPrice = 1; // Start with 1, update immediately
   private progressMilestones = new Map<string, number>();
   private tokenCreationQueue = new Set<string>();
   private knownTokens = new Set<string>(); // Cache of known token addresses
+  private priceUpdateBuffer = new Map<string, PriceUpdate>();
 
   constructor() {
     super();
     this.client = new Client(
-      config.shyft.grpcEndpoint,
-      config.shyft.grpcToken,
+      config.shyft.endpoint,
+      config.shyft.token,
       undefined
     );
   }
 
   async start() {
     console.log('🔄 Starting Pump.fun monitor...');
-    console.log(`Endpoint: ${config.shyft.grpcEndpoint}`);
+    console.log(`Endpoint: ${config.shyft.endpoint}`);
     console.log(`Program: ${PUMP_PROGRAM}`);
 
     // Load existing tokens into cache
@@ -71,7 +74,7 @@ export class PumpMonitor extends EventEmitter {
     console.log(`💵 Initial SOL price: $${this.solPrice}`);
 
     try {
-      const stream = await this.client.subscribe();
+      const stream = await this.client!.subscribe();
       console.log('📡 Stream created successfully');
 
       const streamClosed = new Promise<void>((resolve, reject) => {
@@ -139,7 +142,8 @@ export class PumpMonitor extends EventEmitter {
         config.monitoring.flushInterval
       );
 
-      setInterval(() => this.updateSolPrice(), 30000);
+      // Set up SOL price timer
+      this.solPriceTimer = setInterval(() => this.updateSolPrice(), 30000);
 
       // Refresh known tokens cache every 5 minutes
       setInterval(() => this.loadKnownTokens(), 300000);
@@ -158,7 +162,7 @@ export class PumpMonitor extends EventEmitter {
         ['unknown']
       );
       this.knownTokens.clear();
-      result.rows.forEach(row => this.knownTokens.add(row.address));
+      result.rows.forEach((row: any) => this.knownTokens.add(row.address));
       console.log(`📊 Loaded ${this.knownTokens.size} known tokens`);
     } catch (error) {
       console.error('Error loading known tokens:', error);
@@ -207,8 +211,12 @@ export class PumpMonitor extends EventEmitter {
               this.tokenCreationQueue.delete(priceUpdate.token);
             }
 
-            this.priceBuffer.set(priceUpdate.token, priceUpdate);
-            this.emitProgressMilestones(priceUpdate.token, priceUpdate.progress, priceUpdate.bondingComplete);
+            // Buffer the price update
+            this.priceUpdateBuffer.set(priceUpdate.token, priceUpdate);
+
+            if (priceUpdate.progress !== undefined) {
+              this.emitProgressMilestones(priceUpdate.token, priceUpdate.progress, priceUpdate.bonding_complete);
+            }
           }
         }
       }
@@ -322,37 +330,33 @@ export class PumpMonitor extends EventEmitter {
   }
 
   private async flushPriceBuffer() {
-    if (this.priceBuffer.size === 0) return;
+    await this.flush();
+  }
 
-    const updates = Array.from(this.priceBuffer.values());
-    this.priceBuffer.clear();
-
-    console.log(`💾 Flushing ${updates.length} price updates to database`);
-
+  // Updated flush method for dashboard integration
+  private async flush() {
+    const updates = Array.from(this.priceUpdateBuffer.values());
+    
+    if (updates.length === 0) return;
+    
     try {
-      // Filter out updates for unknown tokens
-      const validUpdates = [];
-      for (const update of updates) {
-        if (this.knownTokens.has(update.token) || await db.checkTokenExists(update.token)) {
-          validUpdates.push(update);
-          this.knownTokens.add(update.token); // Add to cache
-        } else {
-          console.log(`⏸️ Skipping price update for non-existent token: ${update.token.substring(0, 8)}...`);
-        }
-      }
-
-      if (validUpdates.length > 0) {
-        for (const batch of this.chunk(validUpdates, config.monitoring.batchSize)) {
-          await Promise.all(
-            batch.map(update => db.insertPriceUpdate(update))
-          );
-        }
-      }
-
-      this.emit('flush', { count: validUpdates.length });
+      await db.bulkInsertPriceUpdates(updates);
+      console.log(`💾 Flushed ${updates.length} price updates`);
+      
+      // Emit flush event with the actual updates for WebSocket broadcasting
+      this.emit('flush', { 
+        count: updates.length,
+        updates: updates.map(u => ({
+          token: u.token,
+          price_usd: u.price_usd,
+          market_cap_usd: u.market_cap_usd,
+          liquidity_usd: u.liquidity_usd
+        }))
+      });
+      
+      this.priceUpdateBuffer.clear();
     } catch (error) {
-      console.error('Error flushing price buffer:', error);
-      updates.forEach(update => this.priceBuffer.set(update.token, update));
+      console.error('Error flushing price updates:', error);
     }
   }
 
@@ -473,8 +477,8 @@ export class PumpMonitor extends EventEmitter {
     
     return price;
   }
-
-  // Extract price with correct calculations
+  
+  // Extract price with correct calculations and snake_case property names
   private async extractPriceDataFromParsedTx(parsedData: any): Promise<PriceUpdate | null> {
     try {
       const parsedEvent = parsedData.instructions.events[0]?.data;
@@ -525,16 +529,15 @@ export class PumpMonitor extends EventEmitter {
       console.log(`   MCap: $${marketCapUsd.toLocaleString(undefined, {maximumFractionDigits: 0})}`);
       console.log(`   Liquidity: ${liquiditySol.toFixed(2)} SOL | Progress: ${progress.toFixed(1)}%`);
 
+      // Return with snake_case property names to match PriceUpdate interface
       return {
         token: mint,
-        priceSol,
-        priceUsd,
-        liquiditySol,
-        liquidityUsd,
-        marketCapUsd,
-        virtualSolReserves,
-        virtualTokenReserves,
-        bondingComplete: complete,
+        price_sol: priceSol,
+        price_usd: priceUsd,
+        liquidity_sol: liquiditySol,
+        liquidity_usd: liquidityUsd,
+        market_cap_usd: marketCapUsd,
+        bonding_complete: complete,
         progress
       };
 
@@ -682,7 +685,7 @@ export class PumpMonitor extends EventEmitter {
         throw new Error(`HTTP ${response.status}`);
       }
       
-      const data = await response.json();
+      const data = await response.json() as { solana?: { usd?: number } };
       const newPrice = data.solana?.usd;
       
       if (newPrice && newPrice > 0) {
@@ -714,10 +717,18 @@ export class PumpMonitor extends EventEmitter {
   }
 
   async stop() {
+    console.log('Stopping monitor...');
     if (this.flushTimer) {
       clearInterval(this.flushTimer);
     }
-    await this.flushPriceBuffer();
-    await this.client.close();
+    if (this.solPriceTimer) {
+      clearInterval(this.solPriceTimer);
+    }
+    await this.flush(); // Final flush
+    if (this.client) {
+      // Yellowstone client doesn't have a close method, just let it disconnect
+      this.client = null;
+    }
+    this.emit('stopped');
   }
 }
