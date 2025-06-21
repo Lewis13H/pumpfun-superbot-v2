@@ -153,11 +153,16 @@ async function getActiveTokens(): Promise<any[]> {
 }
 
 async function checkTokenExists(address: string): Promise<boolean> {
-  const result = await pool.query(
-    'SELECT 1 FROM tokens WHERE address = $1',
-    [address]
-  );
-  return (result.rowCount ?? 0) > 0;
+  try {
+    const result = await pool.query(
+      'SELECT 1 FROM tokens WHERE address = $1 LIMIT 1',
+      [address]
+    );
+    return result.rows.length > 0;
+  } catch (error) {
+    console.error('Error checking token existence:', error);
+    return false;
+  }
 }
 
 // Export database interface

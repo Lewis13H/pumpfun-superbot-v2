@@ -23,8 +23,15 @@ export const config = {
   },
   
   monitoring: {
-    flushInterval: 5000, // 5 seconds
-    archiveThreshold: parseInt(process.env.ARCHIVE_THRESHOLD || '15000'), // $15k
-    batchSize: parseInt(process.env.BATCH_SIZE || '100')
-  }
+    flushInterval: parseInt(process.env.FLUSH_INTERVAL || '10000'), // Increased from 5000
+    archiveThreshold: parseInt(process.env.ARCHIVE_THRESHOLD || '15000'),
+    batchSize: parseInt(process.env.BATCH_SIZE || '50'), // Reduced from 100
+  },
+
+  rateLimit: {
+    shyft: parseInt(process.env.SHYFT_RATE_LIMIT || '2'),
+    pumpFun: parseInt(process.env.PUMP_FUN_RATE_LIMIT || '2'),
+    metadataRetryDelay: parseInt(process.env.METADATA_RETRY_DELAY || '5000'),
+    metadataMaxRetries: parseInt(process.env.METADATA_MAX_RETRIES || '3'),
+  },
 };
