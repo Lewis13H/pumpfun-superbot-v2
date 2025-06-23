@@ -1,803 +1,544 @@
+<!-- Updates to add to dashboard/index.html -->
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Pump Monitor - Token Explorer</title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pump.fun Monitor Dashboard</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-            background: #0d0d0d;
-            color: #e4e4e7;
-            overflow-x: hidden;
-        }
-
-        /* Header */
-        .header {
-            background: #1a1a1a;
-            border-bottom: 1px solid #262626;
-            padding: 16px 24px;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .header-content {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .logo {
-            font-size: 24px;
-            font-weight: 700;
-            color: #fff;
-            text-decoration: none;
-        }
-
-        .stats-bar {
-            display: flex;
-            gap: 32px;
-        }
-
-        .stat {
+        /* Existing styles... */
+        
+        /* NEW: Scoring styles */
+        .score-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 14px;
+            min-width: 60px;
             text-align: center;
         }
-
-        .stat-label {
-            font-size: 12px;
-            color: #71717a;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+        
+        .score-excellent { background: #22c55e; color: white; }
+        .score-good { background: #3b82f6; color: white; }
+        .score-average { background: #f59e0b; color: white; }
+        .score-poor { background: #ef4444; color: white; }
+        
+        .score-breakdown {
+            display: none;
+            position: absolute;
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 8px;
+            padding: 12px;
+            z-index: 1000;
+            min-width: 250px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
         }
-
-        .stat-value {
-            font-size: 20px;
-            font-weight: 600;
-            color: #fff;
+        
+        .score-badge:hover + .score-breakdown,
+        .score-breakdown:hover {
+            display: block;
+        }
+        
+        .score-component {
+            display: flex;
+            justify-content: space-between;
+            margin: 4px 0;
+            font-size: 12px;
+        }
+        
+        .score-bar {
+            width: 100%;
+            height: 8px;
+            background: #374151;
+            border-radius: 4px;
+            overflow: hidden;
             margin-top: 4px;
         }
-
-        /* Connection Status */
-        .connection-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            background: #27272a;
-            border-radius: 8px;
+        
+        .score-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ef4444 0%, #f59e0b 40%, #3b82f6 70%, #22c55e 100%);
+            transition: width 0.3s ease;
         }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #ef4444;
+        
+        /* High score alert animation */
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
         }
-
-        .status-dot.connected {
-            background: #10b981;
+        
+        .high-score-alert {
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.5);
         }
-
-        /* Main Container */
-        .container {
-            max-width: 1400px;
-            margin: 24px auto;
-            padding: 0 24px;
-        }
-
-        /* Filter Bar */
-        .filter-bar {
-            display: flex;
-            gap: 16px;
-            margin-bottom: 24px;
-            align-items: center;
-        }
-
-        .search-box {
-            flex: 1;
-            max-width: 400px;
-            position: relative;
-        }
-
-        .search-box input {
+        
+        /* Score history chart */
+        .score-history {
             width: 100%;
-            padding: 12px 16px 12px 40px;
-            background: #1a1a1a;
-            border: 1px solid #27272a;
-            border-radius: 8px;
-            color: #e4e4e7;
-            font-size: 14px;
-            outline: none;
-            transition: border-color 0.2s;
+            height: 60px;
+            margin-top: 8px;
         }
-
-        .search-box input:focus {
-            border-color: #3b82f6;
-        }
-
-        .search-icon {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #71717a;
-        }
-
-        .filter-buttons {
-            display: flex;
-            gap: 8px;
-        }
-
-        .filter-btn {
-            padding: 8px 16px;
-            background: #1a1a1a;
-            border: 1px solid #27272a;
-            border-radius: 8px;
-            color: #e4e4e7;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .filter-btn:hover {
-            background: #27272a;
-        }
-
-        .filter-btn.active {
-            background: #3b82f6;
-            border-color: #3b82f6;
-            color: #fff;
-        }
-
-        /* Token Table */
-        .token-table {
-            background: #1a1a1a;
-            border-radius: 12px;
-            overflow: hidden;
-            border: 1px solid #262626;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        th {
-            background: #0d0d0d;
-            padding: 16px;
-            text-align: left;
-            font-size: 12px;
-            font-weight: 600;
-            color: #71717a;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            position: sticky;
-            top: 72px;
-            z-index: 10;
-        }
-
-        th.sortable {
+        
+        /* Sort indicator */
+        .sortable {
             cursor: pointer;
             user-select: none;
         }
-
-        th.sortable:hover {
-            color: #a1a1aa;
+        
+        .sortable:after {
+            content: ' ↕';
+            opacity: 0.3;
         }
-
-        td {
-            padding: 16px;
-            border-top: 1px solid #262626;
-            vertical-align: middle;
+        
+        .sortable.asc:after {
+            content: ' ↑';
+            opacity: 1;
         }
-
-        tr {
-            transition: background-color 0.2s;
-            cursor: pointer;
-        }
-
-        tr:hover {
-            background: #27272a;
-        }
-
-        tr.new-token {
-            animation: highlight 2s ease-in-out;
-        }
-
-        @keyframes highlight {
-            0% { background: rgba(16, 185, 129, 0.2); }
-            100% { background: transparent; }
-        }
-
-        /* Token Cell */
-        .token-cell {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .token-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: #27272a;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-
-        .token-icon img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .token-info {
-            flex: 1;
-        }
-
-        .token-symbol {
-            font-weight: 600;
-            color: #fff;
-            font-size: 14px;
-        }
-
-        .token-name {
-            font-size: 12px;
-            color: #71717a;
-            margin-top: 2px;
-        }
-
-        /* Price Formatting */
-        .price {
-            font-weight: 500;
-            font-size: 14px;
-            color: #e4e4e7;
-        }
-
-        .price-change {
-            font-weight: 500;
-            font-size: 14px;
-        }
-
-        .price-change.positive {
-            color: #10b981;
-        }
-
-        .price-change.negative {
-            color: #ef4444;
-        }
-
-        /* Market Cap & Liquidity */
-        .market-value {
-            font-size: 14px;
-            color: #e4e4e7;
-        }
-
-        /* Age */
-        .token-age {
-            font-size: 13px;
-            color: #71717a;
-        }
-
-        /* Action Buttons */
-        .action-buttons {
-            display: flex;
-            gap: 8px;
-        }
-
-        .action-btn {
-            padding: 6px 12px;
-            background: transparent;
-            border: 1px solid #27272a;
-            border-radius: 6px;
-            color: #e4e4e7;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .action-btn:hover {
-            background: #27272a;
-            border-color: #3b82f6;
-        }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 80px 20px;
-            color: #71717a;
-        }
-
-        .empty-state h3 {
-            font-size: 20px;
-            margin-bottom: 8px;
-            color: #e4e4e7;
-        }
-
-        /* Loading State */
-        .loading {
-            display: flex;
-            justify-content: center;
-            padding: 40px;
-        }
-
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid #27272a;
-            border-top: 3px solid #3b82f6;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .stats-bar {
-                display: none;
-            }
-            
-            .token-name {
-                display: none;
-            }
-            
-            th:nth-child(5),
-            td:nth-child(5) {
-                display: none;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .header-content {
-                flex-direction: column;
-                gap: 16px;
-            }
-            
-            .filter-bar {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            .search-box {
-                max-width: 100%;
-            }
-            
-            th:nth-child(4),
-            td:nth-child(4),
-            th:nth-child(6),
-            td:nth-child(6) {
-                display: none;
-            }
+        
+        .sortable.desc:after {
+            content: ' ↓';
+            opacity: 1;
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
-    <header class="header">
-        <div class="header-content">
-            <a href="/" class="logo">Pump Monitor</a>
-            
-            <div class="stats-bar">
-                <div class="stat">
-                    <div class="stat-label">Active Tokens</div>
-                    <div class="stat-value" id="total-tokens">0</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">New Today</div>
-                    <div class="stat-value" id="new-today">0</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">Graduated</div>
-                    <div class="stat-value" id="graduated-count">0</div>
-                </div>
+    <div class="header">
+        <h1>🚀 Pump.fun Token Monitor V2.1</h1>
+        <div class="stats" id="stats">
+            <div class="stat-item">
+                <span class="stat-label">Active Tokens:</span>
+                <span class="stat-value" id="activeCount">0</span>
             </div>
-            
-            <div class="connection-status">
-                <div class="status-dot" id="status-dot"></div>
-                <span id="status-text">Connecting...</span>
+            <div class="stat-item">
+                <span class="stat-label">Total Volume 24h:</span>
+                <span class="stat-value" id="volumeTotal">$0</span>
             </div>
-        </div>
-    </header>
-
-    <!-- Main Container -->
-    <div class="container">
-        <!-- Filter Bar -->
-        <div class="filter-bar">
-            <div class="search-box">
-                <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <path d="m21 21-4.35-4.35"></path>
-                </svg>
-                <input type="text" id="search-input" placeholder="Search by name, symbol, or address...">
+            <div class="stat-item">
+                <span class="stat-label">High Score Tokens:</span>
+                <span class="stat-value" id="highScoreCount">0</span>
             </div>
-            
-            <div class="filter-buttons">
-                <button class="filter-btn active" data-filter="all">All</button>
-                <button class="filter-btn" data-filter="new">New</button>
-                <button class="filter-btn" data-filter="graduated">Graduated</button>
-                <button class="filter-btn" data-filter="trending">Trending</button>
+            <div class="stat-item">
+                <span class="stat-label">Connected:</span>
+                <span class="stat-value" id="connectionStatus">🔴</span>
             </div>
-        </div>
-
-        <!-- Token Table -->
-        <div class="token-table">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Token</th>
-                        <th class="sortable" data-sort="price">Price</th>
-                        <th class="sortable" data-sort="change">24h %</th>
-                        <th class="sortable" data-sort="mcap">Market Cap</th>
-                        <th class="sortable" data-sort="liquidity">Liquidity</th>
-                        <th class="sortable" data-sort="age">Age</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="token-list">
-                    <tr>
-                        <td colspan="7">
-                            <div class="loading">
-                                <div class="spinner"></div>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
         </div>
     </div>
 
+    <!-- NEW: High score alerts -->
+    <div id="alertsContainer" style="margin: 20px; display: none;">
+        <div class="alert high-score-alert" id="highScoreAlert">
+            🔥 <strong>HIGH SCORE ALERT!</strong> <span id="alertMessage"></span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="filters">
+            <input type="text" id="searchInput" placeholder="Search by symbol, name, or address...">
+            <select id="mcapFilter">
+                <option value="all">All Market Caps</option>
+                <option value="15-30">$15k - $30k</option>
+                <option value="30-50">$30k - $50k</option>
+                <option value="50-100">$50k - $100k</option>
+                <option value="100+">$100k+</option>
+            </select>
+            <select id="scoreFilter">
+                <option value="all">All Scores</option>
+                <option value="800+">Excellent (800+)</option>
+                <option value="600-799">Good (600-799)</option>
+                <option value="400-599">Average (400-599)</option>
+                <option value="0-399">Poor (0-399)</option>
+            </select>
+            <button id="refreshBtn">🔄 Refresh</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Token</th>
+                    <th class="sortable" data-sort="score">Score</th>
+                    <th class="sortable" data-sort="mcap">Market Cap</th>
+                    <th class="sortable" data-sort="price">Price</th>
+                    <th class="sortable" data-sort="liquidity">Liquidity</th>
+                    <th class="sortable" data-sort="progress">Progress</th>
+                    <th class="sortable" data-sort="change24h">24h Change</th>
+                    <th class="sortable" data-sort="holders">Holders</th>
+                    <th class="sortable" data-sort="age">Age</th>
+                    <th>Links</th>
+                </tr>
+            </thead>
+            <tbody id="tokenTableBody">
+                <!-- Tokens will be inserted here -->
+            </tbody>
+        </table>
+    </div>
+
     <script>
-        // State Management
-        let tokens = [];
-        let filteredTokens = [];
-        let currentFilter = 'all';
-        let sortField = 'mcap';
-        let sortDirection = 'desc';
-        let ws = null;
-        let reconnectTimer = null;
-        let lastUpdate = null;
+        // Enhanced dashboard with scoring
+        class TokenDashboard {
+            constructor() {
+                this.ws = null;
+                this.tokens = new Map();
+                this.sortField = 'score';
+                this.sortDirection = 'desc';
+                this.highScoreThreshold = 800;
+                this.init();
+            }
 
-        // DOM Elements
-        const tokenList = document.getElementById('token-list');
-        const searchInput = document.getElementById('search-input');
-        const filterButtons = document.querySelectorAll('.filter-btn');
-        const sortableHeaders = document.querySelectorAll('th.sortable');
-        const statusDot = document.getElementById('status-dot');
-        const statusText = document.getElementById('status-text');
-        const totalTokensEl = document.getElementById('total-tokens');
-        const newTodayEl = document.getElementById('new-today');
-        const graduatedCountEl = document.getElementById('graduated-count');
+            init() {
+                this.connectWebSocket();
+                this.setupEventListeners();
+                this.startUpdateTimer();
+            }
 
-        // Initialize WebSocket
-        function initWebSocket() {
-            const wsUrl = `ws://${window.location.hostname}:8080`;
-            ws = new WebSocket(wsUrl);
+            connectWebSocket() {
+                const wsUrl = `ws://${window.location.hostname}:8080`;
+                this.ws = new WebSocket(wsUrl);
 
-            ws.onopen = () => {
-                console.log('✅ Connected to WebSocket');
-                statusDot.classList.add('connected');
-                statusText.textContent = 'Connected';
-                clearTimeout(reconnectTimer);
-            };
+                this.ws.onopen = () => {
+                    console.log('WebSocket connected');
+                    document.getElementById('connectionStatus').textContent = '🟢';
+                    this.ws.send(JSON.stringify({ type: 'subscribe', channel: 'all' }));
+                };
 
-            ws.onmessage = (event) => {
-                const msg = JSON.parse(event.data);
-                handleWebSocketMessage(msg);
-                lastUpdate = new Date();
-            };
+                this.ws.onmessage = (event) => {
+                    const message = JSON.parse(event.data);
+                    this.handleMessage(message);
+                };
 
-            ws.onerror = (error) => {
-                console.error('❌ WebSocket error:', error);
-                statusDot.classList.remove('connected');
-                statusText.textContent = 'Error';
-            };
+                this.ws.onclose = () => {
+                    document.getElementById('connectionStatus').textContent = '🔴';
+                    setTimeout(() => this.connectWebSocket(), 3000);
+                };
+            }
 
-            ws.onclose = () => {
-                console.log('❌ WebSocket disconnected');
-                statusDot.classList.remove('connected');
-                statusText.textContent = 'Reconnecting...';
-                reconnectTimer = setTimeout(initWebSocket, 5000);
-            };
-        }
-
-        // Handle WebSocket Messages
-        function handleWebSocketMessage(msg) {
-            if (msg.type === 'tokens') {
-                tokens = msg.data || [];
-                updateStats();
-                applyFilters();
-            } else if (msg.type === 'new_token') {
-                // Add highlight to new token
-                const newToken = msg.data;
-                tokens.unshift(newToken);
-                updateStats();
-                applyFilters();
-                highlightNewToken(newToken.address);
-            } else if (msg.type === 'price_update') {
-                // Update specific token price
-                const update = msg.data;
-                const tokenIndex = tokens.findIndex(t => t.address === update.token);
-                if (tokenIndex !== -1) {
-                    tokens[tokenIndex] = { ...tokens[tokenIndex], ...update };
-                    updateTokenRow(tokens[tokenIndex]);
+            handleMessage(message) {
+                switch (message.type) {
+                    case 'tokens':
+                        this.updateTokens(message.data);
+                        break;
+                    case 'new_token':
+                        this.addToken(message.data);
+                        break;
+                    case 'price_update':
+                        this.updatePrices(message.data);
+                        break;
+                    case 'high_score_alert':
+                        this.showHighScoreAlert(message.data);
+                        break;
+                    case 'score_update':
+                        this.updateTokenScore(message.data);
+                        break;
                 }
             }
-        }
 
-        // Update Statistics
-        function updateStats() {
-            totalTokensEl.textContent = tokens.length;
-            
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const newToday = tokens.filter(t => new Date(t.created_at) >= today).length;
-            newTodayEl.textContent = newToday;
-            
-            const graduated = tokens.filter(t => t.graduated).length;
-            graduatedCountEl.textContent = graduated;
-        }
+            updateTokens(tokens) {
+                this.tokens.clear();
+                tokens.forEach(token => {
+                    this.tokens.set(token.address, token);
+                });
+                this.render();
+                this.updateStats();
+            }
 
-        // Apply Filters and Search
-        function applyFilters() {
-            const searchTerm = searchInput.value.toLowerCase();
-            
-            filteredTokens = tokens.filter(token => {
-                // Search filter
-                const matchesSearch = !searchTerm || 
+            addToken(token) {
+                this.tokens.set(token.address, token);
+                this.render();
+                
+                // Flash animation for new token
+                setTimeout(() => {
+                    const row = document.querySelector(`tr[data-address="${token.address}"]`);
+                    if (row) {
+                        row.classList.add('new-token');
+                        setTimeout(() => row.classList.remove('new-token'), 3000);
+                    }
+                }, 100);
+            }
+
+            updateTokenScore(data) {
+                const token = this.tokens.get(data.token);
+                if (token) {
+                    token.score = data.score;
+                    token.score_breakdown = data.breakdown;
+                    this.render();
+                }
+            }
+
+            showHighScoreAlert(data) {
+                const alertContainer = document.getElementById('alertsContainer');
+                const alertMessage = document.getElementById('alertMessage');
+                
+                alertMessage.textContent = `${data.token.symbol || 'Unknown'} scored ${data.score}/1000!`;
+                alertContainer.style.display = 'block';
+                
+                setTimeout(() => {
+                    alertContainer.style.display = 'none';
+                }, 10000);
+            }
+
+            getScoreBadgeClass(score) {
+                if (score >= 800) return 'score-excellent';
+                if (score >= 600) return 'score-good';
+                if (score >= 400) return 'score-average';
+                return 'score-poor';
+            }
+
+            formatScoreBreakdown(breakdown) {
+                if (!breakdown) return '';
+                
+                return `
+                    <div class="score-breakdown">
+                        <div class="score-component">
+                            <span>Technical:</span>
+                            <span>${breakdown.technical || 0}/400</span>
+                        </div>
+                        <div class="score-component">
+                            <span>Holders:</span>
+                            <span>${breakdown.holders || 0}/200</span>
+                        </div>
+                        <div class="score-component">
+                            <span>Social:</span>
+                            <span>${breakdown.social || 0}/200</span>
+                        </div>
+                        <div class="score-component">
+                            <span>Creator:</span>
+                            <span>${breakdown.creator || 0}/200</span>
+                        </div>
+                        <div class="score-component" style="color: #ef4444;">
+                            <span>Risk:</span>
+                            <span>-${breakdown.risk || 0}</span>
+                        </div>
+                        <div style="border-top: 1px solid #374151; margin-top: 8px; padding-top: 8px;">
+                            <div class="score-component" style="font-weight: bold;">
+                                <span>Total:</span>
+                                <span>${breakdown.total || 0}/1000</span>
+                            </div>
+                            <div class="score-bar">
+                                <div class="score-fill" style="width: ${(breakdown.total || 0) / 10}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            render() {
+                const tbody = document.getElementById('tokenTableBody');
+                const tokens = Array.from(this.tokens.values());
+                
+                // Apply filters
+                const filtered = this.applyFilters(tokens);
+                
+                // Sort
+                const sorted = this.sortTokens(filtered);
+                
+                // Render rows
+                tbody.innerHTML = sorted.map(token => {
+                    const score = token.score || 0;
+                    const scoreClass = this.getScoreBadgeClass(score);
+                    const isHighScore = score >= this.highScoreThreshold;
+                    
+                    return `
+                        <tr data-address="${token.address}" class="${isHighScore ? 'high-score-token' : ''}">
+                            <td>
+                                <div class="token-info">
+                                    ${token.image_uri ? `<img src="${token.image_uri}" alt="${token.symbol}">` : ''}
+                                    <div>
+                                        <span class="token-symbol">${token.symbol || 'Unknown'}</span>
+                                        <span class="token-name">${token.name || ''}</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div style="position: relative;">
+                                    <span class="score-badge ${scoreClass}">${score}</span>
+                                    ${this.formatScoreBreakdown(token.score_breakdown)}
+                                </div>
+                            </td>
+                            <td>$${this.formatNumber(token.current_mcap || 0)}</td>
+                            <td>$${this.formatPrice(token.current_price || 0)}</td>
+                            <td>$${this.formatNumber(token.current_liquidity || 0)}</td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: ${token.progress || 0}%"></div>
+                                    <span class="progress-text">${(token.progress || 0).toFixed(1)}%</span>
+                                </div>
+                            </td>
+                            <td class="${token.price_change_24h > 0 ? 'positive' : 'negative'}">
+                                ${token.price_change_24h ? (token.price_change_24h > 0 ? '+' : '') + token.price_change_24h.toFixed(1) + '%' : 'N/A'}
+                            </td>
+                            <td>${token.holder_count || '-'}</td>
+                            <td>${this.formatAge(token.created_at)}</td>
+                            <td>
+                                <a href="https://pump.fun/${token.vanity_id || token.address}" target="_blank">Pump</a>
+                                <a href="token.html?address=${token.address}" target="_blank">Details</a>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            applyFilters(tokens) {
+                const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+                const mcapFilter = document.getElementById('mcapFilter').value;
+                const scoreFilter = document.getElementById('scoreFilter').value;
+                
+                return tokens.filter(token => {
+                    // Search filter
+                    if (searchTerm && !this.matchesSearch(token, searchTerm)) {
+                        return false;
+                    }
+                    
+                    // Market cap filter
+                    if (mcapFilter !== 'all' && !this.matchesMcapFilter(token, mcapFilter)) {
+                        return false;
+                    }
+                    
+                    // Score filter
+                    if (scoreFilter !== 'all' && !this.matchesScoreFilter(token, scoreFilter)) {
+                        return false;
+                    }
+                    
+                    return true;
+                });
+            }
+
+            matchesScoreFilter(token, filter) {
+                const score = token.score || 0;
+                switch (filter) {
+                    case '800+': return score >= 800;
+                    case '600-799': return score >= 600 && score < 800;
+                    case '400-599': return score >= 400 && score < 600;
+                    case '0-399': return score < 400;
+                    default: return true;
+                }
+            }
+
+            sortTokens(tokens) {
+                return tokens.sort((a, b) => {
+                    let aVal, bVal;
+                    
+                    switch (this.sortField) {
+                        case 'score':
+                            aVal = a.score || 0;
+                            bVal = b.score || 0;
+                            break;
+                        case 'mcap':
+                            aVal = a.current_mcap || 0;
+                            bVal = b.current_mcap || 0;
+                            break;
+                        case 'holders':
+                            aVal = a.holder_count || 0;
+                            bVal = b.holder_count || 0;
+                            break;
+                        default:
+                            aVal = a[this.sortField] || 0;
+                            bVal = b[this.sortField] || 0;
+                    }
+                    
+                    if (this.sortDirection === 'asc') {
+                        return aVal - bVal;
+                    } else {
+                        return bVal - aVal;
+                    }
+                });
+            }
+
+            updateStats() {
+                const tokens = Array.from(this.tokens.values());
+                const highScoreTokens = tokens.filter(t => (t.score || 0) >= this.highScoreThreshold);
+                
+                document.getElementById('activeCount').textContent = tokens.length;
+                document.getElementById('highScoreCount').textContent = highScoreTokens.length;
+                
+                const totalVolume = tokens.reduce((sum, t) => sum + (t.volume_24h || 0), 0);
+                document.getElementById('volumeTotal').textContent = '$' + this.formatNumber(totalVolume);
+            }
+
+            setupEventListeners() {
+                // Sort headers
+                document.querySelectorAll('.sortable').forEach(header => {
+                    header.addEventListener('click', (e) => {
+                        const field = e.target.dataset.sort;
+                        if (this.sortField === field) {
+                            this.sortDirection = this.sortDirection === 'desc' ? 'asc' : 'desc';
+                        } else {
+                            this.sortField = field;
+                            this.sortDirection = 'desc';
+                        }
+                        
+                        // Update visual indicators
+                        document.querySelectorAll('.sortable').forEach(h => {
+                            h.classList.remove('asc', 'desc');
+                        });
+                        e.target.classList.add(this.sortDirection);
+                        
+                        this.render();
+                    });
+                });
+                
+                // Filters
+                ['searchInput', 'mcapFilter', 'scoreFilter'].forEach(id => {
+                    document.getElementById(id).addEventListener('change', () => this.render());
+                });
+                
+                document.getElementById('searchInput').addEventListener('keyup', () => this.render());
+                
+                // Refresh button
+                document.getElementById('refreshBtn').addEventListener('click', () => {
+                    this.ws.send(JSON.stringify({ type: 'refresh' }));
+                });
+            }
+
+            startUpdateTimer() {
+                setInterval(() => {
+                    this.render(); // Re-render to update ages
+                }, 30000); // Every 30 seconds
+            }
+
+            // Utility functions
+            formatNumber(num) {
+                if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M';
+                if (num >= 1000) return (num / 1000).toFixed(2) + 'K';
+                return num.toFixed(2);
+            }
+
+            formatPrice(price) {
+                if (price < 0.00001) return price.toExponential(2);
+                if (price < 0.01) return price.toFixed(6);
+                if (price < 1) return price.toFixed(4);
+                return price.toFixed(2);
+            }
+
+            formatAge(createdAt) {
+                const age = Date.now() - new Date(createdAt).getTime();
+                const hours = Math.floor(age / (1000 * 60 * 60));
+                if (hours < 1) return Math.floor(age / (1000 * 60)) + 'm';
+                if (hours < 24) return hours + 'h';
+                return Math.floor(hours / 24) + 'd';
+            }
+
+            matchesSearch(token, searchTerm) {
+                return (
                     (token.symbol && token.symbol.toLowerCase().includes(searchTerm)) ||
                     (token.name && token.name.toLowerCase().includes(searchTerm)) ||
-                    token.address.toLowerCase().includes(searchTerm);
-                
-                // Category filter
-                let matchesFilter = true;
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                
-                switch (currentFilter) {
-                    case 'new':
-                        matchesFilter = new Date(token.created_at) >= today;
-                        break;
-                    case 'graduated':
-                        matchesFilter = token.graduated === true;
-                        break;
-                    case 'trending':
-                        // Simple trending logic: high volume or price change
-                        matchesFilter = token.current_mcap > 100000;
-                        break;
-                }
-                
-                return matchesSearch && matchesFilter;
-            });
-            
-            sortTokens();
-            renderTokens();
-        }
-
-        // Sort Tokens
-        function sortTokens() {
-            filteredTokens.sort((a, b) => {
-                let aVal, bVal;
-                
-                switch (sortField) {
-                    case 'price':
-                        aVal = parseFloat(a.current_price) || 0;
-                        bVal = parseFloat(b.current_price) || 0;
-                        break;
-                    case 'change':
-                        // Mock 24h change for now
-                        aVal = Math.random() * 200 - 100;
-                        bVal = Math.random() * 200 - 100;
-                        break;
-                    case 'mcap':
-                        aVal = parseFloat(a.current_mcap) || 0;
-                        bVal = parseFloat(b.current_mcap) || 0;
-                        break;
-                    case 'liquidity':
-                        aVal = parseFloat(a.current_liquidity) || 0;
-                        bVal = parseFloat(b.current_liquidity) || 0;
-                        break;
-                    case 'age':
-                        aVal = new Date(a.created_at).getTime();
-                        bVal = new Date(b.created_at).getTime();
-                        break;
-                    default:
-                        return 0;
-                }
-                
-                return sortDirection === 'desc' ? bVal - aVal : aVal - bVal;
-            });
-        }
-
-        // Render Token Table
-        function renderTokens() {
-            if (filteredTokens.length === 0) {
-                tokenList.innerHTML = `
-                    <tr>
-                        <td colspan="7">
-                            <div class="empty-state">
-                                <h3>No tokens found</h3>
-                                <p>Try adjusting your filters or search terms</p>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-                return;
+                    token.address.toLowerCase().includes(searchTerm)
+                );
             }
-            
-            tokenList.innerHTML = filteredTokens.map(token => createTokenRow(token)).join('');
-        }
 
-        // Create Token Row
-        function createTokenRow(token) {
-            const price = parseFloat(token.current_price) || 0;
-            const mcap = parseFloat(token.current_mcap) || 0;
-            const liquidity = parseFloat(token.current_liquidity) || 0;
-            const age = getTokenAge(token.created_at);
-            
-            // Mock 24h change
-            const change24h = (Math.random() * 200 - 100).toFixed(2);
-            const changeClass = change24h >= 0 ? 'positive' : 'negative';
-            const changePrefix = change24h >= 0 ? '+' : '';
-            
-            return `
-                <tr data-address="${token.address}" onclick="viewToken('${token.address}')">
-                    <td>
-                        <div class="token-cell">
-                            <div class="token-icon">
-                                ${token.image_uri && !token.image_uri.includes('ipfs') ? 
-                                    `<img src="${token.image_uri}" alt="${token.symbol}" onerror="this.style.display='none'">` : 
-                                    `<span>${(token.symbol || '?').charAt(0).toUpperCase()}</span>`
-                                }
-                            </div>
-                            <div class="token-info">
-                                <div class="token-symbol">${token.symbol || 'Unknown'}</div>
-                                <div class="token-name">${token.name || token.address.slice(0, 8) + '...'}</div>
-                            </div>
-                        </div>
-                    </td>
-                    <td>
-                        <span class="price">$${formatPrice(price)}</span>
-                    </td>
-                    <td>
-                        <span class="price-change ${changeClass}">${changePrefix}${change24h}%</span>
-                    </td>
-                    <td>
-                        <span class="market-value">$${formatNumber(mcap)}</span>
-                    </td>
-                    <td>
-                        <span class="market-value">$${formatNumber(liquidity)}</span>
-                    </td>
-                    <td>
-                        <span class="token-age">${age}</span>
-                    </td>
-                    <td onclick="event.stopPropagation()">
-                        <div class="action-buttons">
-                            ${token.vanity_id ? 
-                                `<a href="https://pump.fun/${token.vanity_id}" target="_blank" class="action-btn">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                        <polyline points="15 3 21 3 21 9"></polyline>
-                                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                                    </svg>
-                                    Pump
-                                </a>` : ''
-                            }
-                            <a href="https://solscan.io/token/${token.address}" target="_blank" class="action-btn">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="11" cy="11" r="8"></circle>
-                                    <path d="m21 21-4.35-4.35"></path>
-                                </svg>
-                                Scan
-                            </a>
-                        </div>
-                    </td>
-                </tr>
-            `;
-        }
-
-        // Update Single Token Row
-        function updateTokenRow(token) {
-            const row = document.querySelector(`tr[data-address="${token.address}"]`);
-            if (row) {
-                const newRow = createTokenRow(token);
-                row.outerHTML = newRow;
+            matchesMcapFilter(token, filter) {
+                const mcap = token.current_mcap || 0;
+                switch (filter) {
+                    case '15-30': return mcap >= 15000 && mcap < 30000;
+                    case '30-50': return mcap >= 30000 && mcap < 50000;
+                    case '50-100': return mcap >= 50000 && mcap < 100000;
+                    case '100+': return mcap >= 100000;
+                    default: return true;
+                }
             }
         }
 
-        // Highlight New Token
-        function highlightNewToken(address) {
-            setTimeout(() => {
-                const row = document.querySelector(`tr[data-address="${address}"]`);
-                if (row) {
-                    row.classList.add('new-token');
-                }
-            }, 100);
-        }
-
-        // View Token Detail Page
-        function viewToken(address) {
-            // Open token detail page - implement this based on your routing
-            window.location.href = `/token/${address}`;
-        }
-
-        // Format Helpers
-        function formatPrice(price) {
-            if (price === 0) return '0.00';
-            if (price < 0.000001) return price.toExponential(2);
-            if (price < 0.01) return price.toFixed(6);
-            if (price < 1) return price.toFixed(4);
-            return price.toFixed(2);
-        }
-
-        function formatNumber(num) {
-            const n = parseFloat(num) || 0;
-            if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-            if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-            if (n >= 1e3) return (n / 1e3).toFixed(2) + 'K';
-            return n.toFixed(2);
-        }
-
-        function getTokenAge(createdAt) {
-            const now = new Date();
-            const created = new Date(createdAt);
-            const diff = now - created;
-            
-            const minutes = Math.floor(diff / 60000);
-            const hours = Math.floor(diff / 3600000);
-            const days = Math.floor(diff / 86400000);
-            
-            if (days > 0) return `${days}d`;
-            if (hours > 0) return `${hours}h`;
-            if (minutes > 0) return `${minutes}m`;
-            return 'Now';
-        }
-
-        // Event Listeners
-        searchInput.addEventListener('input', applyFilters);
-
-        filterButtons.forEach(btn => {
-            btn.addEventListener('click', () => {
-                filterButtons.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                currentFilter = btn.dataset.filter;
-                applyFilters();
-            });
-        });
-
-        sortableHeaders.forEach(header => {
-            header.addEventListener('click', () => {
-                const field = header.dataset.sort;
-                if (sortField === field) {
-                    sortDirection = sortDirection === 'desc' ? 'asc' : 'desc';
-                } else {
-                    sortField = field;
-                    sortDirection = 'desc';
-                }
-                applyFilters();
-            });
-        });
-
-        // Initialize
-        initWebSocket();
+        // Initialize dashboard
+        const dashboard = new TokenDashboard();
     </script>
 </body>
 </html>
