@@ -171,13 +171,29 @@
             gap: 10px;
         }
         
+        .milestone-alert {
+            background: #1e3a8a;
+            border-color: #3b82f6;
+            color: #dbeafe;
+        }
+        
         .new-token {
             animation: flashGreen 3s ease;
+        }
+        
+        .milestone-flash {
+            animation: flashBlue 3s ease;
         }
         
         @keyframes flashGreen {
             0% { background: #065f46; }
             20% { background: #065f46; }
+            100% { background: transparent; }
+        }
+        
+        @keyframes flashBlue {
+            0% { background: #1e3a8a; }
+            20% { background: #1e3a8a; }
             100% { background: transparent; }
         }
         
@@ -325,6 +341,10 @@
                 <span class="stat-value" id="highScoreCount">0</span>
             </div>
             <div class="stat-item">
+                <span class="stat-label">SOL Price:</span>
+                <span class="stat-value" id="solPrice">$-</span>
+            </div>
+            <div class="stat-item">
                 <span class="stat-label">Connected:</span>
                 <span class="stat-value" id="connectionStatus">🔴</span>
             </div>
@@ -335,6 +355,13 @@
     <div id="alertsContainer" style="margin: 20px; display: none;">
         <div class="alert high-score-alert" id="highScoreAlert">
             🔥 <strong>HIGH SCORE ALERT!</strong> <span id="alertMessage"></span>
+        </div>
+    </div>
+
+    <!-- NEW: Milestone notifications -->
+    <div id="milestoneContainer" style="margin: 20px; display: none;">
+        <div class="alert milestone-alert" id="milestoneAlert">
+            🎯 <strong>MILESTONE!</strong> <span id="milestoneMessage"></span>
         </div>
     </div>
 
@@ -388,6 +415,9 @@
                 this.sortField = 'score';
                 this.sortDirection = 'desc';
                 this.highScoreThreshold = 800;
+                this.reconnectAttempts = 0;
+                this.maxReconnectAttempts = 10;
+                this.reconnectDelay = 1000; // Start with 1 second
                 this.init();
             }
 
@@ -399,61 +429,96 @@
 
             connectWebSocket() {
                 const wsUrl = `ws://${window.location.hostname}:8080`;
-                this.ws = new WebSocket(wsUrl);
+                
+                try {
+                    this.ws = new WebSocket(wsUrl);
 
-                this.ws.onopen = () => {
-                    console.log('WebSocket connected');
-                    document.getElementById('connectionStatus').textContent = '🟢';
-                    this.ws.send(JSON.stringify({ type: 'subscribe', channel: 'all' }));
-                };
+                    this.ws.onopen = () => {
+                        console.log('WebSocket connected');
+                        document.getElementById('connectionStatus').textContent = '🟢';
+                        this.reconnectAttempts = 0;
+                        this.reconnectDelay = 1000;
+                        this.ws.send(JSON.stringify({ type: 'subscribe', channel: 'all' }));
+                    };
 
-                this.ws.onmessage = (event) => {
-                    try {
-                        const message = JSON.parse(event.data);
-                        this.handleMessage(message);
-                    } catch (error) {
-                        console.error('Error processing WebSocket message:', error);
-                        console.error('Raw message:', event.data);
-                    }
-                };
+                    this.ws.onmessage = (event) => {
+                        try {
+                            const message = JSON.parse(event.data);
+                            this.handleMessage(message);
+                        } catch (error) {
+                            console.error('Error processing WebSocket message:', error);
+                            console.error('Raw message:', event.data);
+                        }
+                    };
 
-                this.ws.onclose = () => {
-                    document.getElementById('connectionStatus').textContent = '🔴';
-                    setTimeout(() => this.connectWebSocket(), 3000);
-                };
+                    this.ws.onclose = (event) => {
+                        console.log('WebSocket closed:', event.code, event.reason);
+                        document.getElementById('connectionStatus').textContent = '🔴';
+                        this.handleReconnect();
+                    };
 
-                this.ws.onerror = (error) => {
-                    console.error('WebSocket error:', error);
-                };
+                    this.ws.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        document.getElementById('connectionStatus').textContent = '🔴';
+                    };
+                } catch (error) {
+                    console.error('Failed to create WebSocket:', error);
+                    this.handleReconnect();
+                }
+            }
+
+            handleReconnect() {
+                if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                    console.error('Max reconnection attempts reached');
+                    document.getElementById('connectionStatus').textContent = '❌';
+                    return;
+                }
+
+                this.reconnectAttempts++;
+                const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000);
+                
+                console.log(`Reconnecting in ${delay/1000} seconds... (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+                
+                setTimeout(() => {
+                    this.connectWebSocket();
+                }, delay);
             }
 
             handleMessage(message) {
-                console.log('Received message:', message.type, message.data);
+                // Different message types have different structures
+                // Some have data in message.data, others have it directly on message
+                const messageData = message.data || message;
+                console.log('Received message:', message.type, messageData);
                 
                 switch (message.type) {
                     case 'tokens':
-                        this.updateTokens(message.data);
+                        this.updateTokens(messageData);
                         break;
                     case 'new_token':
-                        this.addToken(message.data);
+                        this.addToken(messageData);
                         break;
                     case 'price_update':
                         // Price updates are just notifications - actual token updates come via 'token_update'
-                        console.log(`Price update notification: ${message.count} tokens updated`);
-                        // Optionally refresh all tokens
-                        if (message.count > 0) {
-                            this.ws.send(JSON.stringify({ type: 'subscribe', channel: 'all' }));
-                        }
+                        console.log(`Price update notification: ${message.count || messageData.count || 0} tokens updated`);
+                        // The websocket.ts sends count directly on the message, not in data
                         break;
                     case 'token_update':
                         // This is the actual token data update
-                        this.updateSingleToken(message.data);
+                        this.updateSingleToken(messageData);
+                        break;
+                    case 'milestone':
+                        // Handle milestone achievements
+                        this.handleMilestone(messageData);
+                        break;
+                    case 'stats':
+                        // Handle server stats
+                        this.handleStats(messageData);
                         break;
                     case 'high_score_alert':
-                        this.showHighScoreAlert(message.data);
+                        this.showHighScoreAlert(messageData);
                         break;
                     case 'score_update':
-                        this.updateTokenScore(message.data);
+                        this.updateTokenScore(messageData);
                         break;
                     default:
                         console.log('Unknown message type:', message.type);
@@ -505,11 +570,14 @@
                 tokenData.current_price = this.ensureNumber(tokenData.current_price);
                 tokenData.current_mcap = this.ensureNumber(tokenData.current_mcap);
                 tokenData.current_liquidity = this.ensureNumber(tokenData.current_liquidity);
-                tokenData.bonding_progress = this.ensureNumber(tokenData.bonding_progress);
+                tokenData.bonding_progress = this.ensureNumber(tokenData.bonding_progress || tokenData.progress);
+                tokenData.progress = this.ensureNumber(tokenData.progress || tokenData.bonding_progress);
                 tokenData.price_change_24h = this.ensureNumber(tokenData.price_change_24h);
                 tokenData.price_change_1h = this.ensureNumber(tokenData.price_change_1h);
                 tokenData.volume_24h = this.ensureNumber(tokenData.volume_24h);
                 tokenData.trade_count_24h = this.ensureNumber(tokenData.trade_count_24h);
+                tokenData.holder_count = this.ensureNumber(tokenData.holder_count);
+                tokenData.score = this.ensureNumber(tokenData.score);
                 
                 // Update or add the token
                 this.tokens.set(tokenData.address, tokenData);
@@ -564,6 +632,8 @@
                         address: token.address 
                     }));
                 });
+                
+                console.log(`Subscribed to ${topTokens.length} top tokens for real-time updates`);
             }
 
             addToken(token) {
@@ -610,6 +680,67 @@
                 setTimeout(() => {
                     alertContainer.style.display = 'none';
                 }, 10000);
+            }
+
+            // Handle milestone notifications
+            handleMilestone(data) {
+                const token = this.tokens.get(data.token);
+                if (token) {
+                    // Update progress if different
+                    if (token.progress !== data.progress) {
+                        token.progress = data.progress;
+                        token.bonding_progress = data.progress;
+                        this.render();
+                    }
+                }
+                
+                // Show notification for significant milestones
+                if (data.milestone >= 50) {
+                    this.showMilestoneNotification(data);
+                }
+            }
+
+            // Show milestone notifications
+            showMilestoneNotification(data) {
+                const token = this.tokens.get(data.token);
+                if (!token) return;
+                
+                const milestoneContainer = document.getElementById('milestoneContainer');
+                const milestoneMessage = document.getElementById('milestoneMessage');
+                
+                const emoji = data.milestone >= 75 ? '🚀' : data.milestone >= 50 ? '🔥' : data.milestone >= 25 ? '⭐' : '✨';
+                milestoneMessage.textContent = `${emoji} ${token.symbol || 'Token'} reached ${data.milestone}% bonding curve progress!`;
+                milestoneContainer.style.display = 'block';
+                
+                // Also flash the token row
+                const row = document.querySelector(`tr[data-address="${data.token}"]`);
+                if (row) {
+                    row.classList.add('milestone-flash');
+                    setTimeout(() => row.classList.remove('milestone-flash'), 3000);
+                }
+                
+                setTimeout(() => {
+                    milestoneContainer.style.display = 'none';
+                }, 5000);
+            }
+
+            // Handle server stats updates
+            handleStats(data) {
+                // Update stats display if needed
+                if (data.currentSolPrice) {
+                    const solPriceElement = document.getElementById('solPrice');
+                    if (solPriceElement) {
+                        solPriceElement.textContent = `${data.currentSolPrice.toFixed(2)}`;
+                    }
+                }
+                
+                // Log stats for debugging
+                console.log('Server stats:', {
+                    priceUpdates: data.priceUpdates,
+                    knownTokens: data.knownTokens,
+                    milestonesTracked: data.milestonesTracked,
+                    bufferSize: data.priceBufferSize
+                });
             }
 
             getScoreBadgeClass(score) {

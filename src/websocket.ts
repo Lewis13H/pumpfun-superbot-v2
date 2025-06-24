@@ -125,111 +125,113 @@ export class DashboardServer {
       console.error('Error sending token details:', error);  
     }  
   }
+  
+  // In your src/websocket.ts file, replace the entire getTokenWithStats method with this:
 
-  // Get token with 24h stats  
-  private async getTokenWithStats(address: string): Promise<any> {  
-    try {  
-      // Get basic token info  
-      const tokenResult = await pool.query(`  
-        SELECT   
-          t.*,  
-          p.price_usd as current_price,  
-          p.price_sol as current_price_sol,  
-          p.market_cap_usd as current_mcap,  
-          p.liquidity_usd as current_liquidity,  
-          p.liquidity_sol as current_liquidity_sol,  
-          p.bonding_complete  
-        FROM tokens t  
-        LEFT JOIN LATERAL (  
-          SELECT * FROM price_updates   
-          WHERE token = t.address   
-          ORDER BY time DESC   
-          LIMIT 1  
-        ) p ON true  
-        WHERE t.address = $1  
-      `, [address]);
+private async getTokenWithStats(address: string): Promise<any> {
+  try {
+    // Get basic token info
+    const tokenResult = await pool.query(`
+      SELECT 
+        t.*,
+        p.price_usd as current_price,
+        p.price_sol as current_price_sol,
+        p.market_cap_usd as current_mcap,
+        p.liquidity_usd as current_liquidity,
+        p.liquidity_sol as current_liquidity_sol,
+        p.bonding_complete
+      FROM tokens t
+      LEFT JOIN LATERAL (
+        SELECT * FROM price_updates 
+        WHERE token = t.address 
+        ORDER BY time DESC 
+        LIMIT 1
+      ) p ON true
+      WHERE t.address = $1
+    `, [address]);
 
-      if (tokenResult.rows.length === 0) {  
-        return null;  
-      }
+    if (tokenResult.rows.length === 0) {
+      return null;
+    }
 
-      const token = tokenResult.rows[0];
+    const token = tokenResult.rows[0];
 
-      // Get 24h stats  
-      const statsResult = await pool.query(`  
-        WITH current_data AS (  
-          SELECT price_usd, time  
-          FROM price_updates  
-          WHERE token = $1  
-          ORDER BY time DESC  
-          LIMIT 1  
-        ),  
-        data_24h_ago AS (  
-          SELECT price_usd  
-          FROM price_updates  
-          WHERE token = $1   
-          AND time >= NOW() - INTERVAL '24 hours' - INTERVAL '1 hour'  
-          AND time <= NOW() - INTERVAL '24 hours' + INTERVAL '1 hour'  
-          ORDER BY time DESC  
-          LIMIT 1  
-        ),  
-        data_1h_ago AS (  
-          SELECT price_usd  
-          FROM price_updates  
-          WHERE token = $1   
-          AND time >= NOW() - INTERVAL '1 hour' - INTERVAL '5 minutes'  
-          AND time <= NOW() - INTERVAL '1 hour' + INTERVAL '5 minutes'  
-          ORDER BY time DESC  
-          LIMIT 1  
-        ),  
-        volume_data AS (  
-          SELECT   
-            COUNT(*) as trade_count,  
-            SUM(ABS(liquidity_usd - LAG(liquidity_usd) OVER (ORDER BY time))) as volume_estimate  
-          FROM price_updates  
-          WHERE token = $1   
-          AND time >= NOW() - INTERVAL '24 hours'  
-        )  
-        SELECT   
-          c.price_usd as current_price,  
-          d24.price_usd as price_24h_ago,  
-          d1.price_usd as price_1h_ago,  
-          v.trade_count,  
-          v.volume_estimate,  
-          CASE   
-            WHEN d24.price_usd > 0 THEN ((c.price_usd - d24.price_usd) / d24.price_usd * 100)  
-            ELSE 0  
-          END as price_change_24h,  
-          CASE   
-            WHEN d1.price_usd > 0 THEN ((c.price_usd - d1.price_usd) / d1.price_usd * 100)  
-            ELSE 0  
-          END as price_change_1h  
-        FROM current_data c  
-        CROSS JOIN data_24h_ago d24  
-        CROSS JOIN data_1h_ago d1  
-        CROSS JOIN volume_data v  
-      `, [address]);
+    // Get 24h stats with fixed volume calculation
+    const statsResult = await pool.query(`
+      WITH current_data AS (
+        SELECT price_usd, time
+        FROM price_updates
+        WHERE token = $1
+        ORDER BY time DESC
+        LIMIT 1
+      ),
+      data_24h_ago AS (
+        SELECT price_usd
+        FROM price_updates
+        WHERE token = $1 
+        AND time >= NOW() - INTERVAL '24 hours' - INTERVAL '1 hour'
+        AND time <= NOW() - INTERVAL '24 hours' + INTERVAL '1 hour'
+        ORDER BY time DESC
+        LIMIT 1
+      ),
+      data_1h_ago AS (
+        SELECT price_usd
+        FROM price_updates
+        WHERE token = $1 
+        AND time >= NOW() - INTERVAL '1 hour' - INTERVAL '5 minutes'
+        AND time <= NOW() - INTERVAL '1 hour' + INTERVAL '5 minutes'
+        ORDER BY time DESC
+        LIMIT 1
+      ),
+      liquidity_changes AS (
+        SELECT 
+          time,
+          liquidity_usd,
+          liquidity_usd - LAG(liquidity_usd) OVER (ORDER BY time) as liquidity_change
+        FROM price_updates
+        WHERE token = $1 
+        AND time >= NOW() - INTERVAL '24 hours'
+      )
+      SELECT 
+        c.price_usd as current_price,
+        COALESCE(d24.price_usd, 0) as price_24h_ago,
+        COALESCE(d1.price_usd, 0) as price_1h_ago,
+        (SELECT COUNT(*) FROM liquidity_changes WHERE liquidity_change IS NOT NULL) as trade_count,
+        (SELECT COALESCE(SUM(ABS(liquidity_change)), 0) FROM liquidity_changes WHERE liquidity_change IS NOT NULL) as volume_estimate,
+        CASE 
+          WHEN d24.price_usd > 0 THEN ((c.price_usd - d24.price_usd) / d24.price_usd * 100)
+          ELSE 0
+        END as price_change_24h,
+        CASE 
+          WHEN d1.price_usd > 0 THEN ((c.price_usd - d1.price_usd) / d1.price_usd * 100)
+          ELSE 0
+        END as price_change_1h
+      FROM current_data c
+      LEFT JOIN data_24h_ago d24 ON true
+      LEFT JOIN data_1h_ago d1 ON true
+    `, [address]);
 
-      const stats: TokenStats = statsResult.rows[0] || {};
+    const stats = statsResult.rows[0] || {};
 
-      // Calculate bonding curve progress  
-      let bondingProgress = 0;  
-      if (!token.graduated && token.current_liquidity_sol) {  
-        bondingProgress = (token.current_liquidity_sol / 85000) * 100;  
-      }
+    // Calculate bonding curve progress
+    let bondingProgress = 0;
+    if (!token.graduated && token.current_liquidity_sol) {
+      bondingProgress = (token.current_liquidity_sol / 85000) * 100;
+    }
 
-      return {  
-        ...token,  
-        ...stats,  
-        bonding_progress: bondingProgress,  
-        volume_24h: stats.volume_estimate || 0,  
-        trade_count_24h: stats.trade_count || 0  
-      };  
-    } catch (error) {  
-      console.error('Error getting token stats:', error);  
-      return null;  
-    }  
+    return {
+      ...token,
+      ...stats,
+      bonding_progress: bondingProgress,
+      volume_24h: stats.volume_estimate || 0,
+      trade_count_24h: stats.trade_count || 0
+    };
+  } catch (error) {
+    console.error('Error getting token stats:', error);
+    return null;
   }
+}
+
 
   // Enhanced sendActiveTokens with 24h changes  
   async sendActiveTokens(ws?: WebSocket) {  
