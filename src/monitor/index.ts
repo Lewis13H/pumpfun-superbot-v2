@@ -26,7 +26,7 @@ import { formatTokenAddress, formatMarketCap } from './utils/format';
 
 export class PumpMonitor extends EventEmitter {  
   private streamClient: StreamClient;  
-  private solPriceService: SolPriceService;  
+  private solPriceService: SolPriceService;
   private bufferService: BufferService;  
   private cacheService: CacheService;  
   private tokenCreationQueue = new Set<string>();
@@ -318,7 +318,14 @@ export class PumpMonitor extends EventEmitter {
       cachedMetadata: this.cacheService.getMetadataCacheSize()  
     };  
   }
-
+  
+  /**
+   * Get the SOL price service instance
+   */
+  getSolPriceService(): SolPriceService {
+    return this.solPriceService;
+  }
+  
   async stop(): Promise<void> {  
     console.log('Stopping monitor...');  
       

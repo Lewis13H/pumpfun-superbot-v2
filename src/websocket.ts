@@ -2,15 +2,6 @@ import WebSocket from 'ws';
 import { config } from './config';  
 import { pool } from './database';
 
-interface TokenStats {  
-  price_24h_ago?: number;  
-  price_1h_ago?: number;  
-  volume_24h?: number;  
-  price_change_24h?: number;  
-  price_change_1h?: number;  
-  volume_estimate?: number;  
-  trade_count?: number;  
-}
 
 export class DashboardServer {  
   private wss: WebSocket.Server;  

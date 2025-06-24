@@ -6,6 +6,7 @@ import { DashboardServer } from './websocket';
 import { WebServer } from './webserver';
 import { pool } from './database';
 import { config } from './config';
+import { PriceRefresherService } from './monitor/services/price-refresher';
 
 // Force exit on Ctrl+C if graceful shutdown fails
 let shutdownAttempts = 0;
@@ -60,6 +61,43 @@ async function main() {
   const metadata = new MetadataFetcher();
   const dashboard = new DashboardServer();
   const webServer = new WebServer();
+
+  // Initialize price refresher if enabled
+  let priceRefresher: PriceRefresherService | null = null;
+  
+  if (config.priceRefresh?.enabled !== false) {
+    const rpcUrl = config.priceRefresh?.rpcUrl || 
+                   (config.shyft?.apiKey ? `https://rpc.shyft.to?api_key=${config.shyft.apiKey}` : null) ||
+                   'https://api.mainnet-beta.solana.com';
+    
+    priceRefresher = new PriceRefresherService(
+      rpcUrl,
+      monitor.getSolPriceService(),
+      {
+        refreshInterval: config.priceRefresh?.interval || 60000,
+        batchSize: config.priceRefresh?.batchSize || 20,
+        maxConcurrent: config.priceRefresh?.maxConcurrent || 5
+      }
+    );
+
+    // Price refresher event handlers
+    priceRefresher.on('refresh:complete', (stats) => {
+      console.log(
+        `📊 Price refresh complete: ${stats.pricesUpdated}/${stats.tokensChecked} updated ` +
+        `in ${(stats.duration/1000).toFixed(1)}s`
+      );
+      
+      // Broadcast refresh stats to dashboard
+      dashboard.broadcast({
+        type: 'price_refresh',
+        data: stats
+      });
+    });
+
+    priceRefresher.on('refresh:error', (error) => {
+      console.error('❌ Price refresh error:', error);
+    });
+  }
 
   // Handle new tokens
   monitor.on('token:new', async (token) => {
@@ -150,6 +188,12 @@ async function main() {
   monitor.start().catch(console.error);
   console.log('✅ Monitor started (running in background)');
 
+  // Start price refresher if enabled
+  if (priceRefresher) {
+    priceRefresher.start();
+    console.log('✅ Price refresh service started');
+  }
+
   // Start other services that return immediately
   console.log('Starting dashboard...');
   await dashboard.start();
@@ -207,9 +251,26 @@ async function main() {
     }
   }, 60000); // Every minute
 
+  // Add price refresher stats logging (NEW)
+  if (priceRefresher) {
+    setInterval(() => {
+      const stats = priceRefresher.getStats();
+      if (stats.isRefreshing) {
+        console.log('🔄 Price refresh in progress...');
+      }
+    }, 30000); // Every 30 seconds
+  }
+
   // Graceful shutdown
   process.on('SIGINT', async () => {
     console.log('\n🛑 Shutting down...');
+    
+    // Stop price refresher first (NEW)
+    if (priceRefresher) {
+      priceRefresher.stop();
+      console.log('✅ Price refresher stopped');
+    }
+    
     await monitor.stop();
     await dashboard.stop();
     await webServer.stop();
