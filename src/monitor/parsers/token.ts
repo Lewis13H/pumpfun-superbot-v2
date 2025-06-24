@@ -101,6 +101,6 @@ export class TokenParser {
            !address.startsWith('TokenkegQ') &&
            address !== 'unknown' &&
            address !== 'undefined' &&
-           address.length >= 32);
+           address.length >= 44);
   }
 }
