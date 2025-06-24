@@ -22,3 +22,4 @@ export function decodeInstructionData(data: any): Buffer {
   }
   return Buffer.from(data, 'base64');
 }
+
