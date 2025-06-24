@@ -1,10 +1,189 @@
-<!-- Updates to add to dashboard/index.html -->
 <!DOCTYPE html>
 <html>
 <head>
     <title>Pump.fun Monitor Dashboard</title>
     <style>
-        /* Existing styles... */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #111827;
+            color: #f3f4f6;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: #1f2937;
+            padding: 20px;
+            border-bottom: 1px solid #374151;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+        
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #3b82f6;
+        }
+        
+        .container {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .filters input,
+        .filters select,
+        .filters button {
+            padding: 8px 16px;
+            background: #1f2937;
+            border: 1px solid #374151;
+            color: #f3f4f6;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .filters input {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .filters button {
+            cursor: pointer;
+            background: #3b82f6;
+            border-color: #3b82f6;
+            transition: background 0.2s;
+        }
+        
+        .filters button:hover {
+            background: #2563eb;
+        }
+        
+        table {
+            width: 100%;
+            background: #1f2937;
+            border-radius: 8px;
+            overflow: hidden;
+            border-collapse: collapse;
+        }
+        
+        th {
+            background: #111827;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            color: #9ca3af;
+            border-bottom: 1px solid #374151;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #374151;
+        }
+        
+        tr:hover {
+            background: #263345;
+        }
+        
+        .progress-bar {
+            width: 100px;
+            height: 20px;
+            background: #374151;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6 0%, #22c55e 100%);
+            transition: width 0.3s ease;
+        }
+        
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 11px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 0 2px rgba(0,0,0,0.5);
+        }
+        
+        .positive {
+            color: #22c55e;
+        }
+        
+        .negative {
+            color: #ef4444;
+        }
+        
+        a {
+            color: #3b82f6;
+            text-decoration: none;
+            margin-right: 10px;
+        }
+        
+        a:hover {
+            color: #60a5fa;
+        }
+        
+        .alert {
+            padding: 16px;
+            background: #065f46;
+            border: 1px solid #10b981;
+            border-radius: 8px;
+            color: #d1fae5;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .new-token {
+            animation: flashGreen 3s ease;
+        }
+        
+        @keyframes flashGreen {
+            0% { background: #065f46; }
+            20% { background: #065f46; }
+            100% { background: transparent; }
+        }
+        
+        .high-score-token {
+            background: rgba(34, 197, 94, 0.1);
+        }
         
         /* NEW: Scoring styles */
         .score-badge {
@@ -99,6 +278,33 @@
         .sortable.desc:after {
             content: ' ↓';
             opacity: 1;
+        }
+        
+        /* Token info styling for missing images */
+        .token-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .token-info img {
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        
+        .token-info > div {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .token-symbol {
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .token-name {
+            font-size: 12px;
+            color: #9ca3af;
         }
     </style>
 </head>
@@ -202,17 +408,28 @@
                 };
 
                 this.ws.onmessage = (event) => {
-                    const message = JSON.parse(event.data);
-                    this.handleMessage(message);
+                    try {
+                        const message = JSON.parse(event.data);
+                        this.handleMessage(message);
+                    } catch (error) {
+                        console.error('Error processing WebSocket message:', error);
+                        console.error('Raw message:', event.data);
+                    }
                 };
 
                 this.ws.onclose = () => {
                     document.getElementById('connectionStatus').textContent = '🔴';
                     setTimeout(() => this.connectWebSocket(), 3000);
                 };
+
+                this.ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                };
             }
 
             handleMessage(message) {
+                console.log('Received message:', message.type, message.data);
+                
                 switch (message.type) {
                     case 'tokens':
                         this.updateTokens(message.data);
@@ -221,7 +438,16 @@
                         this.addToken(message.data);
                         break;
                     case 'price_update':
-                        this.updatePrices(message.data);
+                        // Price updates are just notifications - actual token updates come via 'token_update'
+                        console.log(`Price update notification: ${message.count} tokens updated`);
+                        // Optionally refresh all tokens
+                        if (message.count > 0) {
+                            this.ws.send(JSON.stringify({ type: 'subscribe', channel: 'all' }));
+                        }
+                        break;
+                    case 'token_update':
+                        // This is the actual token data update
+                        this.updateSingleToken(message.data);
                         break;
                     case 'high_score_alert':
                         this.showHighScoreAlert(message.data);
@@ -229,19 +455,129 @@
                     case 'score_update':
                         this.updateTokenScore(message.data);
                         break;
+                    default:
+                        console.log('Unknown message type:', message.type);
                 }
+            }
+
+            // FIX: Add the missing updatePrices method with better error handling
+            updatePrices(priceData) {
+                if (!priceData) {
+                    console.warn('updatePrices called with undefined data');
+                    return;
+                }
+                
+                // Handle price updates for multiple tokens
+                if (Array.isArray(priceData)) {
+                    priceData.forEach(update => {
+                        if (!update || !update.address) {
+                            console.warn('Invalid price update:', update);
+                            return;
+                        }
+                        const token = this.tokens.get(update.address);
+                        if (token) {
+                            // Ensure price is a number
+                            token.current_price = this.ensureNumber(update.price);
+                            token.price_change_24h = this.ensureNumber(update.price_change_24h);
+                        }
+                    });
+                } else if (priceData && priceData.address) {
+                    // Handle single token price update
+                    const token = this.tokens.get(priceData.address);
+                    if (token) {
+                        token.current_price = this.ensureNumber(priceData.price);
+                        token.price_change_24h = this.ensureNumber(priceData.price_change_24h);
+                    }
+                } else {
+                    console.warn('Invalid price data structure:', priceData);
+                }
+                this.render();
+            }
+
+            // Handle individual token updates from WebSocket
+            updateSingleToken(tokenData) {
+                if (!tokenData || !tokenData.address) {
+                    console.warn('Invalid token update:', tokenData);
+                    return;
+                }
+                
+                // Ensure all numeric fields are actually numbers
+                tokenData.current_price = this.ensureNumber(tokenData.current_price);
+                tokenData.current_mcap = this.ensureNumber(tokenData.current_mcap);
+                tokenData.current_liquidity = this.ensureNumber(tokenData.current_liquidity);
+                tokenData.bonding_progress = this.ensureNumber(tokenData.bonding_progress);
+                tokenData.price_change_24h = this.ensureNumber(tokenData.price_change_24h);
+                tokenData.price_change_1h = this.ensureNumber(tokenData.price_change_1h);
+                tokenData.volume_24h = this.ensureNumber(tokenData.volume_24h);
+                tokenData.trade_count_24h = this.ensureNumber(tokenData.trade_count_24h);
+                
+                // Update or add the token
+                this.tokens.set(tokenData.address, tokenData);
+                this.render();
+                this.updateStats();
+            }
+
+            // FIX: Ensure numeric values
+            ensureNumber(value) {
+                if (typeof value === 'number') return value;
+                if (typeof value === 'string') return parseFloat(value) || 0;
+                return 0;
             }
 
             updateTokens(tokens) {
                 this.tokens.clear();
                 tokens.forEach(token => {
+                    // Ensure all numeric fields are actually numbers
+                    token.current_price = this.ensureNumber(token.current_price);
+                    token.current_mcap = this.ensureNumber(token.current_mcap);
+                    token.current_liquidity = this.ensureNumber(token.current_liquidity);
+                    token.progress = this.ensureNumber(token.progress || token.bonding_progress);
+                    token.bonding_progress = this.ensureNumber(token.bonding_progress || token.progress);
+                    token.price_change_24h = this.ensureNumber(token.price_change_24h);
+                    token.holder_count = this.ensureNumber(token.holder_count);
+                    token.score = this.ensureNumber(token.score);
+                    token.volume_24h = this.ensureNumber(token.volume_24h);
+                    
                     this.tokens.set(token.address, token);
                 });
+                
+                // Subscribe to top tokens for real-time updates
+                this.subscribeToTopTokens();
+                
                 this.render();
                 this.updateStats();
             }
 
+            // Subscribe to top tokens for real-time updates
+            subscribeToTopTokens() {
+                if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+                
+                // Get top 20 tokens by market cap
+                const topTokens = Array.from(this.tokens.values())
+                    .sort((a, b) => (b.current_mcap || 0) - (a.current_mcap || 0))
+                    .slice(0, 20);
+                
+                // Subscribe to each token
+                topTokens.forEach(token => {
+                    this.ws.send(JSON.stringify({ 
+                        type: 'subscribe_token', 
+                        address: token.address 
+                    }));
+                });
+            }
+
             addToken(token) {
+                // Ensure all numeric fields are actually numbers
+                token.current_price = this.ensureNumber(token.current_price);
+                token.current_mcap = this.ensureNumber(token.current_mcap);
+                token.current_liquidity = this.ensureNumber(token.current_liquidity);
+                token.progress = this.ensureNumber(token.progress || token.bonding_progress);
+                token.bonding_progress = this.ensureNumber(token.bonding_progress || token.progress);
+                token.price_change_24h = this.ensureNumber(token.price_change_24h);
+                token.holder_count = this.ensureNumber(token.holder_count);
+                token.score = this.ensureNumber(token.score);
+                token.volume_24h = this.ensureNumber(token.volume_24h);
+                
                 this.tokens.set(token.address, token);
                 this.render();
                 
@@ -258,7 +594,7 @@
             updateTokenScore(data) {
                 const token = this.tokens.get(data.token);
                 if (token) {
-                    token.score = data.score;
+                    token.score = this.ensureNumber(data.score);
                     token.score_breakdown = data.breakdown;
                     this.render();
                 }
@@ -341,7 +677,7 @@
                         <tr data-address="${token.address}" class="${isHighScore ? 'high-score-token' : ''}">
                             <td>
                                 <div class="token-info">
-                                    ${token.image_uri ? `<img src="${token.image_uri}" alt="${token.symbol}">` : ''}
+                                    ${(token.image_uri || token.imageUri) ? `<img src="${this.getImageUrl(token.image_uri || token.imageUri)}" alt="${token.symbol}" width="32" height="32" onerror="this.style.display='none'">` : ''}
                                     <div>
                                         <span class="token-symbol">${token.symbol || 'Unknown'}</span>
                                         <span class="token-name">${token.name || ''}</span>
@@ -359,8 +695,8 @@
                             <td>$${this.formatNumber(token.current_liquidity || 0)}</td>
                             <td>
                                 <div class="progress-bar">
-                                    <div class="progress-fill" style="width: ${token.progress || 0}%"></div>
-                                    <span class="progress-text">${(token.progress || 0).toFixed(1)}%</span>
+                                    <div class="progress-fill" style="width: ${token.bonding_progress || token.progress || 0}%"></div>
+                                    <span class="progress-text">${(token.bonding_progress || token.progress || 0).toFixed(1)}%</span>
                                 </div>
                             </td>
                             <td class="${token.price_change_24h > 0 ? 'positive' : 'negative'}">
@@ -369,7 +705,7 @@
                             <td>${token.holder_count || '-'}</td>
                             <td>${this.formatAge(token.created_at)}</td>
                             <td>
-                                <a href="https://pump.fun/${token.vanity_id || token.address}" target="_blank">Pump</a>
+                                <a href="https://pump.fun/${token.vanity_id || token.vanityId || token.address}" target="_blank">Pump</a>
                                 <a href="token.html?address=${token.address}" target="_blank">Details</a>
                             </td>
                         </tr>
@@ -426,9 +762,29 @@
                             aVal = a.current_mcap || 0;
                             bVal = b.current_mcap || 0;
                             break;
+                        case 'price':
+                            aVal = a.current_price || 0;
+                            bVal = b.current_price || 0;
+                            break;
+                        case 'liquidity':
+                            aVal = a.current_liquidity || 0;
+                            bVal = b.current_liquidity || 0;
+                            break;
+                        case 'progress':
+                            aVal = a.bonding_progress || a.progress || 0;
+                            bVal = b.bonding_progress || b.progress || 0;
+                            break;
+                        case 'change24h':
+                            aVal = a.price_change_24h || 0;
+                            bVal = b.price_change_24h || 0;
+                            break;
                         case 'holders':
                             aVal = a.holder_count || 0;
                             bVal = b.holder_count || 0;
+                            break;
+                        case 'age':
+                            aVal = new Date(a.created_at).getTime();
+                            bVal = new Date(b.created_at).getTime();
                             break;
                         default:
                             aVal = a[this.sortField] || 0;
@@ -502,11 +858,47 @@
                 return num.toFixed(2);
             }
 
+            // FIX: Handle IPFS image URLs with fallback gateways
+            getImageUrl(imageUri) {
+                if (!imageUri) return '';
+                
+                // List of IPFS gateways to try
+                const gateways = [
+                    'https://gateway.pinata.cloud/ipfs/',
+                    'https://cloudflare-ipfs.com/ipfs/',
+                    'https://ipfs.filebase.io/ipfs/',
+                    'https://w3s.link/ipfs/'
+                ];
+                
+                // If it's already a full URL, return as is
+                if (imageUri.startsWith('http://') || imageUri.startsWith('https://')) {
+                    // Replace ipfs.io with a working gateway if needed
+                    if (imageUri.includes('ipfs.io/ipfs/')) {
+                        const hash = imageUri.split('ipfs.io/ipfs/')[1];
+                        return gateways[0] + hash;
+                    }
+                    return imageUri;
+                }
+                
+                // If it's an IPFS hash, use a gateway
+                if (imageUri.startsWith('ipfs://')) {
+                    const hash = imageUri.replace('ipfs://', '');
+                    return gateways[0] + hash;
+                }
+                
+                // Assume it's a raw hash
+                return gateways[0] + imageUri;
+            }
+
+            // FIX: Ensure price is a number before calling toFixed
             formatPrice(price) {
-                if (price < 0.00001) return price.toExponential(2);
-                if (price < 0.01) return price.toFixed(6);
-                if (price < 1) return price.toFixed(4);
-                return price.toFixed(2);
+                // Convert to number if it's not already
+                const numPrice = this.ensureNumber(price);
+                
+                if (numPrice < 0.00001) return numPrice.toExponential(2);
+                if (numPrice < 0.01) return numPrice.toFixed(6);
+                if (numPrice < 1) return numPrice.toFixed(4);
+                return numPrice.toFixed(2);
             }
 
             formatAge(createdAt) {
