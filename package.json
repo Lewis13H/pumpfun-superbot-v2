@@ -2,7 +2,12 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "bonding": "tsx src/examples/bonding-curve-monitor.ts",
+    "unified": "tsx src/examples/unified-monitor.ts",
+    "progress": "tsx src/examples/simple-progress.ts",
+    "threshold": "tsx src/examples/threshold-monitor.ts",
+    "view-tokens": "tsx src/examples/view-saved-tokens.ts"
   },
   "name": "pumpfun-superbot-v2",
   "version": "1.0.0",
@@ -12,9 +17,13 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@coral-xyz/anchor": "^0.29.0",
+    "@coral-xyz/borsh": "^0.29.0",
     "@solana/web3.js": "^1.98.2",
     "@triton-one/yellowstone-grpc": "^4.0.2",
-    "dotenv": "^16.5.0"
+    "@types/pg": "^8.15.4",
+    "dotenv": "^16.5.0",
+    "pg": "^8.16.2"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -22,4 +31,3 @@
     "typescript": "^5.8.3"
   }
 }
-

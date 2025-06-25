@@ -143,7 +143,7 @@ export class SubscriptionHandler {
           this.retryCount = 0;
         });
         
-        stream.on("error", (error) => {
+        stream.on("error", (error: any) => {
           // Check if error is due to user cancellation
           if (error.code === 1) {
             console.log('✅ Stream cancelled successfully');
@@ -184,8 +184,8 @@ export class SubscriptionHandler {
     // Handle ping/pong
     if (data.ping) {
       stream.write({
-        ping: { id: data.ping.id }
-      });
+        pong: { id: (data.ping as any).id }
+      } as any);
       return;
     }
     

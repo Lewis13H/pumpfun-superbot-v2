@@ -65,3 +65,43 @@ To build for production:
 npm run build
 npm start
 ```
+
+## Additional Monitors
+
+### Progress Tracker
+Shows estimated progress to Raydium migration based on virtual SOL reserves:
+```bash
+npm run progress
+```
+
+Features:
+- Visual progress bars (0-100%)
+- Alerts when tokens are close to completion (>90%)
+- Shows virtual SOL reserves
+- Estimates based on 30 SOL start → 115 SOL completion range
+
+### Bonding Curve Monitor (Experimental)
+Attempts to stream bonding curve account updates:
+```bash
+npm run bonding
+```
+
+Note: Account updates are less frequent than transactions. The progress tracker provides more immediate feedback.
+
+### $8888 Threshold Monitor
+Automatically saves tokens that reach $8888 market cap to database:
+```bash
+npm run threshold
+```
+
+Features:
+- Monitors all tokens in real-time
+- Saves token data when market cap ≥ $8888
+- Tracks price history with bonding curve progress
+- Shows 💾 indicator for tracked tokens
+- Stores virtual SOL reserves and progress percentage
+
+View saved tokens:
+```bash
+npm run view-tokens
+```
