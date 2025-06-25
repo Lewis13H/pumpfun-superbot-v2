@@ -105,3 +105,23 @@ View saved tokens:
 ```bash
 npm run view-tokens
 ```
+
+### Token Enrichment with Helius
+Enrich saved tokens with additional data from Helius API:
+```bash
+npm run enrich-tokens
+```
+
+Features:
+- Fetches token metadata (name, symbol, description, image)
+- Gets holder count and distribution
+- Identifies top holders and concentration
+- Caches data to minimize API usage
+- Saves top 20 holders to database
+
+View enriched data:
+```bash
+npm run view-enriched
+```
+
+The threshold monitor automatically enriches tokens when they reach $8888.

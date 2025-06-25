@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-Minimal Pump.fun token price monitor that streams real-time token prices via Shyft's gRPC endpoint. Displays token addresses, prices in SOL/USD, and market caps.
+Pump.fun token monitor with real-time price streaming, bonding curve progress tracking, and database persistence for high-value tokens. Uses Shyft's gRPC endpoint to stream Solana blockchain data.
 
 ## Development Commands
 
@@ -12,65 +12,117 @@ Minimal Pump.fun token price monitor that streams real-time token prices via Shy
 # Install dependencies
 npm install
 
-# Run in development mode
-npm run dev
-
 # Build TypeScript
 npm run build
 
-# Run production build
-npm start
+# Core monitors
+npm run dev          # Basic price monitor
+npm run progress     # Monitor with progress bars
+npm run threshold    # Save tokens ≥$8888 to database
+npm run bonding      # Stream bonding curve accounts
+npm run unified      # Combined price + progress monitor
 
-# Run subscription modification example
-npx tsx src/examples/modify-subscription.ts
+# Database
+npm run view-tokens  # View saved tokens from threshold monitor
 ```
 
 ## Architecture
 
+### Data Flow
+1. **gRPC Stream** → Receives raw transaction data from Shyft
+2. **Event Parser** → Extracts TradeEvents from logs (225 bytes)
+3. **Price Calculator** → Computes prices using virtual reserves
+4. **Monitors** → Display data and optionally save to PostgreSQL
+
 ### Core Components
 
-1. **gRPC Streaming** (`src/stream/`)
-   - `client.ts`: Singleton client managing gRPC connection. Requires full URL format (e.g., `https://grpc.ams.shyft.to`)
-   - `subscription.ts`: Handles stream lifecycle, reconnection logic, and slot-based resumption
+#### Stream Management (`src/stream/`)
+- **client.ts**: Singleton gRPC client
+  - CRITICAL: Endpoint must be full URL (e.g., `https://grpc.ams.shyft.to`)
+  - Handles authentication with SHYFT_GRPC_TOKEN
+- **subscription.ts**: Transaction stream handler
+  - Slot-based reconnection (tracks lastProcessedSlot)
+  - 30 retry attempts before resetting to latest
+  - Handles ping/pong keepalive
+- **account-subscription.ts**: Bonding curve account updates
+  - Uses Borsh decoding for account data
+  - Less frequent than transaction updates
 
-2. **Price Calculation** (`src/utils/`)
-   - Pump.fun tokens have 6 decimal places
-   - Virtual reserves are in lamports (must divide by 1e9 for SOL)
-   - Price formula: `(virtualSolReserves / 1e9) / (virtualTokenReserves / 1e6)`
-   - Market cap assumes 1B token supply
+#### Price Calculations (`src/utils/`)
+- **Constants**: 
+  - Pump.fun tokens: 6 decimal places
+  - SOL: 9 decimal places (lamports)
+  - Market cap: Assumes 1B token supply
+- **Formula**: `price = (virtualSolReserves / 1e9) / (virtualTokenReserves / 1e6)`
+- **Progress**: 30 SOL start → 115 SOL = 100% (migration threshold ~85-86 SOL)
 
-3. **Event Parsing**
-   - TradeEvent is 225 bytes with specific offsets:
-     - Mint: bytes 8-40
-     - Virtual SOL reserves: bytes 97-104
-     - Virtual token reserves: bytes 105-112
+#### Event Structure
+TradeEvent (225 bytes):
+- Bytes 0-7: Discriminator
+- Bytes 8-40: Mint address (32 bytes)
+- Bytes 97-104: Virtual SOL reserves (u64)
+- Bytes 105-112: Virtual token reserves (u64)
+- Remaining bytes: Unknown (likely trader, amounts, etc.)
 
-### Critical Implementation Details
+#### Database (`src/database.ts`)
+PostgreSQL with connection pooling:
+- **tokens**: Basic token info
+- **price_updates**: Historical prices with progress
+- **trades**: Individual trades (not currently populated)
 
-1. **Environment Variables**
-   - `SHYFT_GRPC_ENDPOINT`: Must be full URL with protocol (https://)
-   - `SHYFT_GRPC_TOKEN`: Required for authentication
+$8888 threshold monitor saves tokens when market cap ≥ $8888.
 
-2. **Reconnection Behavior**
-   - Tracks last processed slot for resumption
-   - Retries up to 30 times with slot resumption
-   - Falls back to latest slot after max retries
-   - 1-second delay between reconnection attempts
+### Services
+- **sol-price.ts**: CoinGecko integration
+  - 60-second cache
+  - Fallback price: $180
+- **threshold-tracker.ts**: Monitors for $8888+ tokens
+  - Tracks saved tokens in memory
+  - Saves price updates for tracked tokens
 
-3. **Known Issues**
-   - Serialization error (code 13) occurs occasionally during reconnection but doesn't affect functionality
-   - Stream automatically recovers and resumes from last slot
+## Critical Implementation Details
 
-4. **SOL Price Service**
-   - Fetches from CoinGecko API
-   - 60-second cache to respect rate limits
-   - Falls back to $180 if API fails
+### Environment Variables
+```bash
+# Required
+SHYFT_GRPC_ENDPOINT=https://grpc.ams.shyft.to  # Must include https://
+SHYFT_GRPC_TOKEN=your-token-here
+DATABASE_URL=postgresql://user@localhost:5432/pump_monitor
 
-## Subscription Modification
-
-To modify subscription filters without disconnecting:
-```typescript
-subscriptionHandler.updateSubscription(newRequest)
+# Optional (from .env)
+SHYFT_API_KEY=...  # Not used in current implementation
+SHYFT_RPC_URL=...  # Not used in current implementation
 ```
 
-See `src/examples/modify-subscription.ts` for switching between different programs.
+### Known Issues & Solutions
+1. **gRPC Serialization Error (code 13)**
+   - Occurs during reconnection
+   - Doesn't affect functionality
+   - Suppressed in error handlers
+
+2. **Endpoint Format**
+   - Must be full URL with protocol
+   - ❌ `grpc.shyft.to`
+   - ✅ `https://grpc.shyft.to`
+
+3. **Bonding Curve Account Updates**
+   - Much less frequent than transactions
+   - Use transaction-based progress tracking for real-time updates
+
+### Type Safety
+- Cast base58 encoding: `toString('base58' as any)`
+- Ping ID access: `(data.ping as any).id`
+- Buffer handling for pubkeys and data
+
+## Testing Single Features
+
+```bash
+# Test database connection
+psql $DATABASE_URL -c "SELECT 1"
+
+# Test specific monitor with timeout
+timeout 30 npm run threshold  # macOS: use gtimeout
+
+# View database content
+psql $DATABASE_URL -c "SELECT COUNT(*) FROM tokens"
+```

@@ -7,7 +7,9 @@
     "unified": "tsx src/examples/unified-monitor.ts",
     "progress": "tsx src/examples/simple-progress.ts",
     "threshold": "tsx src/examples/threshold-monitor.ts",
-    "view-tokens": "tsx src/examples/view-saved-tokens.ts"
+    "view-tokens": "tsx src/examples/view-saved-tokens.ts",
+    "enrich-tokens": "tsx src/examples/enrich-tokens.ts",
+    "view-enriched": "tsx src/examples/view-enriched-tokens.ts"
   },
   "name": "pumpfun-superbot-v2",
   "version": "1.0.0",
