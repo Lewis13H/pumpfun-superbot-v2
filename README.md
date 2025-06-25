@@ -125,3 +125,27 @@ npm run view-enriched
 ```
 
 The threshold monitor automatically enriches tokens when they reach $8888.
+
+## Web Dashboard
+
+A DexScreener-style web dashboard for monitoring saved tokens:
+
+```bash
+npm run dashboard
+```
+
+Features:
+- Real-time token prices and market caps
+- Price changes (5M, 1H, 6H, 24H)
+- Token age from blockchain creation time
+- Holder count and top holder percentage
+- Progress bars for Raydium migration
+- Auto-refresh every 10 seconds
+- Dark theme matching DexScreener style
+
+Access the dashboard at http://localhost:3001 after starting the server.
+
+Update token creation times from blockchain:
+```bash
+npm run update-ages
+```

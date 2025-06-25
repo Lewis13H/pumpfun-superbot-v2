@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Monitor - DexScreener Style</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Pump.fun Token Monitor</h1>
+            <div class="header-controls">
+                <div class="filter-buttons">
+                    <button class="filter-btn active" data-filter="24h">Last 24 hours</button>
+                    <button class="filter-btn" data-filter="trending">Trending</button>
+                    <button class="filter-btn" data-filter="6h">6H</button>
+                    <button class="filter-btn" data-filter="1h">1H</button>
+                </div>
+                <div class="refresh-indicator">
+                    <span id="last-update">Loading...</span>
+                    <div class="refresh-spinner" id="spinner"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table class="token-table">
+                <thead>
+                    <tr>
+                        <th class="text-left">TOKEN</th>
+                        <th>PRICE</th>
+                        <th>AGE</th>
+                        <th>HOLDERS</th>
+                        <th>TOP WALLET %</th>
+                        <th>VOLUME</th>
+                        <th>5M</th>
+                        <th>1H</th>
+                        <th>6H</th>
+                        <th>24H</th>
+                        <th>LIQUIDITY</th>
+                        <th>MCAP</th>
+                    </tr>
+                </thead>
+                <tbody id="token-list">
+                    <!-- Tokens will be dynamically inserted here -->
+                </tbody>
+            </table>
+        </div>
+
+        <div id="pagination"></div>
+
+        <div class="footer">
+            <p>Auto-refreshes every 3 seconds | <span id="token-count">0</span> tokens tracked</p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
