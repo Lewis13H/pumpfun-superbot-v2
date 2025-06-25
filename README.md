@@ -40,6 +40,24 @@ The monitor automatically fetches real-time SOL prices from CoinGecko API:
 - Falls back to $180 if API is unavailable
 - Shows price updates in console
 
+## Advanced Features
+
+### Graceful Shutdown
+- Press `Ctrl+C` to gracefully close the gRPC connection
+- Handles SIGINT, SIGTERM, and SIGHUP signals
+- Properly cancels active streams before exiting
+
+### Robust Reconnection
+- Automatic reconnection on stream errors
+- Slot-based resumption to avoid missing transactions
+- Configurable retry limits and delays
+- Falls back to latest slot after max retries
+
+### Dynamic Subscription Updates
+- Modify subscription filters without disconnecting
+- See `src/examples/modify-subscription.ts` for usage
+- Useful for switching between different programs or filters
+
 ## Build
 
 To build for production:

@@ -12,7 +12,14 @@ export class StreamClient {
       throw new Error('Missing SHYFT_GRPC_ENDPOINT or SHYFT_GRPC_TOKEN in environment variables');
     }
     
-    this.client = new Client(endpoint, token, undefined);
+    // Ensure endpoint is a valid URL
+    let formattedEndpoint = endpoint;
+    if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+      formattedEndpoint = `https://${endpoint}`;
+    }
+    
+    
+    this.client = new Client(formattedEndpoint, token, undefined);
   }
 
   static getInstance(): StreamClient {
