@@ -1,42 +1,54 @@
-# Examples
+# Examples & Utilities
 
-This directory contains examples demonstrating various features of the Pump.fun Token Price Monitor.
+This directory contains utility scripts and examples for database operations and token management.
 
-## Basic Monitoring
-
-### simple-progress.ts
-Shows token prices with bonding curve progress estimation.
-```bash
-npm run progress
-```
-
-## Advanced Monitoring
-
-### threshold-monitor.ts
-Monitors tokens and saves those reaching $8888 market cap to database.
-```bash
-npm run threshold
-```
+## Database Viewers
 
 ### view-saved-tokens.ts
-Views tokens saved by the threshold monitor.
+Views all tokens saved in the database.
 ```bash
 npm run view-tokens
 ```
 
-### bonding-curve-monitor.ts
-Streams bonding curve account updates (experimental).
+### view-enriched-tokens.ts
+Views tokens with Helius enrichment data (metadata, holder info).
 ```bash
-npm run bonding
+npm run view-enriched
 ```
 
-### unified-monitor.ts
-Combines price monitoring with bonding curve progress tracking.
+### view-graduated-tokens.ts
+Views tokens that have graduated from bonding curve to Raydium.
 ```bash
-npm run unified
+npm run view-graduated
 ```
 
-## Stream Management
+## Data Enrichment & Updates
+
+### enrich-tokens.ts
+Fetches metadata and holder distribution from Helius API.
+```bash
+npm run enrich-tokens
+```
+
+### update-token-ages.ts
+Updates token creation times from blockchain data.
+```bash
+npm run update-ages
+```
+
+### update-graduated-prices.ts
+Updates current prices for graduated tokens from DexScreener.
+```bash
+npm run update-graduated
+```
+
+### check-graduations.ts
+Checks which tokens have graduated to Raydium.
+```bash
+npm run check-graduations
+```
+
+## Stream Examples
 
 ### modify-subscription.ts
 Demonstrates dynamic subscription modification without disconnecting.
