@@ -21,16 +21,23 @@ npm run progress     # Monitor with progress bars
 npm run threshold    # Save tokens ≥$8888 to database
 npm run bonding      # Stream bonding curve accounts
 npm run unified      # Combined price + progress monitor
+npm run trades       # Trade monitor with buy/sell tracking
 
-# Database
+# Database & Enrichment
 npm run view-tokens  # View saved tokens from threshold monitor
+npm run enrich-tokens # Fetch metadata from Helius API
+npm run view-enriched # View enriched token data
+npm run update-ages  # Update token creation times from blockchain
+
+# Web Dashboard
+npm run dashboard    # Start web dashboard (http://localhost:3001)
 ```
 
 ## Architecture
 
 ### Data Flow
 1. **gRPC Stream** → Receives raw transaction data from Shyft
-2. **Event Parser** → Extracts TradeEvents from logs (225 bytes)
+2. **Event Parser** → Uses IDL-based parsing for TradeEvents and graduation events
 3. **Price Calculator** → Computes prices using virtual reserves
 4. **Monitors** → Display data and optionally save to PostgreSQL
 
@@ -56,13 +63,21 @@ npm run view-tokens  # View saved tokens from threshold monitor
 - **Formula**: `price = (virtualSolReserves / 1e9) / (virtualTokenReserves / 1e6)`
 - **Progress**: 30 SOL start → 115 SOL = 100% (migration threshold ~85-86 SOL)
 
-#### Event Structure
-TradeEvent (225 bytes):
-- Bytes 0-7: Discriminator
-- Bytes 8-40: Mint address (32 bytes)
-- Bytes 97-104: Virtual SOL reserves (u64)
-- Bytes 105-112: Virtual token reserves (u64)
-- Remaining bytes: Unknown (likely trader, amounts, etc.)
+#### Event Parsing
+**IDL-Based Parsing** (Recommended):
+- Uses Anchor's BorshCoder and EventParser
+- Parses complete TradeEvent structure including:
+  - is_buy: Boolean to distinguish buy/sell
+  - user: Trader's address
+  - sol_amount/token_amount: Trade amounts
+  - virtual reserves and fees
+
+**Legacy Manual Parsing** (Deprecated):
+- TradeEvent (225 bytes):
+  - Bytes 0-7: Discriminator
+  - Bytes 8-40: Mint address (32 bytes)
+  - Bytes 97-104: Virtual SOL reserves (u64)
+  - Bytes 105-112: Virtual token reserves (u64)
 
 #### Database (`src/database.ts`)
 PostgreSQL with connection pooling:
@@ -79,6 +94,15 @@ $8888 threshold monitor saves tokens when market cap ≥ $8888.
 - **threshold-tracker.ts**: Monitors for $8888+ tokens
   - Tracks saved tokens in memory
   - Saves price updates for tracked tokens
+- **helius.ts**: Fetches token metadata and holder distribution
+  - Enriches tokens with metadata
+  - Tracks top 20 holders
+- **trade-event-parser.ts**: IDL-based event parsing
+  - Parses buy/sell events with full details
+  - Provides trade statistics and summaries
+- **graduation-tracker.ts**: Tracks token graduations
+  - Uses IDL to parse migration events
+  - Updates database when tokens graduate
 
 ## Critical Implementation Details
 
@@ -89,9 +113,9 @@ SHYFT_GRPC_ENDPOINT=https://grpc.ams.shyft.to  # Must include https://
 SHYFT_GRPC_TOKEN=your-token-here
 DATABASE_URL=postgresql://user@localhost:5432/pump_monitor
 
-# Optional (from .env)
-SHYFT_API_KEY=...  # Not used in current implementation
-SHYFT_RPC_URL=...  # Not used in current implementation
+# Optional
+HELIUS_API_KEY=your-helius-api-key-here  # For token enrichment
+API_PORT=3001                            # Dashboard server port
 ```
 
 ### Known Issues & Solutions
@@ -108,6 +132,14 @@ SHYFT_RPC_URL=...  # Not used in current implementation
 3. **Bonding Curve Account Updates**
    - Much less frequent than transactions
    - Use transaction-based progress tracking for real-time updates
+
+4. **Rate Limit: RESOURCE_EXHAUSTED Error**
+   - Shyft limits: 50 subscriptions per 60 seconds per token
+   - Solution implemented:
+     - Tracks subscription timestamps
+     - Enforces rate limit (max 45 subscriptions/minute)
+     - Exponential backoff (2s → 60s max)
+     - Proper stream cleanup with destroy() fallback
 
 ### Type Safety
 - Cast base58 encoding: `toString('base58' as any)`

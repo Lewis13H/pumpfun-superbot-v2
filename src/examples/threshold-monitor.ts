@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import 'dotenv/config';
-import { SubscriptionHandler } from '../stream/subscription';
+import { SimpleSubscriptionHandler } from '../stream/subscription-simple';
 import { extractTradeEvents } from '../utils/parser';
 import { calculatePrice } from '../utils/price-calculator';
 import { SolPriceService } from '../services/sol-price';
@@ -40,7 +40,7 @@ async function main() {
   }
   
   // Override the processTransaction method to add threshold checking
-  const handler = new SubscriptionHandler();
+  const handler = new SimpleSubscriptionHandler();
   
   (handler as any).processTransaction = async function(data: any) {
     const logs = data.transaction?.transaction?.meta?.logMessages || [];

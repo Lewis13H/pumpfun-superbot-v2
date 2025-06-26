@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graduated Tokens - Pump.fun Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #0a0a0a;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-links a {
+            color: #888;
+            text-decoration: none;
+            font-size: 16px;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            color: #fff;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .stat-label {
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .stat-change {
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .positive {
+            color: #00d4aa;
+        }
+
+        .negative {
+            color: #ff3737;
+        }
+
+        .tokens-table {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #0f0f0f;
+            color: #888;
+            font-weight: 500;
+            text-align: left;
+            padding: 16px;
+            font-size: 14px;
+            white-space: nowrap;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        td {
+            padding: 16px;
+            border-bottom: 1px solid #1f1f1f;
+            font-size: 14px;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background: #1f1f1f;
+        }
+
+        .token-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .token-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #2a2a2a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .token-icon img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .token-details {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .token-name {
+            color: #fff;
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .token-symbol {
+            color: #888;
+            font-size: 12px;
+        }
+
+        .price {
+            font-family: 'Monaco', 'Courier New', monospace;
+            color: #fff;
+        }
+
+        .change-pill {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .change-pill.positive {
+            background: rgba(0, 212, 170, 0.1);
+            color: #00d4aa;
+        }
+
+        .change-pill.negative {
+            background: rgba(255, 55, 55, 0.1);
+            color: #ff3737;
+        }
+
+        .graduation-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .graduation-time {
+            color: #888;
+            font-size: 12px;
+        }
+
+        .graduation-change {
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .copy-btn {
+            background: none;
+            border: 1px solid #2a2a2a;
+            color: #888;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: #2a2a2a;
+            color: #fff;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: #666;
+        }
+
+        .empty-state h3 {
+            font-size: 20px;
+            margin-bottom: 8px;
+            color: #888;
+        }
+
+        .refresh-info {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 20px;
+            }
+
+            .tokens-table {
+                overflow-x: auto;
+            }
+
+            table {
+                min-width: 800px;
+            }
+
+            th, td {
+                padding: 12px 8px;
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 Graduated Tokens</h1>
+            <div class="nav-links">
+                <a href="/">All Tokens</a>
+                <a href="/bonding.html">⚡ Bonding</a>
+                <a href="/graduated.html" class="active">🎓 Graduated</a>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Graduated</div>
+                <div class="stat-value" id="totalGraduated">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Market Cap</div>
+                <div class="stat-value" id="totalMarketCap">$0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Average Performance</div>
+                <div class="stat-value" id="avgPerformance">0%</div>
+                <div class="stat-change" id="performanceLabel">Since graduation</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">24h Volume</div>
+                <div class="stat-value" id="totalVolume">$0</div>
+            </div>
+        </div>
+
+        <div class="tokens-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Token</th>
+                        <th>Price</th>
+                        <th>Market Cap</th>
+                        <th>24h</th>
+                        <th>Since Graduation</th>
+                        <th>Graduated</th>
+                        <th>Volume 24h</th>
+                        <th>Pool</th>
+                    </tr>
+                </thead>
+                <tbody id="tokensTableBody">
+                    <tr>
+                        <td colspan="8" class="loading">Loading graduated tokens...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="refresh-info">
+            Auto-refreshes every 30 seconds • Last update: <span id="lastUpdate">-</span>
+        </div>
+    </div>
+
+    <script>
+        let tokens = [];
+        
+        function formatNumber(num, decimals = 2) {
+            if (num >= 1e9) return `$${(num / 1e9).toFixed(decimals)}B`;
+            if (num >= 1e6) return `$${(num / 1e6).toFixed(decimals)}M`;
+            if (num >= 1e3) return `$${(num / 1e3).toFixed(decimals)}K`;
+            if (num < 0.01) return `$${num.toFixed(6)}`;
+            return `$${num.toFixed(decimals)}`;
+        }
+
+        function formatPercentage(value) {
+            if (value === null || value === undefined) return '-';
+            const formatted = value > 0 ? `+${value.toFixed(2)}%` : `${value.toFixed(2)}%`;
+            const className = value > 0 ? 'positive' : 'negative';
+            return `<span class="${className}">${formatted}</span>`;
+        }
+
+        function formatTimeAgo(date) {
+            if (!date) return 'Unknown';
+            const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+            
+            if (seconds < 60) return `${seconds}s ago`;
+            if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+            if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+            return `${Math.floor(seconds / 86400)}d ago`;
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Could add a toast notification here
+            });
+        }
+
+        function truncateAddress(address) {
+            return `${address.slice(0, 4)}...${address.slice(-4)}`;
+        }
+
+        function renderToken(token) {
+            const changeClass = token.change_since_graduation > 0 ? 'positive' : 'negative';
+            const change24Class = token.change_24h > 0 ? 'positive' : 'negative';
+            
+            return `
+                <tr>
+                    <td>
+                        <div class="token-info">
+                            <div class="token-icon">
+                                ${token.image_uri ? 
+                                    `<img src="${token.image_uri}" alt="${token.symbol}" onerror="this.style.display='none'; this.parentElement.innerHTML='${token.symbol[0]}'">` : 
+                                    token.symbol[0]
+                                }
+                            </div>
+                            <div class="token-details">
+                                <div class="token-name">${token.name}</div>
+                                <div class="token-symbol">${token.symbol}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="price">${formatNumber(token.price_usd)}</td>
+                    <td>${formatNumber(token.market_cap_usd)}</td>
+                    <td>
+                        ${token.change_24h !== null ? 
+                            `<div class="change-pill ${change24Class}">
+                                ${token.change_24h > 0 ? '+' : ''}${token.change_24h.toFixed(2)}%
+                            </div>` : 
+                            '-'
+                        }
+                    </td>
+                    <td>
+                        <div class="graduation-info">
+                            ${token.graduation_price > 0 ? 
+                                `<div class="graduation-change ${changeClass}">
+                                    ${token.change_since_graduation > 0 ? '+' : ''}${token.change_since_graduation.toFixed(2)}%
+                                </div>
+                                <div class="graduation-time">from ${formatNumber(token.graduation_price)}</div>` :
+                                '-'
+                            }
+                        </div>
+                    </td>
+                    <td>
+                        <div class="graduation-time">
+                            ${formatTimeAgo(token.graduation_time)}
+                        </div>
+                    </td>
+                    <td>${formatNumber(token.volume_24h)}</td>
+                    <td>
+                        ${token.pool_address ? 
+                            `<button class="copy-btn" onclick="copyToClipboard('${token.pool_address}')" title="${token.pool_address}">
+                                ${truncateAddress(token.pool_address)}
+                            </button>` : 
+                            '-'
+                        }
+                    </td>
+                </tr>
+            `;
+        }
+
+        function updateStats() {
+            const totalGraduated = tokens.length;
+            const totalMarketCap = tokens.reduce((sum, t) => sum + t.market_cap_usd, 0);
+            const totalVolume = tokens.reduce((sum, t) => sum + t.volume_24h, 0);
+            
+            // Calculate average performance since graduation
+            const performanceValues = tokens
+                .filter(t => t.change_since_graduation !== null)
+                .map(t => t.change_since_graduation);
+            
+            const avgPerformance = performanceValues.length > 0 ?
+                performanceValues.reduce((sum, val) => sum + val, 0) / performanceValues.length : 0;
+
+            document.getElementById('totalGraduated').textContent = totalGraduated;
+            document.getElementById('totalMarketCap').textContent = formatNumber(totalMarketCap, 0);
+            document.getElementById('totalVolume').textContent = formatNumber(totalVolume, 0);
+            document.getElementById('avgPerformance').innerHTML = formatPercentage(avgPerformance);
+        }
+
+        async function fetchTokens() {
+            try {
+                const response = await fetch('/api/graduated');
+                const data = await response.json();
+                
+                if (data.success) {
+                    tokens = data.tokens;
+                    
+                    const tbody = document.getElementById('tokensTableBody');
+                    if (tokens.length === 0) {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="8" class="empty-state">
+                                    <h3>No graduated tokens yet</h3>
+                                    <p>Tokens will appear here once they graduate from the bonding curve to Raydium</p>
+                                </td>
+                            </tr>
+                        `;
+                    } else {
+                        tbody.innerHTML = tokens.map(renderToken).join('');
+                    }
+                    
+                    updateStats();
+                    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+                }
+            } catch (error) {
+                console.error('Error fetching tokens:', error);
+                document.getElementById('tokensTableBody').innerHTML = `
+                    <tr>
+                        <td colspan="8" class="empty-state">
+                            <h3>Error loading tokens</h3>
+                            <p>Please try refreshing the page</p>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Initial load
+        fetchTokens();
+        
+        // Refresh every 30 seconds
+        setInterval(fetchTokens, 30000);
+    </script>
+</body>
+</html>

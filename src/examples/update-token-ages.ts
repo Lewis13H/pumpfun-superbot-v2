@@ -22,7 +22,7 @@ async function updateTokenAges() {
     console.log(`Found ${result.rows.length} tokens to check\n`);
     
     // Get creation times from blockchain
-    const addresses = result.rows.map(row => row.address);
+    const addresses = result.rows.map((row: any) => row.address);
     const creationTimes = await batchGetTokenCreationTimes(addresses);
     
     // Update tokens with accurate creation times

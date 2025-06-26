@@ -1,4 +1,5 @@
 import https from 'https';
+import { db } from '../database';
 
 interface PriceCache {
   price: number;
@@ -67,6 +68,11 @@ export class SolPriceService {
         timestamp: Date.now()
       };
       
+      // Save to database (non-blocking)
+      this.savePriceToDatabase(price).catch(err => 
+        console.error('Failed to save SOL price to database:', err)
+      );
+      
       return price;
     } catch (error) {
       console.error('Failed to fetch SOL price:', error);
@@ -88,6 +94,17 @@ export class SolPriceService {
       await this.getPrice();
     } catch (error) {
       console.log('Initial price fetch failed, will retry on demand');
+    }
+  }
+  
+  private async savePriceToDatabase(price: number): Promise<void> {
+    try {
+      await db.query(
+        'INSERT INTO sol_prices (price) VALUES ($1)',
+        [price]
+      );
+    } catch (error) {
+      throw error;
     }
   }
 }

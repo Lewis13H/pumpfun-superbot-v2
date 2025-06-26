@@ -4,25 +4,34 @@ import {
   SubscribeUpdate 
 } from '@triton-one/yellowstone-grpc';
 import { PUMP_PROGRAM } from '../utils/constants';
-import { extractTradeEvents } from '../utils/parser';
+import { SimpleTradeEventParser } from '../utils/trade-event-parser-simple';
 import { calculatePrice } from '../utils/price-calculator';
 import { formatOutput } from '../utils/formatter';
 import { SolPriceService } from '../services/sol-price';
+import { GraduationTracker } from '../services/graduation-tracker';
 import { StreamClient } from './client';
 
 export class SubscriptionHandler {
   private streamClient: StreamClient;
   private solPriceService: SolPriceService;
+  private graduationTracker: GraduationTracker;
+  private tradeEventParser: SimpleTradeEventParser;
   private currentStream: any = null;
   private isRunning = false;
   private lastProcessedSlot: number | undefined;
   private retryCount = 0;
   private readonly MAX_RETRY_WITH_LAST_SLOT = 30;
-  private readonly RETRY_DELAY_MS = 1000;
+  private readonly INITIAL_RETRY_DELAY_MS = 2000;
+  private readonly MAX_RETRY_DELAY_MS = 60000;
+  private subscriptionTimestamps: number[] = [];
+  private readonly RATE_LIMIT_WINDOW_MS = 60000;
+  private readonly MAX_SUBSCRIPTIONS_PER_WINDOW = 30; // Stay well under 50 limit
   
   constructor() {
     this.streamClient = StreamClient.getInstance();
     this.solPriceService = SolPriceService.getInstance();
+    this.graduationTracker = GraduationTracker.getInstance();
+    this.tradeEventParser = new SimpleTradeEventParser();
   }
   
   async start(): Promise<void> {
@@ -34,14 +43,7 @@ export class SubscriptionHandler {
     console.log('\n🛑 Stopping subscription...');
     this.isRunning = false;
     
-    if (this.currentStream) {
-      try {
-        this.currentStream.cancel();
-        this.currentStream = null;
-      } catch (error) {
-        console.error('Error cancelling stream:', error);
-      }
-    }
+    await this.cleanupStream();
   }
   
   async updateSubscription(newRequest: SubscribeRequest): Promise<void> {
@@ -73,15 +75,16 @@ export class SubscriptionHandler {
         }
         
         // Ensure stream is cleaned up
-        if (this.currentStream) {
-          try {
-            this.currentStream.end();
-          } catch {}
-          this.currentStream = null;
-        }
+        await this.cleanupStream();
         
-        console.log(`🔄 Reconnecting in ${this.RETRY_DELAY_MS}ms... (attempt ${this.retryCount + 1})`);
-        await this.delay(this.RETRY_DELAY_MS);
+        // Calculate exponential backoff delay
+        const delay = Math.min(
+          this.INITIAL_RETRY_DELAY_MS * Math.pow(2, Math.min(this.retryCount, 5)),
+          this.MAX_RETRY_DELAY_MS
+        );
+        
+        console.log(`🔄 Reconnecting in ${delay}ms... (attempt ${this.retryCount + 1})`);
+        await this.delay(delay);
         
         this.retryCount++;
         
@@ -131,6 +134,9 @@ export class SubscriptionHandler {
   }
   
   private async subscribeCommand(args: SubscribeRequest): Promise<void> {
+    // Enforce rate limit BEFORE creating subscription
+    await this.enforceRateLimit();
+    
     const client = this.streamClient.getClient();
     const stream = await client.subscribe();
     this.currentStream = stream;
@@ -147,19 +153,26 @@ export class SubscriptionHandler {
           // Check if error is due to user cancellation
           if (error.code === 1) {
             console.log('✅ Stream cancelled successfully');
-          } else if (error.code !== 13) { // Don't log serialization errors
-            console.error("Stream error:", error);
+          } else if (error.code === 13) {
+            // Serialization error - usually during reconnection
+            console.log('⚠️  Stream serialization error (normal during reconnection)');
+          } else {
+            console.error("❌ Stream error:", {
+              code: error.code,
+              details: error.details,
+              message: error.message
+            });
           }
           resolveClose();
         });
         
         stream.on("end", () => {
-          console.log("Stream ended");
+          console.log("📡 Stream ended (server closed connection)");
           resolveClose();
         });
         
         stream.on("close", () => {
-          console.log("Stream closed");
+          console.log("🔌 Stream closed");
           resolveClose();
         });
       });
@@ -186,6 +199,10 @@ export class SubscriptionHandler {
       stream.write({
         pong: { id: (data.ping as any).id }
       } as any);
+      // Log ping/pong to track connection health
+      if (this.retryCount === 0 && Math.random() < 0.1) { // Log 10% of pings when stable
+        console.log('🏓 Ping/pong keepalive');
+      }
       return;
     }
     
@@ -201,8 +218,14 @@ export class SubscriptionHandler {
   }
   
   private async processTransaction(data: SubscribeUpdate): Promise<void> {
-    const logs = data.transaction?.transaction?.meta?.logMessages || [];
-    const events = extractTradeEvents(logs);
+    // Check for graduation first
+    const isGraduation = await this.graduationTracker.processMigration(data);
+    if (isGraduation) {
+      return; // Graduation processed, no need to process as trade
+    }
+    
+    // Use IDL-based parser for trade events
+    const events = this.tradeEventParser.extractTradeData(data);
     
     for (const event of events) {
       try {
@@ -212,6 +235,16 @@ export class SubscriptionHandler {
           event.virtualTokenReserves,
           solPrice
         );
+        
+        // Add buy/sell info to the output
+        const tradeType = event.isBuy ? '🟢 BUY' : '🔴 SELL';
+        const solAmountFormatted = (Number(event.solAmount) / 1e9).toFixed(4);
+        const tokenAmountFormatted = (Number(event.tokenAmount) / 1e6).toFixed(2);
+        
+        console.log(`\n${tradeType} | ${event.mint}`);
+        console.log(`  Amount: ${solAmountFormatted} SOL → ${tokenAmountFormatted} tokens`);
+        console.log(`  Trader: ${event.user}`);
+        
         formatOutput(event.mint, priceData);
       } catch (error) {
         // Fallback with default price
@@ -227,5 +260,53 @@ export class SubscriptionHandler {
   
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+  
+  private async cleanupStream(): Promise<void> {
+    if (this.currentStream) {
+      try {
+        // Try to end the stream gracefully
+        this.currentStream.end();
+        // Give it a moment to close
+        await this.delay(100);
+      } catch (e) {
+        // If end fails, try destroy
+        try {
+          this.currentStream.destroy();
+        } catch {}
+      } finally {
+        this.currentStream = null;
+      }
+    }
+  }
+  
+  private async enforceRateLimit(): Promise<void> {
+    const now = Date.now();
+    
+    // Remove timestamps outside the rate limit window
+    this.subscriptionTimestamps = this.subscriptionTimestamps.filter(
+      timestamp => now - timestamp < this.RATE_LIMIT_WINDOW_MS
+    );
+    
+    // Log current rate limit status
+    console.log(`📊 Rate limit status: ${this.subscriptionTimestamps.length}/${this.MAX_SUBSCRIPTIONS_PER_WINDOW} subscriptions in last 60s`);
+    
+    // If we're at the rate limit, wait until we can create a new subscription
+    if (this.subscriptionTimestamps.length >= this.MAX_SUBSCRIPTIONS_PER_WINDOW) {
+      const oldestTimestamp = this.subscriptionTimestamps[0];
+      const waitTime = (oldestTimestamp + this.RATE_LIMIT_WINDOW_MS) - now + 1000; // Add 1s buffer
+      
+      if (waitTime > 0) {
+        console.log(`⚠️  Rate limit reached. Waiting ${Math.ceil(waitTime / 1000)}s before reconnecting...`);
+        await this.delay(waitTime);
+        
+        // Re-check after waiting
+        return this.enforceRateLimit();
+      }
+    }
+    
+    // Record this subscription attempt
+    this.subscriptionTimestamps.push(now);
+    console.log(`✅ Creating subscription #${this.subscriptionTimestamps.length}`);
   }
 }

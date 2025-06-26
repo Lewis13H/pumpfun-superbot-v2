@@ -35,6 +35,10 @@ export class ThresholdTracker {
     this.enrichmentEnabled = enabled;
   }
   
+  async isTracked(mint: string): Promise<boolean> {
+    return this.trackedTokens.has(mint);
+  }
+  
   async checkAndSaveToken(data: TokenData): Promise<boolean> {
     // Check if market cap meets or exceeds threshold
     if (data.mcapUsd < MARKET_CAP_THRESHOLD) {
