@@ -150,12 +150,12 @@
                     <td>
                         <div class="token-info">
                             ${token.image_uri ? 
-                                `<img src="${token.image_uri}" alt="${token.symbol}" class="token-image">` : 
-                                `<div class="token-placeholder">${token.symbol[0]}</div>`
+                                `<img src="${token.image_uri}" alt="${token.symbol || 'Token'}" class="token-image">` : 
+                                `<div class="token-placeholder">${token.symbol ? token.symbol[0] : '?'}</div>`
                             }
                             <div>
-                                <div class="token-name">${token.name}</div>
-                                <div class="token-symbol">${token.symbol}</div>
+                                <div class="token-name">${token.name || 'Unknown Token'}</div>
+                                <div class="token-symbol">${token.symbol || 'Unknown'}</div>
                             </div>
                         </div>
                     </td>

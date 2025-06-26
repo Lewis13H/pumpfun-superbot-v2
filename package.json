@@ -9,6 +9,7 @@
     "threshold": "tsx src/monitors/threshold-monitor.ts",
     "view-tokens": "tsx src/examples/view-saved-tokens.ts",
     "enrich-tokens": "tsx src/examples/enrich-tokens.ts",
+    "auto-enrich": "tsx src/scripts/auto-enrich-tokens.ts",
     "view-enriched": "tsx src/examples/view-enriched-tokens.ts",
     "update-ages": "tsx src/examples/update-token-ages.ts",
     "dashboard": "tsx src/api/server.ts",
@@ -18,6 +19,7 @@
     "check-graduations": "tsx src/examples/check-graduations.ts",
     "threshold-auto": "tsx src/monitors/threshold-monitor-auto.ts",
     "trades": "tsx src/monitors/trade-monitor-v2.ts",
+    "trades-db": "tsx src/monitors/trade-monitor-db.ts",
     "sol-price-updater": "tsx src/scripts/sol-price-updater.ts",
     "check-sol-prices": "tsx src/scripts/check-sol-prices-table.ts"
   },
