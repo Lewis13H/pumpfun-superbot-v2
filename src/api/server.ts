@@ -146,56 +146,8 @@ app.get('/api/tokens', async (_req, res) => {
   }
 });
 
-// Get token details
-app.get('/api/tokens/:address', async (req, res) => {
-  try {
-    const { address } = req.params;
-    
-    const query = `
-      SELECT 
-        t.*,
-        (
-          SELECT json_agg(
-            json_build_object(
-              'time', time,
-              'price_usd', price_usd,
-              'market_cap_usd', market_cap_usd,
-              'progress', progress
-            ) ORDER BY time DESC
-          )
-          FROM price_updates
-          WHERE token = t.address
-          AND time > NOW() - INTERVAL '24 hours'
-        ) as price_history
-      FROM tokens t
-      WHERE t.address = $1
-    `;
-    
-    const result = await db.query(query, [address]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Token not found'
-      });
-    }
-    
-    return res.json({
-      success: true,
-      token: result.rows[0]
-    });
-    
-  } catch (error) {
-    console.error('Error fetching token details:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to fetch token details'
-    });
-  }
-});
-
 // API endpoint for graduated tokens
-app.get('/api/graduated', async (_req, res) => {
+app.get('/api/tokens/graduated', async (_req, res) => {
   try {
     const query = `
       WITH latest_prices AS (
@@ -292,6 +244,54 @@ app.get('/api/graduated', async (_req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch graduated tokens'
+    });
+  }
+});
+
+// Get token details
+app.get('/api/tokens/:address', async (req, res) => {
+  try {
+    const { address } = req.params;
+    
+    const query = `
+      SELECT 
+        t.*,
+        (
+          SELECT json_agg(
+            json_build_object(
+              'time', time,
+              'price_usd', price_usd,
+              'market_cap_usd', market_cap_usd,
+              'progress', progress
+            ) ORDER BY time DESC
+          )
+          FROM price_updates
+          WHERE token = t.address
+          AND time > NOW() - INTERVAL '24 hours'
+        ) as price_history
+      FROM tokens t
+      WHERE t.address = $1
+    `;
+    
+    const result = await db.query(query, [address]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Token not found'
+      });
+    }
+    
+    return res.json({
+      success: true,
+      token: result.rows[0]
+    });
+    
+  } catch (error) {
+    console.error('Error fetching token details:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch token details'
     });
   }
 });
