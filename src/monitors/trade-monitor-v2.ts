@@ -3,6 +3,7 @@ import { SimpleSubscriptionHandler } from '../stream/subscription-simple';
 import { SimpleTradeEventParser, ParsedTradeEvent } from '../utils/trade-event-parser-simple';
 import { calculatePrice } from '../utils/price-calculator';
 import { SolPriceService } from '../services/sol-price';
+import { SolPriceUpdater } from '../services/sol-price-updater';
 
 // Trade tracking for each token
 interface TokenTradeStats {
@@ -171,12 +172,29 @@ class TradeMonitor {
   }
 }
 
-// Start the monitor
-const monitor = new TradeMonitor();
-monitor.start().catch(console.error);
+// Start SOL price updater first
+async function startServices() {
+  console.log('🚀 Starting SOL price updater service...');
+  const priceUpdater = SolPriceUpdater.getInstance();
+  await priceUpdater.start();
+  
+  console.log('🚀 Starting trade monitor...');
+  const monitor = new TradeMonitor();
+  await monitor.start();
+  
+  // Handle graceful shutdown
+  process.on('SIGINT', async () => {
+    console.log('\n\n👋 Shutting down services...');
+    priceUpdater.stop();
+    process.exit(0);
+  });
+  
+  process.on('SIGTERM', async () => {
+    console.log('\n\n👋 Shutting down services...');
+    priceUpdater.stop();
+    process.exit(0);
+  });
+}
 
-// Handle graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('\n\n👋 Shutting down trade monitor...');
-  process.exit(0);
-});
+// Start all services
+startServices().catch(console.error);

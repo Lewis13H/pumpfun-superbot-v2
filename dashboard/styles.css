@@ -387,6 +387,67 @@ body {
     color: var(--red);
 }
 
+/* Status Bar */
+.status-bar {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 10px 20px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+}
+
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-label {
+    color: var(--text-secondary);
+}
+
+.status-value {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.sol-price {
+    color: var(--green);
+    font-size: 16px;
+}
+
+.connection-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.connection-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+    transition: all 0.3s;
+}
+
+.connection-dot.connected {
+    background: var(--green);
+    box-shadow: 0 0 8px rgba(0, 209, 129, 0.5);
+}
+
+.connection-dot.disconnected {
+    background: var(--red);
+    box-shadow: 0 0 8px rgba(255, 59, 105, 0.5);
+}
+
+.price-source {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
 /* Responsive */
 @media (max-width: 1200px) {
     .table-container {
@@ -395,5 +456,10 @@ body {
     
     .token-table {
         min-width: 1000px;
+    }
+    
+    .status-bar {
+        flex-wrap: wrap;
+        gap: 15px;
     }
 }

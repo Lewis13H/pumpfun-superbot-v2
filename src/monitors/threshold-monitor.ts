@@ -4,6 +4,7 @@ import { SimpleSubscriptionHandler } from '../stream/subscription-simple';
 import { extractTradeEvents } from '../utils/parser';
 import { calculatePrice } from '../utils/price-calculator';
 import { SolPriceService } from '../services/sol-price';
+import { SolPriceUpdater } from '../services/sol-price-updater';
 import { ThresholdTracker } from '../services/threshold-tracker';
 import { db } from '../database';
 
@@ -20,7 +21,11 @@ function calculateProgress(virtualSolReserves: bigint): number {
 }
 
 async function main() {
-  console.log('🚀 Pump.fun $8888 Threshold Monitor');
+  console.log('🚀 Starting SOL price updater service...');
+  const priceUpdater = SolPriceUpdater.getInstance();
+  await priceUpdater.start();
+  
+  console.log('\n🚀 Pump.fun $8888 Threshold Monitor');
   console.log('📊 Monitoring tokens that reach $8888 market cap...');
   console.log('💾 Tokens meeting threshold will be saved to database');
   console.log('⌨️  Press Ctrl+C to stop\n');
@@ -98,6 +103,7 @@ ${'─'.repeat(60)}
   const shutdown = async () => {
     console.log('\n\n🛑 Shutting down gracefully...');
     console.log(`📊 Total tokens tracked: ${await thresholdTracker.getTrackedTokensCount()}`);
+    priceUpdater.stop();
     await handler.stop();
     await db.close();
     process.exit(0);

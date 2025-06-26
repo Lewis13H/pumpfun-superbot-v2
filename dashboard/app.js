@@ -1,9 +1,12 @@
 // Dashboard JavaScript
 const API_ENDPOINT = 'http://localhost:3001/api/tokens';
+const STATUS_ENDPOINT = 'http://localhost:3001/api/status';
 const REFRESH_INTERVAL = 3000; // 3 seconds
+const STATUS_INTERVAL = 5000; // 5 seconds
 const TOKENS_PER_PAGE = 100;
 
 let refreshTimer;
+let statusTimer;
 let currentFilter = '24h';
 let currentPage = 1;
 let allTokens = [];
@@ -12,8 +15,10 @@ let totalPages = 1;
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', () => {
     loadTokens();
+    loadStatus();
     setupEventListeners();
     startAutoRefresh();
+    startStatusRefresh();
 });
 
 // Setup event listeners
@@ -34,6 +39,68 @@ function startAutoRefresh() {
     refreshTimer = setInterval(() => {
         loadTokens();
     }, REFRESH_INTERVAL);
+}
+
+// Start status refresh
+function startStatusRefresh() {
+    statusTimer = setInterval(() => {
+        loadStatus();
+    }, STATUS_INTERVAL);
+}
+
+// Load system status
+async function loadStatus() {
+    try {
+        const response = await fetch(STATUS_ENDPOINT);
+        const data = await response.json();
+        
+        if (data.success) {
+            // Update SOL price
+            const solPriceEl = document.getElementById('sol-price');
+            const priceSourceEl = document.getElementById('price-source');
+            if (solPriceEl) {
+                solPriceEl.textContent = `$${data.sol_price.price.toFixed(2)}`;
+                if (priceSourceEl) {
+                    priceSourceEl.textContent = `(${data.sol_price.source})`;
+                }
+            }
+            
+            // Update connection status
+            const connectionDot = document.getElementById('connection-dot');
+            const connectionStatus = document.getElementById('connection-status');
+            if (connectionDot && connectionStatus) {
+                if (data.connection.status === 'connected') {
+                    connectionDot.classList.remove('disconnected');
+                    connectionDot.classList.add('connected');
+                    connectionStatus.textContent = 'Connected';
+                } else {
+                    connectionDot.classList.remove('connected');
+                    connectionDot.classList.add('disconnected');
+                    connectionStatus.textContent = 'Disconnected';
+                }
+            }
+            
+            // Update stats
+            const totalTokensEl = document.getElementById('total-tokens');
+            const hourlyUpdatesEl = document.getElementById('hourly-updates');
+            if (totalTokensEl) {
+                totalTokensEl.textContent = data.stats.total_tokens.toLocaleString();
+            }
+            if (hourlyUpdatesEl) {
+                hourlyUpdatesEl.textContent = data.stats.hourly_updates.toLocaleString();
+            }
+        }
+    } catch (error) {
+        console.error('Error loading status:', error);
+        // Update connection status to error
+        const connectionDot = document.getElementById('connection-dot');
+        const connectionStatus = document.getElementById('connection-status');
+        if (connectionDot && connectionStatus) {
+            connectionDot.classList.remove('connected');
+            connectionDot.classList.add('disconnected');
+            connectionStatus.textContent = 'Error';
+        }
+    }
 }
 
 // Load tokens from API

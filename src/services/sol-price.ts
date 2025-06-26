@@ -1,5 +1,6 @@
 import https from 'https';
 import { db } from '../database';
+import { SolPriceUpdater } from './sol-price-updater';
 
 interface PriceCache {
   price: number;
@@ -9,8 +10,8 @@ interface PriceCache {
 export class SolPriceService {
   private static instance: SolPriceService;
   private cache: PriceCache | null = null;
-  private readonly CACHE_DURATION = 60000; // 1 minute cache
-  private readonly FALLBACK_PRICE = 180; // Fallback price if API fails
+  private readonly CACHE_DURATION = 1500; // 1.5 second cache for DB reads
+  private readonly FALLBACK_PRICE = 180; // Fallback price if all fails
   private readonly API_URL = 'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd';
   
   private constructor() {}
@@ -24,8 +25,14 @@ export class SolPriceService {
   
   private async fetchFromCoinGecko(): Promise<number> {
     return new Promise((resolve, reject) => {
-      https.get(this.API_URL, (res) => {
+      const request = https.get(this.API_URL, (res) => {
         let data = '';
+        
+        // Check status code
+        if (res.statusCode !== 200) {
+          reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
+          return;
+        }
         
         res.on('data', (chunk) => {
           data += chunk;
@@ -37,7 +44,6 @@ export class SolPriceService {
             const price = json?.solana?.usd;
             
             if (typeof price === 'number' && price > 0) {
-              console.log(`Updated SOL price: $${price.toFixed(2)}`);
               resolve(price);
             } else {
               reject(new Error('Invalid price data'));
@@ -49,6 +55,12 @@ export class SolPriceService {
       }).on('error', (error) => {
         reject(error);
       });
+      
+      // Add timeout
+      request.setTimeout(5000, () => {
+        request.destroy();
+        reject(new Error('Request timeout'));
+      });
     });
   }
   
@@ -59,7 +71,20 @@ export class SolPriceService {
     }
     
     try {
-      // Fetch new price
+      // First, try to get price from database
+      const updater = SolPriceUpdater.getInstance();
+      const dbPrice = await updater.getLatestPrice();
+      
+      if (dbPrice && (Date.now() - dbPrice.timestamp.getTime()) < 120000) { // Less than 2 minutes old
+        // Update cache
+        this.cache = {
+          price: dbPrice.price,
+          timestamp: Date.now()
+        };
+        return dbPrice.price;
+      }
+      
+      // If DB price is too old or missing, fetch directly
       const price = await this.fetchFromCoinGecko();
       
       // Update cache
@@ -75,14 +100,21 @@ export class SolPriceService {
       
       return price;
     } catch (error) {
-      console.error('Failed to fetch SOL price:', error);
-      
       // Return cached price if available, otherwise fallback
       if (this.cache) {
-        console.log('Using cached SOL price');
         return this.cache.price;
       } else {
-        console.log(`Using fallback SOL price: $${this.FALLBACK_PRICE}`);
+        // Try to get any price from database
+        try {
+          const updater = SolPriceUpdater.getInstance();
+          const dbPrice = await updater.getLatestPrice();
+          if (dbPrice) {
+            return dbPrice.price;
+          }
+        } catch (dbError) {
+          // Ignore database errors
+        }
+        
         return this.FALLBACK_PRICE;
       }
     }

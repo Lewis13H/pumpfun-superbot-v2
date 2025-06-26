@@ -36,7 +36,10 @@ class Database {
     try {
       const res = await this.pool.query(text, params);
       const duration = Date.now() - start;
-      console.log('Executed query', { text, duration, rows: res.rowCount });
+      // Only log slow queries (over 100ms)
+      if (duration > 100) {
+        console.log('Slow query', { text, duration, rows: res.rowCount });
+      }
       return res;
     } catch (error) {
       console.error('Database query error:', error);

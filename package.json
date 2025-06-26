@@ -17,7 +17,9 @@
     "view-graduated": "tsx src/examples/view-graduated-tokens.ts",
     "check-graduations": "tsx src/examples/check-graduations.ts",
     "threshold-auto": "tsx src/monitors/threshold-monitor-auto.ts",
-    "trades": "tsx src/monitors/trade-monitor-v2.ts"
+    "trades": "tsx src/monitors/trade-monitor-v2.ts",
+    "sol-price-updater": "tsx src/scripts/sol-price-updater.ts",
+    "check-sol-prices": "tsx src/scripts/check-sol-prices-table.ts"
   },
   "name": "pumpfun-superbot-v2",
   "version": "1.0.0",

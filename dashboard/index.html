@@ -7,6 +7,28 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <div class="status-bar">
+        <div class="status-item">
+            <span class="status-label">SOL Price:</span>
+            <span class="status-value sol-price" id="sol-price">$---.--</span>
+            <span class="price-source" id="price-source"></span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">System:</span>
+            <div class="connection-indicator">
+                <div class="connection-dot" id="connection-dot"></div>
+                <span class="status-value" id="connection-status">Checking...</span>
+            </div>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Total Tokens:</span>
+            <span class="status-value" id="total-tokens">-</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Updates/hr:</span>
+            <span class="status-value" id="hourly-updates">-</span>
+        </div>
+    </div>
     <div class="container">
         <div class="header">
             <h1>🚀 All Pump.fun Tokens</h1>

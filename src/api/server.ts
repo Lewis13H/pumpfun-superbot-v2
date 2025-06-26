@@ -426,6 +426,72 @@ app.get('/api/bonding', async (_req, res) => {
   }
 });
 
+// API endpoint for SOL price and system status
+app.get('/api/status', async (_req, res) => {
+  try {
+    // Get latest SOL price from database
+    let priceResult;
+    try {
+      priceResult = await db.query(
+        'SELECT price, source, created_at FROM sol_prices ORDER BY created_at DESC LIMIT 1'
+      );
+    } catch (error) {
+      // Try old schema
+      try {
+        priceResult = await db.query(
+          'SELECT price, timestamp as created_at FROM sol_prices ORDER BY timestamp DESC LIMIT 1'
+        );
+      } catch (fallbackError) {
+        priceResult = { rows: [] };
+      }
+    }
+    
+    // Get connection status - check if we have recent data
+    const recentDataResult = await db.query(
+      'SELECT COUNT(*) as count FROM price_updates WHERE time > NOW() - INTERVAL \'1 minute\''
+    );
+    
+    // Get system stats
+    const statsResult = await db.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM tokens) as total_tokens,
+        (SELECT COUNT(*) FROM tokens WHERE graduated = true) as graduated_tokens,
+        (SELECT COUNT(*) FROM price_updates WHERE time > NOW() - INTERVAL '1 hour') as hourly_updates
+    `);
+    
+    const solPrice = priceResult.rows[0] || { price: 180, source: 'fallback', created_at: new Date() };
+    const isConnected = parseInt(recentDataResult.rows[0]?.count || '0') > 0;
+    const stats = statsResult.rows[0] || { total_tokens: 0, graduated_tokens: 0, hourly_updates: 0 };
+    
+    res.json({
+      success: true,
+      sol_price: {
+        price: parseFloat(solPrice.price),
+        source: solPrice.source,
+        timestamp: solPrice.created_at,
+        age_seconds: Math.floor((Date.now() - new Date(solPrice.created_at).getTime()) / 1000)
+      },
+      connection: {
+        status: isConnected ? 'connected' : 'disconnected',
+        last_update: recentDataResult.rows[0]?.count > 0 ? 'active' : 'inactive'
+      },
+      stats: {
+        total_tokens: parseInt(stats.total_tokens),
+        graduated_tokens: parseInt(stats.graduated_tokens),
+        hourly_updates: parseInt(stats.hourly_updates)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch status',
+      sol_price: { price: 180, source: 'fallback' },
+      connection: { status: 'error' }
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   const dashboardUrl = `http://localhost:${PORT}`;
