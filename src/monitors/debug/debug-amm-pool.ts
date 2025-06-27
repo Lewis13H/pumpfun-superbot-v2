@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { SubscribeRequest, CommitmentLevel, SubscribeUpdate } from '@triton-one/yellowstone-grpc';
-import { StreamClient } from '../stream/client';
-import { PUMP_SWAP_PROGRAM } from '../utils/constants';
+import { StreamClient } from '../../stream/client';
+import { PUMP_SWAP_PROGRAM } from '../../utils/constants';
 import bs58 from 'bs58';
 import chalk from 'chalk';
 import dotenv from 'dotenv';

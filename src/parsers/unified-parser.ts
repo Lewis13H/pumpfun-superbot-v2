@@ -1,5 +1,5 @@
 import { PublicKey } from '@solana/web3.js';
-import { TRADE_EVENT_SIZE } from './constants';
+import { TRADE_EVENT_SIZE } from '../utils/constants';
 import bs58 from 'bs58';
 
 export interface UnifiedTradeEvent {
@@ -136,12 +136,12 @@ function extractAmmEvents(transaction: any, logs: string[]): UnifiedTradeEvent[]
       
       if (discriminator.equals(BUY_DISCRIMINATOR)) {
         isBuy = true;
-        if (shouldDebug) console.log('[AMM Parser] Found BUY instruction');
+        // console.log('[AMM Parser] Found BUY instruction');
       } else if (discriminator.equals(SELL_DISCRIMINATOR)) {
         isBuy = false;
-        if (shouldDebug) console.log('[AMM Parser] Found SELL instruction');
+        // console.log('[AMM Parser] Found SELL instruction');
       } else {
-        if (shouldDebug) console.log('[AMM Parser] Unknown discriminator:', discriminator.toString('hex'));
+        // console.log('[AMM Parser] Unknown discriminator:', discriminator.toString('hex'));
         continue;
       }
       

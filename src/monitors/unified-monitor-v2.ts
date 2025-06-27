@@ -15,7 +15,7 @@ import { SubscribeRequest, CommitmentLevel } from '@triton-one/yellowstone-grpc'
 import { UnifiedDbServiceV2 } from '../database/unified-db-service-v2';
 import { SolPriceService } from '../services/sol-price';
 import { AutoEnricher } from '../services/auto-enricher';
-import { extractUnifiedTradeEvents } from '../utils/unified-parser';
+import { extractUnifiedTradeEvents } from '../parsers/unified-parser';
 import { calculatePrice } from '../utils/price-calculator';
 import { SolPriceUpdater } from '../services/sol-price-updater';
 import chalk from 'chalk';

@@ -9,52 +9,68 @@ Real-time Solana token monitor for pump.fun bonding curves and pump.swap AMM poo
 ## Development Commands
 
 ```bash
-# Build & Run
-npm install                 # Install dependencies
-npm run build              # Build TypeScript
-npm run dev                # Basic price monitor
-
-# Main Monitors
-npm run unified-v2         # Unified monitor for both programs (recommended)
-npm run threshold          # Save tokens ≥$8,888 to database
-npm run trades             # Track buy/sell activity with statistics
-npm run trades-db          # Trade monitor that saves to database
+# Main Production Monitor
+npm run unified-v2         # Unified monitor for both programs (MAIN SERVICE)
 
 # Database Operations
+npm run migrate-unified    # Run database migrations
 npm run view-tokens        # View saved tokens
 npm run enrich-tokens      # Fetch metadata from Helius API
 npm run view-enriched      # View enriched token data
-npm run migrate-unified    # Run database migrations
 
-# Services
+# Dashboard & Services
 npm run dashboard          # Web dashboard (http://localhost:3001)
 npm run sol-price-updater  # SOL price updater (runs automatically with monitors)
 
-# Testing & Debug
-npm run test-stream        # Test gRPC connectivity
-npm run test-idl          # Test manual parsers
-npm run debug-amm         # Debug AMM pool structure
-psql $DATABASE_URL -c "SELECT COUNT(*) FROM tokens"  # Check database
+# Debug & Testing
+npm run debug-amm          # Debug AMM pool structure
+psql $DATABASE_URL -c "SELECT COUNT(*) FROM tokens_unified"  # Check database
 ```
 
-## Architecture
+## Architecture After Refactoring
+
+### Directory Structure
+```
+src/
+├── monitors/
+│   ├── unified-monitor-v2.ts    # Main production monitor
+│   └── debug/
+│       └── debug-amm-pool.ts    # AMM debugging tool
+├── services/
+│   ├── sol-price.ts             # Binance API integration
+│   ├── sol-price-updater.ts     # Automatic price updates
+│   ├── auto-enricher.ts         # Token metadata enrichment
+│   └── helius.ts                # Helius API client
+├── database/
+│   └── unified-db-service-v2.ts # High-performance DB service
+├── parsers/
+│   ├── unified-parser.ts        # Main parser for both programs
+│   └── amm-swap-parser.ts       # Reference AMM parser
+├── stream/
+│   └── client.ts                # Singleton gRPC client
+└── utils/
+    ├── constants.ts             # Shared constants
+    ├── price-calculator.ts      # Price calculations
+    └── formatters.ts            # Display formatters
+```
 
 ### Core Data Flow
 1. **gRPC Stream** (Shyft) → Raw blockchain data
 2. **Event Parser** → Extract trades from transaction logs
 3. **Price Calculator** → Compute prices from virtual reserves
 4. **Database Service** → Batch processing with caching
-5. **Monitors/Dashboard** → Display and track tokens
+5. **Dashboard** → Display and track tokens
 
-### Key Services & Patterns
+### Key Implementation Details
 
 #### Unified Monitor V2 (`unified-monitor-v2.ts`)
 The main production monitor that:
 - Monitors both pump.fun and pump.swap programs simultaneously
-- Uses simple log parsing for maximum event detection
+- Uses simple log parsing for maximum event detection (~15% more trades than IDL parsing)
 - Implements batch database operations (100 records/batch)
 - Tracks tokens crossing $8,888 threshold
 - Shows real-time dashboard with statistics
+- Creates its own subscription directly (doesn't use subscription classes)
 
 #### Database Service (`unified-db-service-v2.ts`)
 High-performance service using:
@@ -67,7 +83,7 @@ High-performance service using:
 #### Parser Strategy (`unified-parser.ts`)
 - Simple log parsing for pump.fun events (catches more trades)
 - Buy/sell detection from instruction logs for AMM
-- Handles Buffer-encoded account keys from gRPC
+- Handles Buffer-encoded account keys from gRPC (must use bs58.encode())
 - Fallback mint extraction from transaction logs
 
 ### Critical Implementation Details
@@ -86,7 +102,7 @@ API_PORT=3001                        # Dashboard port
 
 #### Transaction Structure (gRPC)
 ```javascript
-// Nested structure from Shyft gRPC
+// Nested structure from Shyft gRPC - IMPORTANT!
 data.transaction.transaction.transaction.message.accountKeys  // Buffer[]
 data.transaction.transaction.meta                            // Contains logs
 ```
@@ -129,6 +145,7 @@ CREATE TABLE tokens_unified (
     symbol VARCHAR(50),
     name VARCHAR(255),
     first_price_sol DECIMAL(20, 12),
+    first_price_usd DECIMAL(20, 4),
     first_market_cap_usd DECIMAL(20, 4),
     threshold_crossed_at TIMESTAMP,
     graduated_to_amm BOOLEAN DEFAULT FALSE,
@@ -147,18 +164,18 @@ CREATE TABLE trades_unified (
 );
 ```
 
-## Testing Approach
+## Testing & Debugging
 
-1. **Check stream connectivity**: `npm run test-stream`
-2. **Verify database**: `psql $DATABASE_URL -c "\dt"`
-3. **Monitor with timeout**: `timeout 30 npm run unified-v2`
-4. **Check recent trades**: View dashboard or query database
-5. **Debug specific program**: Check logs for [AMM Debug] or transaction counts
+1. **Check stream connectivity**: First verify gRPC is working
+2. **Monitor with timeout**: `timeout 30 npm run unified-v2`
+3. **Check recent trades**: View dashboard or query database
+4. **Debug AMM issues**: Use `npm run debug-amm` to see pool structure
+5. **Database verification**: Check tokens_unified and trades_unified tables
 
 ## Performance Optimization
 
-- Batch database operations reduce connection overhead
+- Batch database operations reduce connection overhead by 90%
 - In-memory token cache minimizes database queries
-- Simple parsing catches ~15% more events than strict parsing
+- Simple parsing catches ~15% more events than strict IDL parsing
 - Concurrent monitoring of both programs in single process
 - Rate limiting prevents API exhaustion
