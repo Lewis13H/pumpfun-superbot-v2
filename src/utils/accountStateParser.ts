@@ -2,8 +2,10 @@ import { BorshAccountsCoder } from "@coral-xyz/anchor";
 import * as fs from 'fs';
 import * as path from 'path';
 import { bnLayoutFormatter, convertBase64ToBase58 } from "./base-encoding";
+import { fixIdlForAnchor } from "./idl-fixer";
 
-const program_idl = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'idls', 'pump_amm_0.1.0.json'), "utf8"));
+const rawIdl = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'idls', 'pump_amm_0.1.0.json'), "utf8"));
+const program_idl = fixIdlForAnchor(rawIdl);
 
 const coder = new BorshAccountsCoder(program_idl);
 

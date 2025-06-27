@@ -51,7 +51,7 @@ export class AmmSwapParser {
         return null;
       }
 
-      console.log(`      Found ${instructions.length} instructions to check`);
+      // console.log(`      Found ${instructions.length} instructions to check`);
 
       // Find pump AMM instruction
       for (let i = 0; i < instructions.length; i++) {

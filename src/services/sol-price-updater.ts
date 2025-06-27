@@ -9,7 +9,7 @@ interface PriceSource {
 export class SolPriceUpdater {
   private static instance: SolPriceUpdater;
   private updateInterval: NodeJS.Timeout | null = null;
-  private readonly UPDATE_FREQUENCY = 2000; // 2 seconds (30 calls/minute limit)
+  private readonly UPDATE_FREQUENCY = 5000; // 5 seconds (Binance has higher limits)
   private lastUpdateTime: Date | null = null;
   private isRunning = false;
   private callCount = 0;
@@ -26,49 +26,9 @@ export class SolPriceUpdater {
     return SolPriceUpdater.instance;
   }
   
-  // CoinGecko price fetcher
-  private async fetchFromCoinGecko(): Promise<number> {
-    return new Promise((resolve, reject) => {
-      const url = 'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd';
-      const request = https.get(url, (res) => {
-        let data = '';
-        
-        if (res.statusCode !== 200) {
-          if (res.statusCode === 429) {
-            reject(new Error(`CoinGecko rate limit hit (HTTP 429)`));
-          } else {
-            reject(new Error(`CoinGecko HTTP ${res.statusCode}`));
-          }
-          return;
-        }
-        
-        res.on('data', (chunk) => {
-          data += chunk;
-        });
-        
-        res.on('end', () => {
-          try {
-            const json = JSON.parse(data);
-            const price = json?.solana?.usd;
-            if (typeof price === 'number' && price > 0) {
-              resolve(price);
-            } else {
-              reject(new Error('Invalid CoinGecko data'));
-            }
-          } catch (error) {
-            reject(error);
-          }
-        });
-      }).on('error', reject);
-      
-      request.setTimeout(5000, () => {
-        request.destroy();
-        reject(new Error('CoinGecko timeout'));
-      });
-    });
-  }
+  // Binance is our primary source, keeping this method for potential future use
   
-  // Alternative price fetcher (using Binance API)
+  // Primary price fetcher (using Binance API)
   private async fetchFromBinance(): Promise<number> {
     return new Promise((resolve, reject) => {
       // Using Binance public API
@@ -139,7 +99,7 @@ export class SolPriceUpdater {
       
       // Add missing columns
       if (!existingColumns.includes('source')) {
-        await db.query(`ALTER TABLE sol_prices ADD COLUMN source VARCHAR(50) DEFAULT 'CoinGecko'`);
+        await db.query(`ALTER TABLE sol_prices ADD COLUMN source VARCHAR(50) DEFAULT 'Binance'`);
       }
       
       if (!existingColumns.includes('created_at')) {
@@ -239,7 +199,6 @@ export class SolPriceUpdater {
     }
     
     const sources: PriceSource[] = [
-      { name: 'CoinGecko', fetchPrice: () => this.fetchFromCoinGecko() },
       { name: 'Binance', fetchPrice: () => this.fetchFromBinance() }
     ];
     
@@ -308,7 +267,7 @@ export class SolPriceUpdater {
     scheduleNextUpdate();
     
     this.isRunning = true;
-    console.log('SOL price updater started (2s intervals, max 30 calls/min)');
+    console.log('SOL price updater started (5s intervals using Binance API)');
   }
   
   // Stop the updater

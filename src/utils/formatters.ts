@@ -7,7 +7,17 @@ export function formatOutput(mint: string, priceData: PriceData): void {
   console.log('---');
 }
 
-export function formatPrice(priceInSol: number, solPriceUsd: number): string {
+export function formatPrice(priceUsd: number): string {
+  if (priceUsd >= 1) {
+    return priceUsd.toFixed(2);
+  } else if (priceUsd >= 0.01) {
+    return priceUsd.toFixed(4);
+  } else {
+    return priceUsd.toFixed(6);
+  }
+}
+
+export function formatPriceWithSol(priceInSol: number, solPriceUsd: number): string {
   const priceUsd = priceInSol * solPriceUsd;
   return `${priceInSol.toFixed(9)} SOL ($${priceUsd.toFixed(6)})`;
 }
@@ -25,4 +35,22 @@ export function formatProgress(virtualSolReserves: bigint): string {
   const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
   
   return `[${bar}] ${clampedProgress.toFixed(1)}% (${reservesInSol.toFixed(1)}/85 SOL)`;
+}
+
+export function formatNumber(value: number): string {
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(2)}M`;
+  } else if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(2)}K`;
+  } else if (value >= 1) {
+    return value.toFixed(2);
+  } else if (value >= 0.01) {
+    return value.toFixed(4);
+  } else {
+    return value.toFixed(6);
+  }
+}
+
+export function formatPercentage(value: number): string {
+  return `${value.toFixed(2)}%`;
 }

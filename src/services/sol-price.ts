@@ -12,7 +12,7 @@ export class SolPriceService {
   private cache: PriceCache | null = null;
   private readonly CACHE_DURATION = 1500; // 1.5 second cache for DB reads
   private readonly FALLBACK_PRICE = 180; // Fallback price if all fails
-  private readonly API_URL = 'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd';
+  private readonly BINANCE_API_URL = 'https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT';
   
   private constructor() {}
   
@@ -23,9 +23,9 @@ export class SolPriceService {
     return SolPriceService.instance;
   }
   
-  private async fetchFromCoinGecko(): Promise<number> {
+  private async fetchFromBinance(): Promise<number> {
     return new Promise((resolve, reject) => {
-      const request = https.get(this.API_URL, (res) => {
+      const request = https.get(this.BINANCE_API_URL, (res) => {
         let data = '';
         
         // Check status code
@@ -41,9 +41,9 @@ export class SolPriceService {
         res.on('end', () => {
           try {
             const json = JSON.parse(data);
-            const price = json?.solana?.usd;
+            const price = parseFloat(json?.price);
             
-            if (typeof price === 'number' && price > 0) {
+            if (!isNaN(price) && price > 0) {
               resolve(price);
             } else {
               reject(new Error('Invalid price data'));
@@ -85,7 +85,7 @@ export class SolPriceService {
       }
       
       // If DB price is too old or missing, fetch directly
-      const price = await this.fetchFromCoinGecko();
+      const price = await this.fetchFromBinance();
       
       // Update cache
       this.cache = {

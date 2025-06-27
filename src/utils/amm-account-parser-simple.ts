@@ -67,15 +67,13 @@ export function parseAmmPoolAccount(data: Buffer, pubkey: any): ParsedAmmPoolAcc
     const quoteReserveFromLayout = data.readBigUInt64LE(offset);
     offset += 8;
     
-    // Fee numerator (8 bytes)
-    const feeNumerator = data.readBigUInt64LE(offset);
+    // Fee numerator (8 bytes) - skip
+    // const feeNumerator = data.readBigUInt64LE(offset);
     offset += 8;
     
-    // Fee denominator (8 bytes)
-    const feeDenominator = data.readBigUInt64LE(offset);
+    // Fee denominator (8 bytes) - skip
+    // const feeDenominator = data.readBigUInt64LE(offset);
     offset += 8;
-    
-    const fee = feeDenominator > 0 ? Number(feeNumerator) / Number(feeDenominator) : 0;
     
     // Use found reserves if available, otherwise use layout values
     return {

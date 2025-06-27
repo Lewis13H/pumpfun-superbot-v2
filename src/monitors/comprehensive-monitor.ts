@@ -170,13 +170,12 @@ async function handleEvent(event: ComprehensiveEvent): Promise<void> {
       // Store pool state
       ammPoolStates.set(pool.poolAddress, pool);
       
-      const baseAmount = Number(pool.baseReserves) / 1e6;
-      const quoteAmount = Number(pool.quoteReserves) / 1e9;
-      
       printHeader();
       console.log(chalk.blue.bold('💧 AMM POOL UPDATE'));
       console.log(`Pool: ${pool.poolAddress.slice(0, 8)}...`);
-      console.log(`Reserves: ${baseAmount.toFixed(2)} tokens ⇄ ${quoteAmount.toFixed(4)} SOL`);
+      console.log(`Base Mint: ${pool.baseMint.slice(0, 8)}...`);
+      console.log(`Quote Mint: ${pool.quoteMint.slice(0, 8)}...`);
+      console.log(chalk.yellow(`Note: Reserves are stored in separate token accounts, not in the Pool account`));
       break;
     }
   }

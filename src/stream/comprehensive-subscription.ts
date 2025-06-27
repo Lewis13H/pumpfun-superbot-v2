@@ -8,7 +8,8 @@ import { SimpleTradeEventParser } from '../utils/trade-event-parser-simple';
 import { AmmSwapParser, AmmSwapEvent } from '../parsers/amm-swap-parser';
 import { PUMP_PROGRAM, PUMP_SWAP_PROGRAM } from '../utils/constants';
 import { calculatePrice } from '../utils/price-calculator';
-import { parseAmmPoolAccount } from '../utils/amm-account-parser-simple';
+import { parseBondingCurveAccountManual } from '../utils/manual-account-parsers';
+import { parseAmmPoolAccountCorrect } from '../utils/amm-pool-parser-correct';
 import bs58 from 'bs58';
 
 // Account data interfaces
@@ -324,36 +325,18 @@ export class ComprehensiveSubscription {
 
   private parseBondingCurveAccount(data: any, _pubkey: any): BondingCurveAccount | null {
     try {
-      // Bonding curve account structure (simplified)
       const dataBuffer = Buffer.from(data);
+      const parsed = parseBondingCurveAccountManual(dataBuffer);
       
-      if (dataBuffer.length < 138) return null; // Minimum size check
-      
-      let offset = 8; // Skip discriminator
-      
-      const virtualSolReserves = dataBuffer.readBigUInt64LE(offset);
-      offset += 8;
-      
-      const virtualTokenReserves = dataBuffer.readBigUInt64LE(offset);
-      offset += 8;
-      
-      const realSolReserves = dataBuffer.readBigUInt64LE(offset);
-      offset += 8;
-      
-      const realTokenReserves = dataBuffer.readBigUInt64LE(offset);
-      offset += 8;
-      
-      offset += 8; // Skip token total supply
-      
-      const complete = dataBuffer.readUInt8(offset) === 1;
+      if (!parsed) return null;
       
       return {
-        virtualSolReserves,
-        virtualTokenReserves,
-        realSolReserves,
-        realTokenReserves,
-        tokenMint: '', // Would need to extract from account data
-        complete
+        virtualSolReserves: parsed.virtualSolReserves,
+        virtualTokenReserves: parsed.virtualTokenReserves,
+        realSolReserves: parsed.realSolReserves,
+        realTokenReserves: parsed.realTokenReserves,
+        tokenMint: '', // TODO: Extract from account data if needed
+        complete: parsed.complete
       };
     } catch (error) {
       return null;
@@ -362,20 +345,18 @@ export class ComprehensiveSubscription {
 
   private parseAmmPoolAccount(data: any, pubkey: any): AmmPoolAccount | null {
     try {
-      // Use the simple AMM account parser
       const dataBuffer = Buffer.from(data);
+      const parsed = parseAmmPoolAccountCorrect(dataBuffer, pubkey);
       
-      if (dataBuffer.length < 100) return null; // Minimum size check
+      if (!parsed) return null;
       
-      const parsed = parseAmmPoolAccount(dataBuffer, pubkey);
-      
-      if (!parsed) {
-        return null;
-      }
+      // Note: The Pool account doesn't store reserves directly
+      // Reserves are in the token accounts (poolBaseTokenAccount and poolQuoteTokenAccount)
+      // We would need to fetch those accounts separately to get actual reserves
       
       return {
-        baseReserves: parsed.baseReserve,
-        quoteReserves: parsed.quoteReserve,
+        baseReserves: BigInt(0), // Not available in Pool account
+        quoteReserves: BigInt(0), // Not available in Pool account
         baseMint: parsed.baseMint,
         quoteMint: parsed.quoteMint,
         poolAddress: parsed.poolAddress

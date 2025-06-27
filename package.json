@@ -25,7 +25,13 @@
     "dual": "tsx src/monitors/dual-program-monitor.ts",
     "dual-debug": "tsx src/monitors/dual-program-monitor-debug.ts",
     "test-stream": "tsx src/monitors/test-stream.ts",
-    "comprehensive": "tsx src/monitors/comprehensive-monitor.ts"
+    "comprehensive": "tsx src/monitors/comprehensive-monitor.ts",
+    "comprehensive-db": "tsx src/monitors/comprehensive-monitor-db.ts",
+    "comprehensive-enhanced": "tsx src/monitors/comprehensive-monitor-db-enhanced.ts",
+    "test-idl": "tsx src/monitors/test-idl-parsing.ts",
+    "debug-amm": "tsx src/monitors/debug-amm-pool.ts",
+    "unified-v2": "tsx src/monitors/unified-monitor-v2.ts",
+    "migrate-unified": "tsx scripts/migrate-unified.ts"
   },
   "name": "pumpfun-superbot-v2",
   "version": "1.0.0",
@@ -40,14 +46,18 @@
     "@solana/web3.js": "^1.98.2",
     "@triton-one/yellowstone-grpc": "^4.0.2",
     "@types/lodash": "^4.17.19",
+    "@types/ora": "^3.1.0",
     "@types/pg": "^8.15.4",
+    "@types/uuid": "^10.0.0",
     "bs58": "^6.0.0",
     "chalk": "^4.1.2",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^4.18.2",
     "lodash": "^4.17.21",
-    "pg": "^8.16.2"
+    "ora": "^8.2.0",
+    "pg": "^8.16.2",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@types/bs58": "^4.0.4",
