@@ -1,6 +1,9 @@
 // Pump.fun program address
 export const PUMP_PROGRAM = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
 
+// Pump.swap AMM program address
+export const PUMP_SWAP_PROGRAM = 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
+
 // Trade event constants
 export const TRADE_EVENT_SIZE = 225;
 export const TOKEN_DECIMALS = 6;

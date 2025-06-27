@@ -10,8 +10,8 @@ dotenv.config();
 const thresholdTracker = ThresholdTracker.getInstance();
 
 // Override formatOutput to check threshold
-const originalFormatOutput = require('../utils/formatter').formatOutput;
-require('../utils/formatter').formatOutput = async function(mint: string, priceData: any) {
+const originalFormatOutput = require('../utils/formatters').formatOutput;
+require('../utils/formatters').formatOutput = async function(mint: string, priceData: any) {
   // Check and save if meets threshold
   const saved = await thresholdTracker.checkAndSaveToken({
     mint,

@@ -1,4 +1,4 @@
 export * from './constants';
-export * from './formatter';
+export * from './formatters';
 export * from './parser';
 export * from './price-calculator';

@@ -140,3 +140,9 @@ export class SolPriceService {
     }
   }
 }
+
+// Export a convenient function for getting SOL price
+export async function getSolPrice(): Promise<number> {
+  const service = SolPriceService.getInstance();
+  return service.getPrice();
+}
