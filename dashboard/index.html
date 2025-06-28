@@ -14,13 +14,15 @@
                 🚀 PumpMonitor
             </a>
             <nav class="nav-links">
-                <a href="#" class="nav-link active">Tokens</a>
-                <a href="#" class="nav-link">New Pairs</a>
-                <a href="#" class="nav-link">Gainers</a>
-                <a href="#" class="nav-link">Watchlist</a>
-                <a href="#" class="nav-link">Portfolio</a>
+                <a href="#" class="nav-link active" data-view="tokens">Tokens</a>
+                <a href="#" class="nav-link" data-view="bc-monitor">BC Monitor</a>
+                <a href="#" class="nav-link" data-view="new-pairs">New Pairs</a>
+                <a href="#" class="nav-link" data-view="gainers">Gainers</a>
+                <a href="#" class="nav-link" data-view="watchlist">Watchlist</a>
+                <a href="#" class="nav-link" data-view="portfolio">Portfolio</a>
             </nav>
             <div class="header-right">
+                <div id="bc-monitor-status" class="status-disconnected">BC Monitor Disconnected</div>
                 <div class="network-selector">
                     <div class="network-icon"></div>
                     <span>Solana</span>
@@ -168,6 +170,67 @@
         </div>
     </div>
 
+    <!-- BC Monitor Section (initially hidden) -->
+    <div id="bc-monitor-section" class="bc-monitor-container" style="display: none;">
+        <div class="bc-monitor-header">
+            <h2>🚀 Bonding Curve Monitor - Live Feed</h2>
+            <div class="bc-monitor-stats">
+                <div class="stat-box">
+                    <div class="stat-label">Total Trades</div>
+                    <div class="stat-value" id="bc-stats-trades">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">TX/s</div>
+                    <div class="stat-value" id="bc-stats-tps">0.0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">New Tokens</div>
+                    <div class="stat-value" id="bc-stats-new-tokens">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Graduations</div>
+                    <div class="stat-value" id="bc-stats-graduations">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Parse Rate</div>
+                    <div class="stat-value" id="bc-stats-parse-rate">0%</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Uptime</div>
+                    <div class="stat-value" id="bc-stats-uptime">0s</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bc-monitor-content">
+            <!-- Live Trades Feed -->
+            <div class="bc-panel">
+                <h3>📊 Live Trades</h3>
+                <div id="bc-trades-feed" class="bc-feed">
+                    <!-- Trades will be inserted here -->
+                </div>
+            </div>
+            
+            <!-- New Tokens Feed -->
+            <div class="bc-panel">
+                <h3>🆕 New Tokens</h3>
+                <div id="bc-new-tokens-feed" class="bc-feed">
+                    <!-- New tokens will be inserted here -->
+                </div>
+            </div>
+            
+            <!-- Performance Graphs -->
+            <div class="bc-panel">
+                <h3>📈 Performance</h3>
+                <div id="bc-performance-graphs" class="bc-graphs">
+                    <canvas id="bc-graph-tps" width="400" height="200"></canvas>
+                    <canvas id="bc-graph-parse-rate" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
+    <script src="bc-monitor-client.js"></script>
 </body>
 </html>

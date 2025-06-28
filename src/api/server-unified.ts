@@ -3,9 +3,13 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { Pool } from 'pg';
+import { createServer } from 'http';
+import { bcWebSocketServer } from '../services/bc-websocket-server';
+import bcMonitorEndpoints from './bc-monitor-endpoints';
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;
+const server = createServer(app);
 
 // Database connection
 const pool = new Pool({
@@ -18,6 +22,9 @@ app.use(express.json());
 
 // Serve static dashboard files
 app.use(express.static(path.join(__dirname, '../../dashboard')));
+
+// BC Monitor API endpoints
+app.use('/api/bc-monitor', bcMonitorEndpoints);
 
 // API endpoint for tokens - unified schema
 app.get('/api/tokens', async (_req, res) => {
@@ -282,11 +289,15 @@ app.get('/api/tokens/gainers', async (_req, res) => {
   }
 });
 
+// Initialize WebSocket server
+bcWebSocketServer.initialize(server);
+
 // Start server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   const dashboardUrl = `http://localhost:${PORT}`;
   console.log(`🚀 API server (unified) running on ${dashboardUrl}`);
   console.log(`📊 Dashboard available at ${dashboardUrl}`);
+  console.log(`🔌 WebSocket server available at ws://localhost:${PORT}/ws`);
   
   // Auto-open dashboard in browser
   import('open').then(open => {
@@ -301,6 +312,7 @@ app.listen(PORT, () => {
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\nShutting down server...');
+  bcWebSocketServer.shutdown();
   await pool.end();
   process.exit(0);
 });

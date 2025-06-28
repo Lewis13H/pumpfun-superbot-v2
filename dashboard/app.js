@@ -58,6 +58,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Set up event listeners
     setupEventListeners();
+    
+    // Set up navigation
+    setupNavigation();
 });
 
 // Sidebar toggle
@@ -458,4 +461,46 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
+}
+
+// Navigation setup
+function setupNavigation() {
+    const navLinks = document.querySelectorAll('.nav-link[data-view]');
+    const tokenListContainer = document.querySelector('.token-list-container');
+    const bcMonitorSection = document.getElementById('bc-monitor-section');
+    
+    navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            
+            // Update active state
+            navLinks.forEach(l => l.classList.remove('active'));
+            link.classList.add('active');
+            
+            // Get view name
+            const view = link.getAttribute('data-view');
+            
+            // Show/hide appropriate sections
+            if (view === 'bc-monitor') {
+                // Show BC Monitor section
+                tokenListContainer.style.display = 'none';
+                if (document.getElementById('sidebar')) {
+                    document.getElementById('sidebar').style.display = 'none';
+                }
+                bcMonitorSection.style.display = 'block';
+                
+                // Initialize BC Monitor client if not already done
+                if (!window.bcMonitor) {
+                    window.bcMonitor = new BCMonitorClient();
+                }
+            } else {
+                // Show tokens view
+                tokenListContainer.style.display = 'flex';
+                if (document.getElementById('sidebar')) {
+                    document.getElementById('sidebar').style.display = 'block';
+                }
+                bcMonitorSection.style.display = 'none';
+            }
+        });
+    });
 }

@@ -665,3 +665,258 @@ td {
 ::-webkit-scrollbar-thumb:hover {
     background: #3a3a3a;
 }
+
+/* BC Monitor Status */
+#bc-monitor-status {
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-right: 20px;
+    transition: all 0.3s ease;
+}
+
+.status-connected {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.status-disconnected {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* BC Monitor Container */
+.bc-monitor-container {
+    padding: 20px;
+    background: var(--bg-primary);
+    min-height: calc(100vh - 60px);
+}
+
+.bc-monitor-header {
+    margin-bottom: 30px;
+}
+
+.bc-monitor-header h2 {
+    color: var(--text-primary);
+    font-size: 24px;
+    margin-bottom: 20px;
+}
+
+.bc-monitor-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.stat-box {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 15px;
+    text-align: center;
+}
+
+.stat-label {
+    color: var(--text-dim);
+    font-size: 12px;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+}
+
+.stat-value {
+    color: var(--text-primary);
+    font-size: 24px;
+    font-weight: bold;
+}
+
+/* BC Monitor Content */
+.bc-monitor-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.bc-panel {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.bc-panel h3 {
+    color: var(--text-primary);
+    font-size: 16px;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* BC Feeds */
+.bc-feed {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* Trade Items */
+.trade-item {
+    display: grid;
+    grid-template-columns: 60px 1fr auto auto auto;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    font-size: 13px;
+    align-items: center;
+}
+
+.trade-buy {
+    background: rgba(16, 185, 129, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.1);
+}
+
+.trade-sell {
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.1);
+}
+
+.trade-type {
+    font-weight: 600;
+}
+
+.trade-mint {
+    color: var(--text-dim);
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.trade-price {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.trade-market-cap {
+    color: var(--yellow);
+}
+
+.trade-time {
+    color: var(--text-dim);
+    font-size: 11px;
+}
+
+/* New Token Items */
+.new-token-item {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 8px;
+}
+
+.new-token-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.new-token-label {
+    background: var(--yellow);
+    color: #000;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.new-token-time {
+    color: var(--text-dim);
+    font-size: 11px;
+}
+
+.new-token-mint {
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    word-break: break-all;
+}
+
+.new-token-creator {
+    color: var(--text-dim);
+    font-size: 11px;
+}
+
+/* Graduation Alert */
+.graduation-alert {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    z-index: 10000;
+    animation: slideIn 0.5s ease-out, slideOut 0.5s ease-out 4.5s;
+}
+
+.graduation-content {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.graduation-emoji {
+    font-size: 48px;
+}
+
+.graduation-text h3 {
+    margin: 0 0 5px 0;
+    font-size: 18px;
+}
+
+.graduation-text p {
+    margin: 2px 0;
+    font-size: 14px;
+    opacity: 0.9;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+}
+
+/* Performance Graphs */
+.bc-graphs {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.bc-graphs canvas {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}

@@ -39,6 +39,8 @@ import { BondingCurveDbHandler, ProcessedTradeData } from '../handlers/bc-db-han
 import { ProgressTracker, formatProgressDisplay, detectGraduationFromLogs } from '../services/bc-progress-tracker';
 import { BondingCurveMintDetector, NewMintDetection } from '../handlers/bc-mint-detector';
 import { BondingCurveTokenEnricher } from '../services/bc-token-enricher';
+import { bcMonitorStats } from '../services/bc-monitor-stats-aggregator';
+import { bcWebSocketServer } from '../services/bc-websocket-server';
 import chalk from 'chalk';
 import bs58 from 'bs58';
 
@@ -303,6 +305,26 @@ class BondingCurveMonitor {
         // Log the new token
         this.mintDetector.logNewTokenDetection(mintDetection);
         
+        // Add to stats aggregator activity feed
+        bcMonitorStats.addNewTokenActivity({
+          timestamp: new Date(),
+          mint: mintDetection.mintAddress,
+          creator: mintDetection.creator,
+          supply: mintDetection.initialSupply || 0,
+          hasMetadata: mintDetection.metadata !== undefined,
+          riskLevel: 'medium' // Default, would be updated by enricher
+        });
+        
+        // Broadcast new token via WebSocket
+        bcWebSocketServer.broadcastNewToken({
+          mint: mintDetection.mintAddress,
+          creator: mintDetection.creator,
+          supply: mintDetection.initialSupply,
+          signature: mintDetection.signature,
+          metadata: mintDetection.metadata,
+          timestamp: new Date()
+        });
+        
         // Enrich token data (non-blocking)
         this.enrichNewToken(mintDetection).catch(err => {
           console.error('Token enrichment error:', err);
@@ -387,6 +409,24 @@ class BondingCurveMonitor {
         
         // Check for graduation
         if (this.progressTracker.checkGraduation(event.mint, event.virtualSolReserves)) {
+          // Add to stats aggregator activity feed
+          bcMonitorStats.addGraduationActivity({
+            timestamp: new Date(),
+            mint: event.mint,
+            symbol: undefined, // Would need to fetch from DB or cache
+            finalSol: Number(event.virtualSolReserves) / 1e9,
+            marketCapUsd: priceData.marketCapUsd
+          });
+          
+          // Broadcast graduation via WebSocket
+          bcWebSocketServer.broadcastGraduation({
+            mint: event.mint,
+            finalSol: Number(event.virtualSolReserves) / 1e9,
+            marketCap: priceData.marketCapUsd,
+            signature,
+            timestamp: new Date()
+          });
+          
           // Mark in database if above threshold
           if (priceData.marketCapUsd >= 8888) {
             // TODO: Update database to mark as graduated
@@ -549,6 +589,32 @@ class BondingCurveMonitor {
     
     console.log(chalk.gray(`Signature: ${signature.slice(0, 16)}...`));
     console.log(chalk.gray('─'.repeat(50)));
+    
+    // Add to stats aggregator activity feed
+    bcMonitorStats.addTradeActivity({
+      timestamp: new Date(),
+      type: tradeType as 'buy' | 'sell' || 'buy',
+      mint: event.mint,
+      symbol: undefined, // Would need to fetch from DB or cache
+      amount: priceData.priceUsd * (event.tokenAmount / Math.pow(10, 6)),
+      priceUsd: priceData.priceUsd,
+      marketCapUsd: priceData.marketCapUsd,
+      signature
+    });
+    
+    // Broadcast trade via WebSocket
+    bcWebSocketServer.broadcastTrade({
+      type: tradeType,
+      mint: event.mint,
+      user: event.user,
+      solAmount: event.solAmount,
+      tokenAmount: event.tokenAmount,
+      price: priceData.priceUsd,
+      marketCap: priceData.marketCapUsd,
+      progress: progressData.percentage,
+      signature,
+      timestamp: new Date()
+    });
   }
   
 
@@ -659,6 +725,78 @@ class BondingCurveMonitor {
     }
     
     console.log(chalk.gray('─'.repeat(50)));
+    
+    // Update stats aggregator and broadcast
+    this.updateStatsAggregator();
+  }
+
+  /**
+   * Update stats aggregator with current statistics
+   */
+  private updateStatsAggregator(): void {
+    // Calculate derived metrics
+    const transactionsPerSecond = this.calculateTransactionsPerSecond();
+    const tradesPerMinute = this.calculateTradesPerMinute();
+    const parseSuccessRate = this.calculateParseSuccessRate();
+    
+    // Update aggregator
+    bcMonitorStats.updateStats({
+      connected: this.stats.currentStatus === 'connected',
+      connectionUptime: Date.now() - this.stats.startTime.getTime(),
+      lastConnected: this.stats.currentStatus === 'connected' ? new Date() : null,
+      reconnectAttempts: this.stats.reconnections,
+      totalTransactions: this.stats.transactionsReceived,
+      transactionsPerSecond,
+      averageProcessingTime: 0, // TODO: Track this
+      totalTrades: this.stats.tradesDetected,
+      buyCount: this.stats.buysDetected,
+      sellCount: this.stats.sellsDetected,
+      parseSuccessRate,
+      tradesPerMinute,
+      uniqueTokens: this.stats.uniqueMints.size,
+      tokensAboveThreshold: this.stats.tokensAboveThreshold,
+      totalVolume: this.stats.totalVolumeUsd,
+      graduatedTokens: this.progressTracker.getStats().graduatedTokens || 0,
+      nearGraduation: this.progressTracker.getStats().graduationCandidates,
+      newTokensDetected: this.stats.newTokensDetected,
+      uniqueCreators: this.stats.uniqueCreators.size,
+      tokensEnriched: this.tokenEnricher.getStats().tokensEnriched,
+      queueSize: this.dbHandler.getStats().dbStats.queueSize,
+      savedTokens: this.dbHandler.getStats().dbStats.tokensTracked,
+      savedTrades: this.dbHandler.getStats().dbStats.tradesProcessed,
+      lastSaveTime: new Date(),
+      totalErrors: this.stats.errors,
+      parseErrors: this.stats.parseErrors,
+      databaseErrors: this.dbHandler.getStats().dbStats.errors,
+      connectionErrors: this.stats.errors
+    });
+    
+    // Broadcast stats update via WebSocket
+    bcWebSocketServer.broadcastStats(bcMonitorStats.getStats());
+  }
+
+  /**
+   * Calculate transactions per second
+   */
+  private calculateTransactionsPerSecond(): number {
+    const uptimeSeconds = (Date.now() - this.stats.startTime.getTime()) / 1000;
+    return uptimeSeconds > 0 ? this.stats.transactionsReceived / uptimeSeconds : 0;
+  }
+
+  /**
+   * Calculate trades per minute
+   */
+  private calculateTradesPerMinute(): number {
+    const uptimeMinutes = (Date.now() - this.stats.startTime.getTime()) / 60000;
+    return uptimeMinutes > 0 ? this.stats.tradesDetected / uptimeMinutes : 0;
+  }
+
+  /**
+   * Calculate parse success rate
+   */
+  private calculateParseSuccessRate(): number {
+    const totalAttempts = this.stats.tradesDetected + this.stats.parseErrors;
+    return totalAttempts > 0 ? (this.stats.tradesDetected / totalAttempts) * 100 : 100;
   }
 
   /**
