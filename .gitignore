@@ -171,3 +171,11 @@ public
 .env.old
 config.local.js
 secrets.json
+
+# Shyft examples - don't commit
+shyft-code-examples/
+
+# Test files
+test-bc-monitor.sh
+test-mc-values.sh
+bc-monitor-test.log
