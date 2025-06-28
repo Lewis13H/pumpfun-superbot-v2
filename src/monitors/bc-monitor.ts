@@ -1,22 +1,31 @@
 #!/usr/bin/env node
 /**
- * Bonding Curve Monitor - Phase 1: Core Infrastructure
+ * Bonding Curve Monitor - Phase 2: Transaction Parsing
  * 
  * A focused pump.fun bonding curve monitoring service that:
  * - Establishes reliable gRPC connection to Shyft
  * - Subscribes to pump.fun program transactions
  * - Implements robust error handling and reconnection logic
  * - Tracks basic statistics and connection health
+ * - Parses trade events from transaction logs (Phase 2)
+ * - Detects buy/sell operations and extracts trade data (Phase 2)
  * 
- * Phase 1 focuses on establishing a solid foundation for streaming
- * and connection management before adding parsing and analysis features.
+ * Phase 2 adds transaction parsing capabilities to extract
+ * meaningful trade data from pump.fun transactions.
  */
 
 import 'dotenv/config';
 import { CommitmentLevel, SubscribeRequest } from '@triton-one/yellowstone-grpc';
 import { StreamClient } from '../stream/client';
 import { PUMP_PROGRAM } from '../utils/constants';
+import { 
+  BondingCurveTradeEvent,
+  extractTradeEventsFromLogs, 
+  detectTradeTypeFromLogs,
+  isValidMintAddress 
+} from '../parsers/bc-event-parser';
 import chalk from 'chalk';
+import bs58 from 'bs58';
 
 // Configuration constants
 const MONITOR_NAME = 'Bonding Curve Monitor';
@@ -35,6 +44,12 @@ interface ConnectionStats {
   errors: number;
   currentStatus: 'connecting' | 'connected' | 'disconnected' | 'error';
   lastError?: string;
+  // Phase 2 additions
+  tradesDetected: number;
+  buysDetected: number;
+  sellsDetected: number;
+  uniqueMints: Set<string>;
+  parseErrors: number;
 }
 
 /**
@@ -53,7 +68,13 @@ class BondingCurveMonitor {
       transactionsReceived: 0,
       reconnections: 0,
       errors: 0,
-      currentStatus: 'connecting'
+      currentStatus: 'connecting',
+      // Phase 2 additions
+      tradesDetected: 0,
+      buysDetected: 0,
+      sellsDetected: 0,
+      uniqueMints: new Set<string>(),
+      parseErrors: 0
     };
   }
 
@@ -61,9 +82,10 @@ class BondingCurveMonitor {
    * Start the monitoring service
    */
   async start(): Promise<void> {
-    console.log(chalk.cyan.bold(`\n🚀 Starting ${MONITOR_NAME}...`));
+    console.log(chalk.cyan.bold(`\n🚀 Starting ${MONITOR_NAME} - Phase 2`));
     console.log(chalk.gray(`Program ID: ${PUMP_PROGRAM}`));
-    console.log(chalk.gray(`Time: ${new Date().toISOString()}\n`));
+    console.log(chalk.gray(`Time: ${new Date().toISOString()}`));
+    console.log(chalk.blue(`Features: Connection ✓ | Parsing ✓ | Prices ⏳ | Database ⏳\n`));
 
     // Start statistics display
     this.startStatsDisplay();
@@ -167,13 +189,16 @@ class BondingCurveMonitor {
         return;
       }
 
-      // Count transactions
+      // Process transactions
       if (data.transaction) {
         this.stats.transactionsReceived++;
         
-        // Log every 100th transaction in Phase 1
-        if (this.stats.transactionsReceived % 100 === 0) {
-          console.log(chalk.green(`✅ Received ${this.stats.transactionsReceived} transactions`));
+        // Phase 2: Parse transaction
+        this.parseTransaction(data.transaction);
+        
+        // Log every 50th transaction with more details
+        if (this.stats.transactionsReceived % 50 === 0) {
+          console.log(chalk.green(`✅ Processed ${this.stats.transactionsReceived} transactions, ${this.stats.tradesDetected} trades detected`));
         }
       }
     });
@@ -196,6 +221,125 @@ class BondingCurveMonitor {
 
     // Wait for stream to close
     await streamClosed;
+  }
+
+  /**
+   * Parse transaction to extract trade events (Phase 2)
+   */
+  private parseTransaction(transactionData: any): void {
+    try {
+      // Extract logs from nested structure
+      const logs = this.extractLogs(transactionData);
+      if (!logs || logs.length === 0) {
+        return;
+      }
+      
+
+      // Extract signature for logging
+      const signature = this.extractSignature(transactionData);
+
+      // Extract trade events
+      const events = extractTradeEventsFromLogs(logs);
+      if (events.length === 0) {
+        return;
+      }
+
+      // Detect trade type
+      const tradeType = detectTradeTypeFromLogs(logs);
+      
+      // Process each event
+      for (const event of events) {
+        if (!isValidMintAddress(event.mint)) {
+          this.stats.parseErrors++;
+          continue;
+        }
+
+        // Update statistics
+        this.stats.tradesDetected++;
+        this.stats.uniqueMints.add(event.mint);
+        
+        if (tradeType === 'buy') {
+          this.stats.buysDetected++;
+          event.isBuy = true;
+        } else if (tradeType === 'sell') {
+          this.stats.sellsDetected++;
+          event.isBuy = false;
+        }
+
+        // Log significant trades (every 10th trade in Phase 2)
+        if (this.stats.tradesDetected % 10 === 0) {
+          this.logTradeEvent(event, tradeType, signature);
+        }
+      }
+    } catch (error) {
+      this.stats.parseErrors++;
+      // Silently handle parse errors in Phase 2
+    }
+  }
+
+  /**
+   * Extract logs from transaction data
+   */
+  private extractLogs(transactionData: any): string[] | null {
+    try {
+      // Handle nested transaction structure from gRPC
+      if (transactionData?.transaction?.meta?.logMessages) {
+        return transactionData.transaction.meta.logMessages;
+      }
+      if (transactionData?.meta?.logMessages) {
+        return transactionData.meta.logMessages;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Extract signature from transaction
+   */
+  private extractSignature(transactionData: any): string {
+    try {
+      // Try different structures
+      if (transactionData?.transaction?.transaction?.signatures?.[0]) {
+        const sig = transactionData.transaction.transaction.signatures[0];
+        return typeof sig === 'string' ? sig : bs58.encode(sig);
+      }
+      if (transactionData?.transaction?.signatures?.[0]) {
+        const sig = transactionData.transaction.signatures[0];
+        return typeof sig === 'string' ? sig : bs58.encode(sig);
+      }
+      if (transactionData?.signatures?.[0]) {
+        const sig = transactionData.signatures[0];
+        return typeof sig === 'string' ? sig : bs58.encode(sig);
+      }
+      return 'unknown';
+    } catch {
+      return 'unknown';
+    }
+  }
+
+  /**
+   * Log trade event details
+   */
+  private logTradeEvent(event: BondingCurveTradeEvent, tradeType: string | null, signature: string): void {
+    console.log(chalk.cyan('\n📊 Trade Event Detected:'));
+    console.log(chalk.gray('─'.repeat(50)));
+    console.log(`Type: ${tradeType ? chalk.green(tradeType.toUpperCase()) : chalk.gray('UNKNOWN')}`);
+    console.log(`Mint: ${chalk.yellow(event.mint.slice(0, 8) + '...' + event.mint.slice(-6))}`);
+    console.log(`User: ${chalk.white(event.user ? event.user.slice(0, 8) + '...' : 'unknown')}`);
+    
+    if (event.solAmount) {
+      console.log(`SOL Amount: ${chalk.green((Number(event.solAmount) / 1e9).toFixed(4))} SOL`);
+    }
+    if (event.tokenAmount) {
+      console.log(`Token Amount: ${chalk.blue((Number(event.tokenAmount) / 1e6).toFixed(2))}`);
+    }
+    
+    console.log(`Virtual SOL: ${chalk.gray((Number(event.virtualSolReserves) / 1e9).toFixed(2))} SOL`);
+    console.log(`Virtual Tokens: ${chalk.gray((Number(event.virtualTokenReserves) / 1e6).toFixed(0))}`);
+    console.log(`Signature: ${chalk.gray(signature.slice(0, 16) + '...')}`);
+    console.log(chalk.gray('─'.repeat(50)));
   }
 
   /**
@@ -231,17 +375,40 @@ class BondingCurveMonitor {
     const uptime = this.getUptime();
     const dataAge = this.getDataAge();
     
-    console.log(chalk.cyan('\n📊 Connection Statistics:'));
+    console.log(chalk.cyan('\n📊 Monitor Statistics:'));
     console.log(chalk.gray('─'.repeat(50)));
-    console.log(`Status: ${this.getStatusColor(this.stats.currentStatus)}`);
-    console.log(`Uptime: ${chalk.white(uptime)}`);
-    console.log(`Transactions: ${chalk.yellow(this.stats.transactionsReceived.toLocaleString())}`);
-    console.log(`Reconnections: ${chalk.yellow(this.stats.reconnections)}`);
-    console.log(`Errors: ${chalk.red(this.stats.errors)}`);
-    console.log(`Last data: ${chalk.white(dataAge)} ago`);
+    
+    // Connection stats
+    console.log(chalk.white.bold('Connection:'));
+    console.log(`  Status: ${this.getStatusColor(this.stats.currentStatus)}`);
+    console.log(`  Uptime: ${chalk.white(uptime)}`);
+    console.log(`  Last data: ${chalk.white(dataAge)} ago`);
+    
+    // Transaction stats
+    console.log(chalk.white.bold('\nTransactions:'));
+    console.log(`  Received: ${chalk.yellow(this.stats.transactionsReceived.toLocaleString())}`);
+    console.log(`  Trades detected: ${chalk.green(this.stats.tradesDetected.toLocaleString())}`);
+    console.log(`  Parse errors: ${chalk.red(this.stats.parseErrors)}`);
+    
+    // Trade breakdown (Phase 2)
+    console.log(chalk.white.bold('\nTrade Analysis:'));
+    console.log(`  Buys: ${chalk.green(this.stats.buysDetected.toLocaleString())}`);
+    console.log(`  Sells: ${chalk.red(this.stats.sellsDetected.toLocaleString())}`);
+    console.log(`  Unique tokens: ${chalk.blue(this.stats.uniqueMints.size.toLocaleString())}`);
+    
+    // Detection rate
+    const detectionRate = this.stats.transactionsReceived > 0 
+      ? ((this.stats.tradesDetected / this.stats.transactionsReceived) * 100).toFixed(1)
+      : '0.0';
+    console.log(`  Detection rate: ${chalk.yellow(detectionRate + '%')}`);
+    
+    // System health
+    console.log(chalk.white.bold('\nSystem:'));
+    console.log(`  Reconnections: ${chalk.yellow(this.stats.reconnections)}`);
+    console.log(`  Total errors: ${chalk.red(this.stats.errors)}`);
     
     if (this.stats.lastError) {
-      console.log(`Last error: ${chalk.red(this.stats.lastError)}`);
+      console.log(`  Last error: ${chalk.red(this.stats.lastError)}`);
     }
     
     console.log(chalk.gray('─'.repeat(50)));
