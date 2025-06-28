@@ -66,7 +66,7 @@ export function calculateTokenPrice(
  * Calculate bonding curve progress percentage
  * 
  * Progress is based on SOL in the bonding curve:
- * - 0 SOL = 0% progress
+ * - 30 SOL = 0% progress (starting point)
  * - 85 SOL = 100% progress (ready for graduation)
  * 
  * @param virtualSolReserves - Virtual SOL reserves in lamports
@@ -76,14 +76,15 @@ export function calculateBondingCurveProgress(virtualSolReserves: bigint): numbe
   const solReserves = Number(virtualSolReserves) / LAMPORTS_PER_SOL;
   
   // Bonding curve starts at 30 SOL and completes at 85 SOL
-  // But we calculate progress from the total SOL in the curve
-  const MAX_SOL = 85;
+  const START_SOL = 30;
+  const END_SOL = 85;
+  const RANGE_SOL = END_SOL - START_SOL; // 55 SOL range
   
-  // Calculate progress as percentage
-  const progress = (solReserves / MAX_SOL) * 100;
+  // Calculate progress as percentage of the range
+  const progress = ((solReserves - START_SOL) / RANGE_SOL) * 100;
   
-  // Cap at 100% (in case of rounding or slight overages)
-  return Math.min(progress, 100);
+  // Clamp between 0 and 100
+  return Math.max(0, Math.min(progress, 100));
 }
 
 /**
@@ -168,8 +169,8 @@ export function validateReserves(
   const solReserves = Number(virtualSolReserves) / LAMPORTS_PER_SOL;
   
   // Bonding curves typically have 30-85 SOL
-  // Allow some margin for edge cases
-  if (solReserves < 25 || solReserves > 100) {
+  // Allow some margin for edge cases and potential slight overages
+  if (solReserves < 25 || solReserves > 90) {
     return false;
   }
   

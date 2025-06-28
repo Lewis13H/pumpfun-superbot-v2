@@ -23,7 +23,9 @@ export const PROGRESS_MILESTONES = {
 /**
  * Bonding curve constants
  */
-const BONDING_CURVE_MAX_SOL = 85; // 85 SOL = 100% complete
+const BONDING_CURVE_START_SOL = 30; // 30 SOL = 0% (starting point)
+const BONDING_CURVE_END_SOL = 85; // 85 SOL = 100% complete
+const BONDING_CURVE_RANGE = BONDING_CURVE_END_SOL - BONDING_CURVE_START_SOL; // 55 SOL range
 const GRADUATION_THRESHOLD = 84.5; // Allow small margin for precision
 
 export interface ProgressData {
@@ -40,8 +42,8 @@ export interface ProgressData {
  */
 export function calculateDetailedProgress(virtualSolReserves: bigint): ProgressData {
   const solInCurve = Number(virtualSolReserves) / LAMPORTS_PER_SOL;
-  const progress = Math.min((solInCurve / BONDING_CURVE_MAX_SOL) * 100, 100);
-  const solRemaining = Math.max(0, BONDING_CURVE_MAX_SOL - solInCurve);
+  const progress = Math.max(0, Math.min(((solInCurve - BONDING_CURVE_START_SOL) / BONDING_CURVE_RANGE) * 100, 100));
+  const solRemaining = Math.max(0, BONDING_CURVE_END_SOL - solInCurve);
   const isComplete = solInCurve >= GRADUATION_THRESHOLD;
   
   // Determine milestone
