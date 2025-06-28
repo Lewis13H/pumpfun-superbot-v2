@@ -106,6 +106,9 @@ Dedicated monitor for pump.swap AMM graduated tokens:
 - Follows Shyft example code patterns exactly
 - Integrates with pool state service for accurate reserve tracking
 - Uses actual pool reserves instead of hardcoded zeros
+- **Trade Detection Fix**: Correctly identifies buy/sell based on base/quote asset configuration
+  - When base is SOL: instruction 'buy' = user sells tokens, 'sell' = user buys tokens
+  - When base is token: instruction 'buy' = user buys tokens, 'sell' = user sells tokens
 
 #### AMM Account Monitor (`amm-account-monitor.ts`)
 Monitors AMM pool account states in real-time:
@@ -207,18 +210,24 @@ data.transaction.transaction.meta                            // Contains logs
    - Simple log parsing works better than strict IDL parsing
    - Mint extraction requires checking multiple log entries
 
-4. **Rate limits**
+4. **AMM Buy/Sell Detection (FIXED)**
+   - The pump.fun AMM instruction names depend on whether SOL is base or quote
+   - When base is SOL: 'buy' = selling tokens, 'sell' = buying tokens
+   - When base is token: 'buy' = buying tokens, 'sell' = selling tokens
+   - Fix implemented in `swapTransactionParser.ts` with comprehensive logic
+
+5. **Rate limits**
    - Shyft: 50 subscriptions/60s per token
    - Binance API: No limits for public endpoints
    - Implemented exponential backoff
 
-5. **Database performance**
+6. **Database performance**
    - Use batch inserts (100-500 records/batch)
    - In-memory cache for recent tokens
    - Mint address as primary key prevents duplicates
    - Retry logic for failed saves
 
-6. **Price accuracy**
+7. **Price accuracy**
    - SOL price updates every 5 seconds from Binance
    - Falls back to database cache
    - Default $180 if all sources fail

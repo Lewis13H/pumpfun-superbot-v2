@@ -41,8 +41,24 @@ export function parseSwapTransactionOutput(parsedInstruction, transaction) {
             return { type: "Unknown", mint: null };
         }
 
-        const mint = baseMintPubkey === SOL_MINT ? quoteMintPubkey : baseMintPubkey;
-        const eventType = swapInstruction.name === 'buy' ? "Buy" : "Sell";
+        // Determine which is SOL and which is the token
+        const isBaseSol = baseMintPubkey === SOL_MINT;
+        const mint = isBaseSol ? quoteMintPubkey : baseMintPubkey;
+        
+        // CRITICAL FIX: The pump.fun AMM uses a specific pattern:
+        // - For token->SOL swaps (sells): instruction is 'sell' when base is token
+        // - For SOL->token swaps (buys): instruction is 'buy' when base is token
+        // When base is SOL, the logic is inverted
+        let eventType;
+        if (isBaseSol) {
+            // When base is SOL, 'buy' means buying SOL (selling token)
+            // and 'sell' means selling SOL (buying token)
+            eventType = swapInstruction.name === 'buy' ? "Sell" : "Buy";
+        } else {
+            // When base is token, 'buy' means buying token
+            // and 'sell' means selling token
+            eventType = swapInstruction.name === 'buy' ? "Buy" : "Sell";
+        }
 
         return { type: eventType, mint };
     };

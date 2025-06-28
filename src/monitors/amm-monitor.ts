@@ -172,14 +172,28 @@ async function processAmmTransaction(data: any): Promise<void> {
       );
     }
     
-    // Calculate amounts and price
-    const solAmount = Number(swapEvent.in_amount || swapEvent.out_amount) / LAMPORTS_PER_SOL;
-    const tokenAmount = Number(swapEvent.out_amount || swapEvent.in_amount) / Math.pow(10, TOKEN_DECIMALS);
+    // Calculate amounts and price based on trade type
+    let solAmount: number;
+    let tokenAmount: number;
     
-    // Get price from pool state if available, otherwise calculate
-    const poolState = poolStateService.getPoolState(swapEvent.mint);
-    const priceInSol = poolState?.metrics.pricePerTokenSol || (tokenAmount > 0 ? solAmount / tokenAmount : 0);
+    // For pump.swap AMM:
+    // - When swapEvent.type is 'Buy': User is buying tokens with SOL
+    // - When swapEvent.type is 'Sell': User is selling tokens for SOL
+    if (swapEvent.type === 'Buy') {
+      // User buys tokens: sends SOL (in_amount) → receives tokens (out_amount)
+      solAmount = Number(swapEvent.in_amount) / LAMPORTS_PER_SOL;
+      tokenAmount = Number(swapEvent.out_amount) / Math.pow(10, TOKEN_DECIMALS);
+    } else {
+      // User sells tokens: sends tokens (in_amount) → receives SOL (out_amount)
+      tokenAmount = Number(swapEvent.in_amount) / Math.pow(10, TOKEN_DECIMALS);
+      solAmount = Number(swapEvent.out_amount) / LAMPORTS_PER_SOL;
+    }
+    
+    // Calculate price per token
+    const priceInSol = tokenAmount > 0 ? solAmount / tokenAmount : 0;
     const priceUsd = priceInSol * currentSolPrice;
+    
+    // Volume is always in SOL value
     const volumeUsd = solAmount * currentSolPrice;
     
     stats.totalVolumeUsd += volumeUsd;
@@ -235,6 +249,10 @@ async function processAmmTransaction(data: any): Promise<void> {
         chalk.gray('Volume:'),
         chalk.yellow(`$${formatCurrency(volumeUsd)}`)
       );
+      
+      // DEBUG: Log full signature for verification
+      console.log(chalk.magenta(`[DEBUG] Full signature: ${signature}`));
+      console.log(chalk.magenta(`[DEBUG] Solscan: https://solscan.io/tx/${signature}`));
     }
     
   } catch (error) {
