@@ -5,6 +5,7 @@ import { PUMP_SWAP_PROGRAM } from '../../utils/constants';
 import bs58 from 'bs58';
 import chalk from 'chalk';
 import dotenv from 'dotenv';
+import { decodeAmmPoolAccount, formatPoolData } from '../../utils/amm-pool-decoder';
 
 dotenv.config();
 
@@ -59,35 +60,51 @@ async function debugAmmPool() {
         const discriminator = dataBuffer.slice(0, 8).toString('hex');
         console.log(chalk.gray(`Discriminator: ${discriminator}`));
         
-        // Show first 300 bytes in hex
-        console.log(chalk.gray('\nFirst 300 bytes (hex):'));
-        console.log(dataBuffer.slice(0, 300).toString('hex').match(/.{1,64}/g)?.join('\n'));
-        
-        // Try to find pubkeys (32-byte sequences that look valid)
-        console.log(chalk.cyan('\nPotential pubkeys found:'));
-        for (let i = 8; i < Math.min(dataBuffer.length - 32, 300); i++) {
-          const potentialPubkey = dataBuffer.slice(i, i + 32);
-          // Check if it could be a pubkey (has non-zero bytes, not all same byte)
-          const nonZero = potentialPubkey.some(b => b !== 0);
-          const notAllSame = !potentialPubkey.every(b => b === potentialPubkey[0]);
+        // Try to decode using custom decoder
+        const decodedPool = decodeAmmPoolAccount(dataBuffer);
+        if (decodedPool) {
+          console.log(chalk.green('\n✅ Successfully decoded pool account:'));
+          const formatted = formatPoolData(decodedPool);
+          console.log(chalk.white('  Creator:'), chalk.yellow(formatted.creator));
+          console.log(chalk.white('  Base Mint:'), chalk.yellow(formatted.baseMint));
+          console.log(chalk.white('  Quote Mint:'), chalk.yellow(formatted.quoteMint));
+          console.log(chalk.white('  LP Mint:'), chalk.yellow(formatted.lpMint));
+          console.log(chalk.white('  Pool Base Token Account:'), chalk.yellow(formatted.poolBaseTokenAccount));
+          console.log(chalk.white('  Pool Quote Token Account:'), chalk.yellow(formatted.poolQuoteTokenAccount));
+          console.log(chalk.white('  LP Supply:'), chalk.yellow(formatted.lpSupply));
+        } else {
+          console.log(chalk.red('\n❌ Failed to decode pool account'));
           
-          if (nonZero && notAllSame && potentialPubkey[31] !== 0) {
-            try {
-              const pubkeyStr = bs58.encode(potentialPubkey);
-              console.log(`  Offset ${i}: ${pubkeyStr}`);
-            } catch {}
+          // Show first 300 bytes in hex for debugging
+          console.log(chalk.gray('\nFirst 300 bytes (hex):'));
+          console.log(dataBuffer.slice(0, 300).toString('hex').match(/.{1,64}/g)?.join('\n'));
+          
+          // Try to find pubkeys (32-byte sequences that look valid)
+          console.log(chalk.cyan('\nPotential pubkeys found:'));
+          for (let i = 8; i < Math.min(dataBuffer.length - 32, 300); i++) {
+            const potentialPubkey = dataBuffer.slice(i, i + 32);
+            // Check if it could be a pubkey (has non-zero bytes, not all same byte)
+            const nonZero = potentialPubkey.some(b => b !== 0);
+            const notAllSame = !potentialPubkey.every(b => b === potentialPubkey[0]);
+            
+            if (nonZero && notAllSame && potentialPubkey[31] !== 0) {
+              try {
+                const pubkeyStr = bs58.encode(potentialPubkey);
+                console.log(`  Offset ${i}: ${pubkeyStr}`);
+              } catch {}
+            }
           }
-        }
-        
-        // Try to find u64 values
-        console.log(chalk.cyan('\nPotential u64 values (as token amounts):'));
-        for (let i = 8; i < Math.min(dataBuffer.length - 8, 400); i += 8) {
-          const value = dataBuffer.readBigUInt64LE(i);
-          if (value > 0n && value < BigInt(1e20)) {
-            // Show as both raw and with decimals
-            const asTokens6 = Number(value) / 1e6;
-            const asTokens9 = Number(value) / 1e9;
-            console.log(`  Offset ${i}: ${value} (${asTokens6.toFixed(2)} @ 6 dec, ${asTokens9.toFixed(2)} @ 9 dec)`);
+          
+          // Try to find u64 values
+          console.log(chalk.cyan('\nPotential u64 values (as token amounts):'));
+          for (let i = 8; i < Math.min(dataBuffer.length - 8, 400); i += 8) {
+            const value = dataBuffer.readBigUInt64LE(i);
+            if (value > 0n && value < BigInt(1e20)) {
+              // Show as both raw and with decimals
+              const asTokens6 = Number(value) / 1e6;
+              const asTokens9 = Number(value) / 1e9;
+              console.log(`  Offset ${i}: ${value} (${asTokens6.toFixed(2)} @ 6 dec, ${asTokens9.toFixed(2)} @ 9 dec)`);
+            }
           }
         }
         

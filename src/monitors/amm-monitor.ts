@@ -23,6 +23,7 @@ import pumpAmmIdl from '../idls/pump_amm_0.1.0.json';
 import { TransactionFormatter } from '../utils/transaction-formatter';
 import { bnLayoutFormatter } from '../utils/bn-layout-formatter';
 import { suppressParserWarnings } from '../utils/suppress-parser-warnings';
+import { AmmPoolStateService } from '../services/amm-pool-state-service';
 
 // Program ID
 const PUMP_AMM_PROGRAM_ID = new PublicKey('pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA');
@@ -35,6 +36,7 @@ const LAMPORTS_PER_SOL = 1e9;
 // Services
 let dbService: UnifiedDbServiceV2;
 let solPriceService: SolPriceService;
+let poolStateService: AmmPoolStateService;
 let enricher: AutoEnricher | null = null;
 let currentSolPrice = 180; // Default fallback
 
@@ -157,11 +159,26 @@ async function processAmmTransaction(data: any): Promise<void> {
       stats.sells++;
     }
     
+    // Update pool reserves from event
+    const poolBaseReserves = Number(swapEvent.pool_base_token_reserves || 0);
+    const poolQuoteReserves = Number(swapEvent.pool_quote_token_reserves || 0);
+    
+    if (poolBaseReserves > 0 && poolQuoteReserves > 0) {
+      await poolStateService.updatePoolReserves(
+        swapEvent.mint,
+        poolBaseReserves,
+        poolQuoteReserves,
+        slot
+      );
+    }
+    
     // Calculate amounts and price
     const solAmount = Number(swapEvent.in_amount || swapEvent.out_amount) / LAMPORTS_PER_SOL;
     const tokenAmount = Number(swapEvent.out_amount || swapEvent.in_amount) / Math.pow(10, TOKEN_DECIMALS);
     
-    const priceInSol = tokenAmount > 0 ? solAmount / tokenAmount : 0;
+    // Get price from pool state if available, otherwise calculate
+    const poolState = poolStateService.getPoolState(swapEvent.mint);
+    const priceInSol = poolState?.metrics.pricePerTokenSol || (tokenAmount > 0 ? solAmount / tokenAmount : 0);
     const priceUsd = priceInSol * currentSolPrice;
     const volumeUsd = solAmount * currentSolPrice;
     
@@ -197,8 +214,8 @@ async function processAmmTransaction(data: any): Promise<void> {
       priceSol: priceInSol,
       priceUsd,
       marketCapUsd: priceUsd * 1e9, // Assuming 1B supply
-      virtualSolReserves: BigInt(0), // AMM doesn't use virtual reserves
-      virtualTokenReserves: BigInt(0),
+      virtualSolReserves: BigInt(poolBaseReserves), // Actual pool reserves
+      virtualTokenReserves: BigInt(poolQuoteReserves),
       bondingCurveProgress: 100, // AMM tokens are fully graduated
       slot: BigInt(slot),
       blockTime: new Date()
@@ -420,6 +437,7 @@ async function main() {
   // Initialize services
   dbService = UnifiedDbServiceV2.getInstance();
   solPriceService = SolPriceService.getInstance();
+  poolStateService = new AmmPoolStateService();
   
   // Start SOL price updater
   console.log(chalk.yellow('Starting SOL price updater...'));

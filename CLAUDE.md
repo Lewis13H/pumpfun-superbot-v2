@@ -9,9 +9,10 @@ Real-time Solana token monitor for pump.fun bonding curves and pump.swap AMM poo
 ## Development Commands
 
 ```bash
-# Recommended Production Setup (run both monitors)
+# Recommended Production Setup (run all three monitors)
 npm run bc-monitor-quick-fix  # Bonding curve monitor (>95% parse rate)
 npm run amm-monitor           # AMM pool monitor for graduated tokens
+npm run amm-account-monitor   # AMM account state monitor for pool reserves
 
 # Legacy Monitors
 npm run unified-v2         # DEPRECATED - has AMM detection issues
@@ -19,6 +20,7 @@ npm run bc-monitor         # Original BC monitor (lower parse rate)
 
 # Database Operations
 npm run migrate-unified    # Run database migrations
+npm run migrate-amm-pools  # Run AMM pool states migration (or use fix-amm-pool-states.ts if table exists)
 npm run view-tokens-unified # View saved tokens
 npm run enrich-tokens-unified # Fetch metadata from Helius API
 npm run query-trades       # Query recent trades
@@ -29,6 +31,7 @@ npm run sol-price-updater  # SOL price updater (runs automatically with monitors
 
 # Testing & Debugging
 npm run debug-amm          # Debug AMM pool structure
+npm run verify-amm-session-1  # Verify pool reserve monitoring
 npm run bc-monitor-watch   # Watch parse/save rates only
 ./scripts/quick-test-bc-monitor.sh   # 5-minute quick test
 ./scripts/test-bc-monitor.sh         # 1-hour comprehensive test
@@ -46,6 +49,7 @@ src/
 │   ├── bc-monitor.ts               # Bonding curve focused monitor
 │   ├── bc-monitor-quick-fixes.ts   # Improved BC monitor (handles 225 & 113 byte events)
 │   ├── amm-monitor.ts              # Dedicated AMM monitor following Shyft examples
+│   ├── amm-account-monitor.ts      # AMM account state monitor for pool reserves
 │   ├── bc-monitor-plan.md          # Phased implementation plan
 │   └── debug/
 │       └── debug-amm-pool.ts       # AMM debugging tool
@@ -56,7 +60,8 @@ src/
 │   ├── bc-progress-tracker.ts      # Bonding curve progress tracking
 │   ├── bc-monitor-stats.ts         # Enhanced statistics tracking
 │   ├── auto-enricher.ts            # Token metadata enrichment
-│   └── helius.ts                   # Helius API client
+│   ├── helius.ts                   # Helius API client
+│   └── amm-pool-state-service.ts   # AMM pool state tracking and caching
 ├── database/
 │   └── unified-db-service-v2.ts    # High-performance DB service
 ├── parsers/
@@ -78,7 +83,8 @@ src/
 │   ├── swapTransactionParser.ts    # AMM swap parsing (from Shyft)
 │   └── suppress-parser-warnings.ts # Suppress ComputeBudget warnings
 └── tests/
-    └── verify-amm-trades.ts        # Capture AMM trades for verification
+    ├── verify-amm-trades.ts        # Capture AMM trades for verification
+    └── verify-amm-session-1.ts     # Verify pool reserve monitoring
 ```
 
 ### Core Data Flow
@@ -98,6 +104,15 @@ src/
 #### AMM Monitor (`amm-monitor.ts`)
 Dedicated monitor for pump.swap AMM graduated tokens:
 - Follows Shyft example code patterns exactly
+- Integrates with pool state service for accurate reserve tracking
+- Uses actual pool reserves instead of hardcoded zeros
+
+#### AMM Account Monitor (`amm-account-monitor.ts`)
+Monitors AMM pool account states in real-time:
+- Subscribes to all accounts owned by pump.swap AMM program
+- Decodes pool state using BorshAccountsCoder
+- Tracks LP supply and pool token accounts
+- Provides foundation for accurate price calculations
 - Uses TransactionFormatter for gRPC data conversion
 - Implements IDL-based parsing with SolanaParser
 - Captures all trade details including user addresses
@@ -248,6 +263,24 @@ CREATE TABLE trades_unified (
 -- Indexes for performance
 CREATE INDEX idx_trades_unified_user ON trades_unified(user_address);
 CREATE INDEX idx_trades_unified_mint_time ON trades_unified(mint_address, block_time DESC);
+
+-- AMM Pool State Tracking (AMM Session 1)
+CREATE TABLE amm_pool_states (
+    id BIGSERIAL PRIMARY KEY,
+    mint_address VARCHAR(64) NOT NULL,
+    pool_address VARCHAR(64) NOT NULL,
+    virtual_sol_reserves BIGINT NOT NULL,
+    virtual_token_reserves BIGINT NOT NULL,
+    real_sol_reserves BIGINT,
+    real_token_reserves BIGINT,
+    pool_open BOOLEAN DEFAULT TRUE,
+    slot BIGINT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for AMM pool states
+CREATE INDEX idx_amm_pool_states_mint ON amm_pool_states(mint_address, created_at DESC);
+CREATE INDEX idx_amm_pool_states_pool ON amm_pool_states(pool_address, created_at DESC);
 ```
 
 ## Testing & Debugging
@@ -306,3 +339,97 @@ BC_SAVE_THRESHOLD=5000 SAVE_ALL_TOKENS=false npm run bc-monitor-quick-fix
 # Using helper script
 ./scripts/monitor-improvements.sh -t 5000 -d  # $5k threshold with debug
 ```
+
+## AMM Monitor Development
+
+### AMM Session 1: Pool Reserve Monitoring ✅
+
+The AMM monitor was initially using hardcoded zeros for pool reserves, making price calculations inaccurate. This session adds real-time pool state monitoring.
+
+#### Implementation Components
+
+1. **AMM Account Monitor** (`amm-account-monitor.ts`)
+   - Subscribes to pump.swap AMM program accounts
+   - Decodes pool state using BorshAccountsCoder
+   - Tracks LP supply and pool token accounts
+   - Updates pool state service with decoded data
+
+2. **Pool State Service** (`amm-pool-state-service.ts`)
+   - Manages in-memory cache of pool states
+   - Calculates prices from actual reserves
+   - Batch updates to database
+   - Provides fast lookups for current prices
+
+3. **Database Schema** (`amm_pool_states` table)
+   - Stores historical pool state snapshots
+   - Tracks virtual and real reserves
+   - Enables price history analysis
+
+#### Key Features
+- Real-time pool state updates via account subscriptions
+- Accurate price calculations using constant product formula
+- Reserve data extracted from trade events
+- In-memory caching for performance
+- Batch database updates
+
+#### Running the Monitors
+```bash
+# Run all three monitors for complete coverage
+npm run amm-monitor          # Trade events
+npm run amm-account-monitor  # Pool states
+npm run bc-monitor-quick-fix # Bonding curves
+
+# Verify implementation
+npm run verify-amm-session-1
+```
+
+#### Success Metrics
+- Pool state decode rate: >95%
+- Reserve accuracy: Exact match with on-chain
+- Price deviation: <1% from DEX aggregators
+- Update latency: <100ms
+
+### AMM Session 2: Real-time Price Calculations ✅
+
+The second AMM session implements accurate price calculations using the constant product formula and adds comprehensive price tracking capabilities.
+
+#### Implementation Components
+
+1. **AMM Price Calculator** (`amm-price-calculator.ts`)
+   - Constant product formula: x * y = k
+   - Price impact calculations for trades
+   - Slippage and execution price calculations
+   - Market cap and liquidity calculations
+
+2. **AMM Price Tracker** (`amm-price-tracker.ts`)
+   - Real-time price history tracking
+   - Price change metrics (1m, 5m, 15m, 1h, 24h)
+   - 24h high/low tracking
+   - Batch database persistence
+
+3. **Database Schema** (`price_update_sources` table)
+   - Tracks all price updates with source
+   - Stores reserve snapshots
+   - Enables historical analysis
+
+#### Key Features
+- Accurate price calculations using actual reserves
+- Price impact shown before trade execution
+- Historical price tracking with configurable intervals
+- Integration with SOL price service for USD calculations
+- Constant K validation for security
+
+#### Running the Tests
+```bash
+# Run price tracking migration
+npm run add-price-tables
+
+# Test AMM Session 2 implementation
+npm run test-amm-session-2
+```
+
+#### Success Metrics
+- Price accuracy: Within 0.01% of constant product formula
+- Price impact calculations: Accurate for all trade sizes
+- History tracking: <5 second batch saves
+- USD calculations: Real-time SOL price integration
