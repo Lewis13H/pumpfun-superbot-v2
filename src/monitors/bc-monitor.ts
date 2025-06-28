@@ -11,9 +11,10 @@
  * - Detects buy/sell operations and extracts trade data (Phase 2)
  * - Calculates prices and market caps in SOL/USD (Phase 3)
  * - Persists tokens and trades to database (Phase 4)
+ * - Tracks bonding curve progress and graduations (Phase 5)
+ * - Detects and enriches new token mints (Phase 6)
  * 
- * Phase 4 adds database integration for persistent storage
- * of tokens crossing the $8,888 threshold.
+ * Phase 6 adds new token detection and creator tracking.
  */
 
 import 'dotenv/config';
@@ -36,6 +37,8 @@ import {
 import { SolPriceService } from '../services/sol-price';
 import { BondingCurveDbHandler, ProcessedTradeData } from '../handlers/bc-db-handler';
 import { ProgressTracker, formatProgressDisplay, detectGraduationFromLogs } from '../services/bc-progress-tracker';
+import { BondingCurveMintDetector, NewMintDetection } from '../handlers/bc-mint-detector';
+import { BondingCurveTokenEnricher } from '../services/bc-token-enricher';
 import chalk from 'chalk';
 import bs58 from 'bs58';
 
@@ -67,6 +70,9 @@ interface ConnectionStats {
   highestMarketCap: number;
   totalVolumeUsd: number;
   currentSolPrice: number;
+  // Phase 6 additions
+  newTokensDetected: number;
+  uniqueCreators: Set<string>;
 }
 
 /**
@@ -80,6 +86,8 @@ class BondingCurveMonitor {
   private solPriceService: SolPriceService;
   private dbHandler: BondingCurveDbHandler;
   private progressTracker: ProgressTracker;
+  private mintDetector: BondingCurveMintDetector;
+  private tokenEnricher: BondingCurveTokenEnricher;
 
   constructor() {
     this.stats = {
@@ -99,23 +107,28 @@ class BondingCurveMonitor {
       tokensAboveThreshold: 0,
       highestMarketCap: 0,
       totalVolumeUsd: 0,
-      currentSolPrice: 180 // Default SOL price
+      currentSolPrice: 180, // Default SOL price
+      // Phase 6 additions
+      newTokensDetected: 0,
+      uniqueCreators: new Set<string>()
     };
     
     // Initialize services
     this.solPriceService = SolPriceService.getInstance();
     this.dbHandler = new BondingCurveDbHandler();
     this.progressTracker = new ProgressTracker();
+    this.mintDetector = new BondingCurveMintDetector();
+    this.tokenEnricher = new BondingCurveTokenEnricher();
   }
 
   /**
    * Start the monitoring service
    */
   async start(): Promise<void> {
-    console.log(chalk.cyan.bold(`\n🚀 Starting ${MONITOR_NAME} - Phase 5`));
+    console.log(chalk.cyan.bold(`\n🚀 Starting ${MONITOR_NAME} - Phase 6`));
     console.log(chalk.gray(`Program ID: ${PUMP_PROGRAM}`));
     console.log(chalk.gray(`Time: ${new Date().toISOString()}`));
-    console.log(chalk.blue(`Features: Connection ✓ | Parsing ✓ | Prices ✓ | Database ✓ | Progress ✓\n`));
+    console.log(chalk.blue(`Features: Connection ✓ | Parsing ✓ | Prices ✓ | Database ✓ | Progress ✓ | Mint Detection ✓\n`));
 
     // Fetch initial SOL price
     try {
@@ -279,6 +292,21 @@ class BondingCurveMonitor {
       const logs = this.extractLogs(transactionData);
       if (!logs || logs.length === 0) {
         return;
+      }
+      
+      // Phase 6: Check for new token mint
+      const mintDetection = this.mintDetector.detectNewMint(transactionData);
+      if (mintDetection && mintDetection.isNewToken) {
+        this.stats.newTokensDetected++;
+        this.stats.uniqueCreators.add(mintDetection.creator);
+        
+        // Log the new token
+        this.mintDetector.logNewTokenDetection(mintDetection);
+        
+        // Enrich token data (non-blocking)
+        this.enrichNewToken(mintDetection).catch(err => {
+          console.error('Token enrichment error:', err);
+        });
       }
       
       // Phase 5: Check for graduation
@@ -610,6 +638,17 @@ class BondingCurveMonitor {
       });
     }
     
+    // New token detection (Phase 6)
+    const mintStats = this.mintDetector.getStats();
+    const enricherStats = this.tokenEnricher.getStats();
+    console.log(chalk.white.bold('\nNew Token Detection:'));
+    console.log(`  New tokens: ${chalk.green(this.stats.newTokensDetected)}`);
+    console.log(`  Unique creators: ${chalk.blue(this.stats.uniqueCreators.size)}`);
+    console.log(`  Tokens enriched: ${chalk.yellow(enricherStats.tokensEnriched)}`);
+    if (enricherStats.creatorStats.suspicious > 0) {
+      console.log(`  Suspicious creators: ${chalk.red(enricherStats.creatorStats.suspicious)}`);
+    }
+    
     // System health
     console.log(chalk.white.bold('\nSystem:'));
     console.log(`  Reconnections: ${chalk.yellow(this.stats.reconnections)}`);
@@ -701,6 +740,33 @@ class BondingCurveMonitor {
     process.on('SIGTERM', shutdown);
   }
 
+  /**
+   * Enrich newly detected token (Phase 6)
+   */
+  private async enrichNewToken(detection: NewMintDetection): Promise<void> {
+    try {
+      // Calculate initial price if we have reserves
+      let priceData = undefined;
+      
+      // Try to get current price from a recent trade
+      // This would normally query the token's recent trades
+      // For now, we'll just enrich with available data
+      
+      const enrichedData = await this.tokenEnricher.enrichToken(detection, priceData);
+      
+      // Log enriched token analysis
+      if (enrichedData.riskFactors.suspiciousPatterns.length > 0 || 
+          enrichedData.creatorProfile.reputation === 'suspicious') {
+        this.tokenEnricher.logEnrichedToken(enrichedData);
+      }
+      
+      // If token has high risk, you could add additional monitoring
+      // or alerts here
+    } catch (error) {
+      console.error('Failed to enrich token:', error);
+    }
+  }
+  
   /**
    * Sleep utility
    */
