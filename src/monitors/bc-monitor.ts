@@ -35,6 +35,7 @@ import {
 } from '../services/bc-price-calculator';
 import { SolPriceService } from '../services/sol-price';
 import { BondingCurveDbHandler, ProcessedTradeData } from '../handlers/bc-db-handler';
+import { ProgressTracker, formatProgressDisplay, detectGraduationFromLogs } from '../services/bc-progress-tracker';
 import chalk from 'chalk';
 import bs58 from 'bs58';
 
@@ -78,6 +79,7 @@ class BondingCurveMonitor {
   private isShuttingDown: boolean = false;
   private solPriceService: SolPriceService;
   private dbHandler: BondingCurveDbHandler;
+  private progressTracker: ProgressTracker;
 
   constructor() {
     this.stats = {
@@ -103,16 +105,17 @@ class BondingCurveMonitor {
     // Initialize services
     this.solPriceService = SolPriceService.getInstance();
     this.dbHandler = new BondingCurveDbHandler();
+    this.progressTracker = new ProgressTracker();
   }
 
   /**
    * Start the monitoring service
    */
   async start(): Promise<void> {
-    console.log(chalk.cyan.bold(`\n🚀 Starting ${MONITOR_NAME} - Phase 4`));
+    console.log(chalk.cyan.bold(`\n🚀 Starting ${MONITOR_NAME} - Phase 5`));
     console.log(chalk.gray(`Program ID: ${PUMP_PROGRAM}`));
     console.log(chalk.gray(`Time: ${new Date().toISOString()}`));
-    console.log(chalk.blue(`Features: Connection ✓ | Parsing ✓ | Prices ✓ | Database ✓\n`));
+    console.log(chalk.blue(`Features: Connection ✓ | Parsing ✓ | Prices ✓ | Database ✓ | Progress ✓\n`));
 
     // Fetch initial SOL price
     try {
@@ -278,6 +281,18 @@ class BondingCurveMonitor {
         return;
       }
       
+      // Phase 5: Check for graduation
+      const graduationInfo = detectGraduationFromLogs(logs);
+      if (graduationInfo.isGraduation) {
+        console.log(chalk.green.bold('\n🎓 GRADUATION TRANSACTION DETECTED! 🎓'));
+        if (graduationInfo.mintAddress) {
+          console.log(chalk.yellow(`Token: ${graduationInfo.mintAddress}`));
+        }
+        if (graduationInfo.migrationProgram) {
+          console.log(chalk.cyan(`Migrating to: ${graduationInfo.migrationProgram}`));
+        }
+        console.log(chalk.gray('─'.repeat(50)) + '\n');
+      }
 
       // Extract signature for logging
       const signature = this.extractSignature(transactionData);
@@ -338,6 +353,17 @@ class BondingCurveMonitor {
         if (priceData.marketCapUsd > this.stats.highestMarketCap) {
           this.stats.highestMarketCap = priceData.marketCapUsd;
         }
+        
+        // Phase 5: Track progress
+        const progressData = this.progressTracker.updateProgress(event.mint, event.virtualSolReserves);
+        
+        // Check for graduation
+        if (this.progressTracker.checkGraduation(event.mint, event.virtualSolReserves)) {
+          // Mark in database if above threshold
+          if (priceData.marketCapUsd >= 8888) {
+            // TODO: Update database to mark as graduated
+          }
+        }
 
         // Phase 4: Send to database if above threshold
         if (priceData.marketCapUsd >= 8888) {
@@ -352,7 +378,7 @@ class BondingCurveMonitor {
             priceInSol: priceData.priceInSol,
             priceInUsd: priceData.priceInUsd,
             marketCapUsd: priceData.marketCapUsd,
-            progress,
+            progress: progressData.progress,
             slot,
             blockTime
           };
@@ -463,12 +489,13 @@ class BondingCurveMonitor {
     signature: string,
     priceData: ReturnType<typeof calculateTokenPrice>
   ): void {
-    const progress = calculateBondingCurveProgress(event.virtualSolReserves);
+    // Phase 5: Use enhanced progress tracking
+    const progressData = this.progressTracker.updateProgress(event.mint, event.virtualSolReserves);
     
     console.log(chalk.cyan('\n📊 Trade Event Detected:'));
     console.log(chalk.gray('─'.repeat(50)));
     console.log(`Type: ${tradeType ? (tradeType === 'buy' ? chalk.green('BUY 🟢') : chalk.red('SELL 🔴')) : chalk.gray('UNKNOWN')}`);
-    console.log(`Mint: ${chalk.yellow(event.mint.slice(0, 8) + '...' + event.mint.slice(-6))}`);
+    console.log(`Mint: ${chalk.yellow(event.mint)}`);
     console.log(`User: ${chalk.white(event.user ? event.user.slice(0, 8) + '...' : 'unknown')}`);
     
     // Trade amounts
@@ -485,7 +512,7 @@ class BondingCurveMonitor {
     console.log(chalk.white.bold('\nPrice & Market Cap:'));
     console.log(`Price: ${formatPrice(priceData.priceInUsd)} (${priceData.priceInSol.toFixed(8)} SOL)`);
     console.log(`Market Cap: ${formatMarketCap(priceData.marketCapUsd)}`);
-    console.log(`Progress: ${chalk.cyan(progress.toFixed(1) + '%')} ${this.getProgressBar(progress)}`);
+    console.log(`Progress: ${formatProgressDisplay(progressData)}`);
     
     // Threshold indicator
     if (priceData.marketCapUsd >= 8888) {
@@ -496,14 +523,6 @@ class BondingCurveMonitor {
     console.log(chalk.gray('─'.repeat(50)));
   }
   
-  /**
-   * Create a visual progress bar
-   */
-  private getProgressBar(progress: number): string {
-    const filled = Math.floor(progress / 5);
-    const empty = 20 - filled;
-    return chalk.green('█'.repeat(filled)) + chalk.gray('░'.repeat(empty));
-  }
 
   /**
    * Handle connection errors
@@ -579,6 +598,17 @@ class BondingCurveMonitor {
     console.log(`  Tokens saved: ${chalk.green(dbStats.dbStats.tokensTracked)}`);
     console.log(`  Trades saved: ${chalk.green(dbStats.dbStats.tradesProcessed)}`);
     console.log(`  Batch queue: ${chalk.yellow(dbStats.dbStats.queueSize)}`);
+    
+    // Progress tracking (Phase 5)
+    const progressStats = this.progressTracker.getStats();
+    console.log(chalk.white.bold('\nProgress Tracking:'));
+    console.log(`  Tracked tokens: ${chalk.blue(progressStats.trackedTokens)}`);
+    console.log(`  Near graduation: ${chalk.yellow(progressStats.graduationCandidates)}`);
+    if (progressStats.graduationCandidates > 0 && progressStats.candidatesList.length <= 3) {
+      progressStats.candidatesList.forEach(mint => {
+        console.log(`    → ${chalk.cyan(mint.slice(0, 8) + '...')}`);
+      });
+    }
     
     // System health
     console.log(chalk.white.bold('\nSystem:'));
