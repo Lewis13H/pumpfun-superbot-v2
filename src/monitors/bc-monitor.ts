@@ -127,7 +127,7 @@ class BondingCurveMonitor {
       } catch (error) {
         // Keep using last known price
       }
-    }, 30000); // Update every 30 seconds
+    }, 5000); // Update every 5 seconds
 
     // Set up graceful shutdown
     this.setupShutdownHandlers();
