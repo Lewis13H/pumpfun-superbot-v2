@@ -150,13 +150,44 @@ async function loadStatus() {
         
         const data = await response.json();
         
-        // Update SOL price
-        const solPriceEl = document.querySelector('.header-stat[data-stat="sol-price"] .stat-value');
-        if (solPriceEl) {
-            solPriceEl.textContent = `$${data.sol_price.price.toFixed(2)}`;
+        // Update SOL price in header
+        const headerSolPrice = document.getElementById('header-sol-price');
+        if (headerSolPrice) {
+            headerSolPrice.textContent = `$${data.sol_price.price.toFixed(2)}`;
+        }
+        
+        // Update connection status
+        updateConnectionStatus(true);
+        
+        // Also check BC Monitor status if available
+        if (window.bcMonitor && window.bcMonitor.isConnected) {
+            updateConnectionStatus(true, 'BC Monitor Connected');
         }
     } catch (error) {
         console.error('Error loading status:', error);
+        updateConnectionStatus(false);
+    }
+}
+
+// Update connection status indicator
+function updateConnectionStatus(isConnected, text = null) {
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    
+    if (statusDot) {
+        if (isConnected) {
+            statusDot.classList.add('connected');
+        } else {
+            statusDot.classList.remove('connected');
+        }
+    }
+    
+    if (statusText) {
+        if (text) {
+            statusText.textContent = text;
+        } else {
+            statusText.textContent = isConnected ? 'Connected' : 'Disconnected';
+        }
     }
 }
 
@@ -266,6 +297,10 @@ function renderTokens() {
                         </div>
                     </div>
                 </td>
+                <td class="mcap-cell">
+                    <div>$${formatNumber(marketCap)}</div>
+                    <div class="fdv-label">FDV $${formatNumber(marketCap * 10)}</div>
+                </td>
                 <td class="price-cell">
                     <div class="price-value">$${formatPrice(priceUsd)}</div>
                 </td>
@@ -277,10 +312,6 @@ function renderTokens() {
                 </td>
                 <td class="age-cell">${age}</td>
                 <td class="liquidity-cell">$${formatNumber(marketCap * 0.1)}</td>
-                <td class="mcap-cell">
-                    <div>$${formatNumber(marketCap)}</div>
-                    <div class="fdv-label">FDV $${formatNumber(marketCap * 10)}</div>
-                </td>
                 <td class="volume-cell">
                     <div class="volume-value">$${formatNumber(volume24h)}</div>
                     <div class="volume-bar">
@@ -413,7 +444,10 @@ function formatPrice(price) {
     if (price >= 1) return price.toFixed(2);
     if (price >= 0.01) return price.toFixed(4);
     if (price >= 0.0001) return price.toFixed(6);
-    return price.toExponential(2);
+    if (price >= 0.000001) return price.toFixed(8);
+    if (price >= 0.00000001) return price.toFixed(10);
+    // For extremely small numbers, show up to 12 decimal places
+    return price.toFixed(12);
 }
 
 function formatNumber(num) {

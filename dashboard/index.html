@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pump Monitor - DexScreener Style</title>
+    <title>Pump Monitor</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -22,11 +22,13 @@
                 <a href="#" class="nav-link" data-view="portfolio">Portfolio</a>
             </nav>
             <div class="header-right">
-                <div id="bc-monitor-status" class="status-disconnected">BC Monitor Disconnected</div>
-                <div class="network-selector">
-                    <div class="network-icon"></div>
-                    <span>Solana</span>
-                    <span style="color: var(--text-dim);">▼</span>
+                <div class="sol-price-display">
+                    <span class="sol-price-label">SOL</span>
+                    <span class="sol-price-value" id="header-sol-price">$0.00</span>
+                </div>
+                <div class="connection-status" id="connection-status">
+                    <div class="status-dot" id="status-dot"></div>
+                    <span class="status-text" id="status-text">Disconnected</span>
                 </div>
             </div>
         </div>
@@ -149,11 +151,11 @@
                         <tr>
                             <th style="width: 40px">#</th>
                             <th style="width: 200px">Token</th>
-                            <th class="sortable sorted-desc" style="width: 100px; text-align: right" data-sort="latest_price_usd">Price USD</th>
+                            <th class="sortable sorted-desc" style="width: 110px; text-align: right" data-sort="latest_market_cap_usd">Market Cap</th>
+                            <th class="sortable" style="width: 100px; text-align: right" data-sort="latest_price_usd">Price USD</th>
                             <th class="sortable" style="width: 80px; text-align: right" data-sort="price_change_24h">24h %</th>
                             <th class="sortable" style="width: 60px" data-sort="age_seconds">Age</th>
                             <th class="sortable" style="width: 100px; text-align: right" data-sort="liquidity">Liquidity</th>
-                            <th class="sortable" style="width: 110px; text-align: right" data-sort="latest_market_cap_usd">Market Cap</th>
                             <th class="sortable" style="width: 120px; text-align: right" data-sort="volume_24h_usd">Volume 24h</th>
                             <th style="width: 120px">Progress</th>
                             <th style="width: 80px; text-align: center" data-sort="holder_count">Holders</th>

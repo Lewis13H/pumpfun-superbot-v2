@@ -666,7 +666,61 @@ td {
     background: #3a3a3a;
 }
 
-/* BC Monitor Status */
+/* SOL Price Display */
+.sol-price-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--bg-hover);
+    border-radius: 8px;
+    margin-right: 16px;
+}
+
+.sol-price-label {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.sol-price-value {
+    color: var(--green);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+/* Connection Status */
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--bg-hover);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+    transition: all 0.3s ease;
+}
+
+.status-dot.connected {
+    background: var(--green);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+}
+
+.status-text {
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* BC Monitor specific status (for BC Monitor page) */
 #bc-monitor-status {
     padding: 6px 12px;
     border-radius: 4px;

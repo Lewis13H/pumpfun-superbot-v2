@@ -198,6 +198,12 @@ class BCMonitorClient {
    * Update connection status indicator
    */
   updateConnectionStatus(connected) {
+    // Update main connection status in header
+    if (window.updateConnectionStatus) {
+      window.updateConnectionStatus(connected, connected ? 'BC Monitor Connected' : 'BC Monitor Disconnected');
+    }
+    
+    // Also update BC Monitor specific status if on that page
     const indicator = document.getElementById('bc-monitor-status');
     if (indicator) {
       indicator.className = connected ? 'status-connected' : 'status-disconnected';
