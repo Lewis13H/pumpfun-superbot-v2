@@ -23,10 +23,20 @@ echo
 # Create log directory
 mkdir -p logs/bc-monitor-test
 
-# Start monitor with timeout
+# Start monitor with manual timeout for macOS compatibility
 echo "Starting monitor for 5 minutes..."
-timeout $TEST_DURATION npm run bc-monitor 2>&1 | tee $LOG_FILE &
+npm run bc-monitor 2>&1 | tee $LOG_FILE &
 MONITOR_PID=$!
+
+# Set up timer for manual timeout
+(
+    sleep $TEST_DURATION
+    if ps -p $MONITOR_PID > /dev/null 2>&1; then
+        echo -e "\n${YELLOW}Test duration reached, stopping monitor...${NC}"
+        kill -SIGINT $MONITOR_PID
+    fi
+) &
+TIMER_PID=$!
 
 # Monitor key metrics every 30 seconds
 for i in {1..10}; do
@@ -63,6 +73,9 @@ done
 # Wait for completion
 wait $MONITOR_PID 2>/dev/null
 
+# Clean up timer if still running
+kill $TIMER_PID 2>/dev/null || true
+
 # Final summary
 echo -e "\n${BLUE}================================${NC}"
 echo -e "${BLUE}Quick Test Summary${NC}"
@@ -76,9 +89,9 @@ GRADUATIONS=$(grep -c "GRADUATION DETECTED" $LOG_FILE 2>/dev/null || echo 0)
 UNIQUE_TOKENS=$(tail -n 200 $LOG_FILE | grep -oE "Unique tokens: [0-9,]+" | tail -1 | grep -oE "[0-9,]+" | tr -d ',' || echo 0)
 THRESHOLD_TOKENS=$(tail -n 200 $LOG_FILE | grep -oE "Above \\\$8,888: [0-9,]+" | tail -1 | grep -oE "[0-9,]+" | tr -d ',' || echo 0)
 
-# Calculate rates
-TX_RATE=$(echo "scale=1; $TOTAL_TX / 5" | bc 2>/dev/null || echo "0")
-TRADE_RATE=$(echo "scale=1; $TOTAL_TRADES / 5" | bc 2>/dev/null || echo "0")
+# Calculate rates (using awk for compatibility)
+TX_RATE=$(awk -v tx=$TOTAL_TX 'BEGIN {printf "%.1f", tx/5}' 2>/dev/null || echo "0")
+TRADE_RATE=$(awk -v tr=$TOTAL_TRADES 'BEGIN {printf "%.1f", tr/5}' 2>/dev/null || echo "0")
 
 echo -e "Duration: ${GREEN}5 minutes${NC}"
 echo -e "Transactions: ${GREEN}$TOTAL_TX${NC} (~$TX_RATE/min)"
@@ -90,7 +103,7 @@ echo -e "Errors: $([ $TOTAL_ERRORS -eq 0 ] && echo -e "${GREEN}$TOTAL_ERRORS${NC
 
 # Performance check
 if [ $TOTAL_TX -gt 0 ]; then
-    DETECTION_RATE=$(echo "scale=1; $TOTAL_TRADES * 100 / $TOTAL_TX" | bc 2>/dev/null || echo "0")
+    DETECTION_RATE=$(awk -v tr=$TOTAL_TRADES -v tx=$TOTAL_TX 'BEGIN {printf "%.1f", tr*100/tx}' 2>/dev/null || echo "0")
     echo -e "Detection Rate: ${YELLOW}$DETECTION_RATE%${NC}"
 fi
 
