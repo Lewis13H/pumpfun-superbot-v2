@@ -6,6 +6,8 @@
     "unified-v2": "tsx src/monitors/unified-monitor-v2.ts",
     "bonding-curve-v3": "tsx src/monitors/bonding-curve-monitor-v3.ts",
     "bc-monitor": "tsx src/monitors/bc-monitor.ts",
+    "bc-monitor-quick-fix": "tsx src/monitors/bc-monitor-quick-fixes.ts",
+    "bc-monitor-watch": "tsx src/monitors/bc-monitor-quick-fixes.ts 2>&1 | grep -A 50 'Monitor Statistics' | grep -E 'Parse rate:|Save rate:|Events parsed:|Success:|Event sizes:|Discovered tokens:|Tokens saved:|Detection rate:'",
     "debug-amm": "tsx src/monitors/debug/debug-amm-pool.ts",
     "dashboard": "tsx src/api/server-unified.ts",
     "sol-price-updater": "tsx src/scripts/sol-price-updater.ts",
