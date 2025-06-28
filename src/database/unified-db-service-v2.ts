@@ -263,10 +263,19 @@ export class UnifiedDbServiceV2 {
     this.stats.batchesProcessed++;
     
     // Group by type
-    const tokens = items.filter(i => i.type === 'token').map(i => i.data);
+    const tokenItems = items.filter(i => i.type === 'token').map(i => i.data);
     const trades = items.filter(i => i.type === 'trade').map(i => i.data);
     const snapshots = items.filter(i => i.type === 'price_snapshot').map(i => i.data);
     const accountStates = items.filter(i => i.type === 'account_state').map(i => i.data);
+    
+    // Deduplicate tokens by mint address (keep first occurrence)
+    const tokenMap = new Map<string, any>();
+    for (const token of tokenItems) {
+      if (!tokenMap.has(token.mintAddress)) {
+        tokenMap.set(token.mintAddress, token);
+      }
+    }
+    const tokens = Array.from(tokenMap.values());
     
     try {
       await db.query('BEGIN');

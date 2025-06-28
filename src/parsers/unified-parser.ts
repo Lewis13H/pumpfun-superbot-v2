@@ -2,6 +2,18 @@ import { PublicKey } from '@solana/web3.js';
 import { TRADE_EVENT_SIZE } from '../utils/constants';
 import bs58 from 'bs58';
 
+/**
+ * Validate if a string is a valid Solana address
+ */
+function isValidSolanaAddress(address: string): boolean {
+  try {
+    const decoded = bs58.decode(address);
+    return decoded.length === 32;
+  } catch {
+    return false;
+  }
+}
+
 export interface UnifiedTradeEvent {
   mint: string;
   virtualSolReserves: bigint;
@@ -164,7 +176,8 @@ function extractAmmEvents(transaction: any, logs: string[]): UnifiedTradeEvent[]
                 possibleMint !== 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' &&
                 possibleMint !== 'So11111111111111111111111111111111111111112' &&
                 possibleMint !== '11111111111111111111111111111111' &&
-                possibleMint.length >= 43) {
+                possibleMint.length >= 43 &&
+                isValidSolanaAddress(possibleMint)) {
               mint = possibleMint;
               break;
             }
@@ -191,7 +204,8 @@ function extractAmmEvents(transaction: any, logs: string[]): UnifiedTradeEvent[]
               if (possibleMint && 
                   possibleMint !== 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' &&
                   possibleMint !== 'So11111111111111111111111111111111111111112' &&
-                  possibleMint.length >= 43) {
+                  possibleMint.length >= 43 &&
+                  isValidSolanaAddress(possibleMint)) {
                 mint = possibleMint;
                 break;
               }
@@ -325,7 +339,7 @@ function detectAmmTradeFromLogs(logs: string[]): UnifiedTradeEvent | null {
     // Filter out known addresses and find the most likely mint
     // Mints often appear multiple times in logs
     const mintCandidates = Array.from(allPubkeys)
-      .filter(key => !skipAddresses.has(key) && key.length >= 43);
+      .filter(key => !skipAddresses.has(key) && key.length >= 43 && isValidSolanaAddress(key));
     
     // Count occurrences of each candidate
     const mintCounts = new Map<string, number>();

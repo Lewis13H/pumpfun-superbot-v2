@@ -91,7 +91,7 @@ export class BondingCurveDbHandler {
     // Process through database service
     await this.dbService.processTokenDiscovery(tokenData);
     
-    console.log(`🆕 New token discovered: ${event.mint.slice(0, 8)}... MC: $${marketCapUsd.toFixed(0)}`);
+    console.log(`🆕 New token discovered: ${event.mint} MC: $${marketCapUsd.toFixed(0)}`);
   }
 
   /**

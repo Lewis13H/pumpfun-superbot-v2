@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * Unified Monitor V2 - Best of Both Worlds
- * - Uses simple parsing from threshold monitor (catches more tokens)
- * - Monitors both pump.fun and pump.swap programs
- * - Uses mint addresses as primary keys
- * - Includes efficient batch processing
- * - Clean dashboard UI with statistics
+ * Bonding Curve Monitor V3 - Shyft Best Practices
+ * - Proper IDL-based parsing with SolanaParser and SolanaEventParser
+ * - Dual subscription: accounts for bonding curve state + transactions for trades
+ * - Real-time bonding curve progress tracking using account lamports
+ * - Structured buy/sell detection with proper event parsing
+ * - Focused on pump.fun bonding curves only (AMM disabled)
  */
 
 import 'dotenv/config';
@@ -15,7 +15,11 @@ import { SubscribeRequest, CommitmentLevel } from '@triton-one/yellowstone-grpc'
 import { UnifiedDbServiceV2 } from '../database/unified-db-service-v2';
 import { SolPriceService } from '../services/sol-price';
 import { AutoEnricher } from '../services/auto-enricher';
-import { extractUnifiedTradeEvents } from '../parsers/unified-parser';
+import { Idl } from '@project-serum/anchor';
+import { SolanaParser } from '@shyft-to/solana-transaction-parser';
+import { BorshAccountsCoder } from '@coral-xyz/anchor';
+import bs58 from 'bs58';
+import pumpFunIdl from '../idls/pump_0.1.0.json';
 import { calculatePrice } from '../utils/price-calculator';
 import { SolPriceUpdater } from '../services/sol-price-updater';
 import chalk from 'chalk';
@@ -23,7 +27,14 @@ import ora from 'ora';
 
 // Program IDs
 const PUMP_FUN_PROGRAM = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
-const PUMP_SWAP_PROGRAM = 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
+const PUMP_FUN_PROGRAM_ID = new PublicKey(PUMP_FUN_PROGRAM);
+
+// IDL-based parsers
+const PUMP_FUN_IX_PARSER = new SolanaParser([]);
+PUMP_FUN_IX_PARSER.addParserFromIdl(PUMP_FUN_PROGRAM_ID.toBase58(), pumpFunIdl as Idl);
+
+// Account decoder for bonding curve state
+const accountCoder = new BorshAccountsCoder(pumpFunIdl as Idl);
 
 // Subscription status tracking
 const subscriptionHistory: { time: Date; error?: string }[] = [];

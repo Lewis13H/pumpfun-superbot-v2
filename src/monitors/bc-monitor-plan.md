@@ -224,7 +224,8 @@ This document outlines a phased implementation plan for `bc-monitor.ts`, a focus
 ## Phase 5: Progress & Graduation Tracking ✅ COMPLETED
 **Goal**: Monitor bonding curve completion
 **Status**: ✅ Completed on 2025-06-28
-**Test Result**: Successfully tracked progress and detected a real graduation at 91.70 SOL!
+**Test Result**: Successfully tracked progress and detected multiple graduations!
+**Database Fix**: Fixed duplicate constraint error with deduplication in batch processing
 
 ### Components to Build:
 1. **Progress Calculator**

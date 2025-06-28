@@ -21,14 +21,16 @@ export class StreamClient {
     
     // Configure gRPC channel options for better connection stability
     const channelOptions: ChannelOptions = {
-      'grpc.keepalive_time_ms': 30000,           // Send keepalive ping every 30 seconds
-      'grpc.keepalive_timeout_ms': 10000,        // Wait 10 seconds for ping ack
+      'grpc.keepalive_time_ms': 60000,           // Send keepalive ping every 60 seconds (less aggressive)
+      'grpc.keepalive_timeout_ms': 20000,        // Wait 20 seconds for ping ack
       'grpc.keepalive_permit_without_calls': 1,  // Send pings even without active calls
-      'grpc.initial_reconnect_backoff_ms': 1000, // Start reconnect after 1 second
-      'grpc.max_reconnect_backoff_ms': 30000,    // Max 30 seconds between reconnect attempts
-      'grpc.client_idle_timeout_ms': 300000,     // 5 minutes idle timeout
+      'grpc.initial_reconnect_backoff_ms': 2000, // Start reconnect after 2 seconds
+      'grpc.max_reconnect_backoff_ms': 60000,    // Max 60 seconds between reconnect attempts
+      'grpc.client_idle_timeout_ms': 600000,     // 10 minutes idle timeout
       'grpc.max_receive_message_length': 50 * 1024 * 1024, // 50MB max message size
       'grpc.max_send_message_length': 50 * 1024 * 1024,    // 50MB max message size
+      'grpc.http2.min_time_between_pings_ms': 60000, // Minimum time between pings
+      'grpc.http2.max_pings_without_data': 2,   // Allow 2 pings without data
     };
     
     console.log('🔧 Initializing gRPC client with keepalive settings');
