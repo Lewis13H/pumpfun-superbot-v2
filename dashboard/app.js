@@ -265,7 +265,8 @@ function renderTokens() {
     }
     
     tokenTableBody.innerHTML = filteredTokens.map((token, index) => {
-        const priceUsd = parseFloat(token.latest_price_usd) || 0;
+        // Use calculated price if available, otherwise fallback to latest_price_usd
+        const priceUsd = parseFloat(token.calculated_price_usd || token.latest_price_usd) || 0;
         const marketCap = parseFloat(token.latest_market_cap_usd) || 0;
         const volume24h = parseFloat(token.volume_24h_usd) || 0;
         const priceChange = calculatePriceChange(token);
@@ -472,7 +473,7 @@ function formatAge(timestamp) {
 function calculatePriceChange(token) {
     // Use first price vs current price for now
     const firstPrice = parseFloat(token.first_price_usd) || 0;
-    const currentPrice = parseFloat(token.latest_price_usd) || 0;
+    const currentPrice = parseFloat(token.calculated_price_usd || token.latest_price_usd) || 0;
     
     if (firstPrice === 0) return 0;
     return ((currentPrice - firstPrice) / firstPrice) * 100;

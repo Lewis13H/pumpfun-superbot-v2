@@ -53,7 +53,13 @@ app.get('/api/tokens', async (_req, res) => {
         -- Calculate age
         EXTRACT(EPOCH FROM (NOW() - t.first_seen_at)) as age_seconds,
         -- Get SOL price for calculations
-        (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1) as sol_price
+        (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1) as sol_price,
+        -- Calculate USD price from SOL price if needed
+        CASE 
+          WHEN t.latest_price_usd IS NULL OR t.latest_price_usd = 0 
+          THEN t.latest_price_sol * (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1)
+          ELSE t.latest_price_usd
+        END as calculated_price_usd
       FROM tokens_unified t
       WHERE t.threshold_crossed_at IS NOT NULL
       ORDER BY t.latest_market_cap_usd DESC NULLS LAST
