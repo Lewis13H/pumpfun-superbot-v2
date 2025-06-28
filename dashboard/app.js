@@ -270,7 +270,8 @@ function renderTokens() {
         const marketCap = parseFloat(token.latest_market_cap_usd) || 0;
         const volume24h = parseFloat(token.volume_24h_usd) || 0;
         const priceChange = calculatePriceChange(token);
-        const age = formatAge(token.first_seen_at);
+        // Use actual creation time if available, otherwise fall back to first seen
+        const age = formatAge(token.token_created_at || token.first_seen_at);
         const progress = parseFloat(token.latest_bonding_curve_progress) || 0;
         const isGraduated = token.graduated_to_amm;
         const program = isGraduated ? 'amm_pool' : 'bonding_curve';
@@ -311,7 +312,7 @@ function renderTokens() {
                         <span>${Math.abs(priceChange).toFixed(2)}%</span>
                     </div>
                 </td>
-                <td class="age-cell">${age}</td>
+                <td class="age-cell" title="${token.token_created_at ? 'Token age since creation' : 'Time since first detected by monitor'}">${age}</td>
                 <td class="liquidity-cell">$${formatNumber(marketCap * 0.1)}</td>
                 <td class="volume-cell">
                     <div class="volume-value">$${formatNumber(volume24h)}</div>

@@ -37,6 +37,7 @@ app.get('/api/tokens', async (_req, res) => {
         t.image_uri,
         t.creator,
         t.first_seen_at,
+        t.token_created_at,
         t.first_program,
         t.current_program,
         t.graduated_to_amm,
@@ -50,8 +51,8 @@ app.get('/api/tokens', async (_req, res) => {
         t.top_holder_percentage,
         t.total_trades,
         t.unique_traders_24h,
-        -- Calculate age
-        EXTRACT(EPOCH FROM (NOW() - t.first_seen_at)) as age_seconds,
+        -- Calculate age from actual creation time if available, otherwise from first seen
+        EXTRACT(EPOCH FROM (NOW() - COALESCE(t.token_created_at, t.first_seen_at))) as age_seconds,
         -- Get SOL price for calculations
         (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1) as sol_price,
         -- Calculate USD price from SOL price if needed

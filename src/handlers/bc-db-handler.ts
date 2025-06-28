@@ -85,7 +85,8 @@ export class BondingCurveDbHandler {
       firstSeenSlot: data.slot || BigInt(0),
       firstPriceSol: priceInSol,
       firstPriceUsd: priceInUsd,
-      firstMarketCapUsd: marketCapUsd
+      firstMarketCapUsd: marketCapUsd,
+      tokenCreatedAt: data.blockTime // Add actual creation time from blockchain
     };
     
     // Process through database service

@@ -17,6 +17,7 @@ export interface UnifiedTokenData {
   firstPriceSol: number;
   firstPriceUsd?: number;
   firstMarketCapUsd: number;
+  tokenCreatedAt?: Date; // Actual blockchain creation time
 }
 
 export interface UnifiedTradeData {
@@ -331,8 +332,8 @@ export class UnifiedDbServiceV2 {
     if (tokens.length === 0) return;
     
     const values = tokens.map((_, i) => {
-      const offset = i * 12;
-      return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12})`;
+      const offset = i * 13;
+      return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13})`;
     }).join(',');
     
     const params = tokens.flatMap(t => [
@@ -347,14 +348,15 @@ export class UnifiedDbServiceV2 {
       t.firstPriceSol,
       t.firstMarketCapUsd,
       t.firstMarketCapUsd,
-      t.firstProgram
+      t.firstProgram,
+      t.tokenCreatedAt || null // Add token creation time
     ]);
     
     await db.query(`
       INSERT INTO tokens_unified (
         mint_address, symbol, name, uri, first_program, first_seen_slot,
         first_price_sol, first_price_usd, latest_price_sol, first_market_cap_usd,
-        latest_market_cap_usd, current_program
+        latest_market_cap_usd, current_program, token_created_at
       ) VALUES ${values}
       ON CONFLICT (mint_address) DO UPDATE SET
         symbol = COALESCE(tokens_unified.symbol, EXCLUDED.symbol),
