@@ -9,10 +9,13 @@ Real-time Solana token monitor for pump.fun bonding curves and pump.swap AMM poo
 ## Development Commands
 
 ```bash
-# Main Production Monitors
-npm run unified-v2         # Unified monitor for both programs (MAIN SERVICE)
-npm run bc-monitor         # Bonding curve focused monitor (Phase 5 complete)
-npm run bc-monitor-quick-fix  # Improved BC monitor with better parse rates
+# Recommended Production Setup (run both monitors)
+npm run bc-monitor-quick-fix  # Bonding curve monitor (>95% parse rate)
+npm run amm-monitor           # AMM pool monitor for graduated tokens
+
+# Legacy Monitors
+npm run unified-v2         # DEPRECATED - has AMM detection issues
+npm run bc-monitor         # Original BC monitor (lower parse rate)
 
 # Database Operations
 npm run migrate-unified    # Run database migrations
@@ -39,9 +42,10 @@ psql $DATABASE_URL -c "SELECT COUNT(*) FROM tokens_unified"  # Check database
 ```
 src/
 ├── monitors/
-│   ├── unified-monitor-v2.ts       # Main production monitor
+│   ├── unified-monitor-v2.ts       # Main production monitor (DEPRECATED - has issues)
 │   ├── bc-monitor.ts               # Bonding curve focused monitor
 │   ├── bc-monitor-quick-fixes.ts   # Improved BC monitor (handles 225 & 113 byte events)
+│   ├── amm-monitor.ts              # Dedicated AMM monitor following Shyft examples
 │   ├── bc-monitor-plan.md          # Phased implementation plan
 │   └── debug/
 │       └── debug-amm-pool.ts       # AMM debugging tool
@@ -65,10 +69,16 @@ src/
 │   └── bc-db-handler-v2.ts         # Improved with retry logic
 ├── stream/
 │   └── client.ts                   # Singleton gRPC client
-└── utils/
-    ├── constants.ts                # Shared constants
-    ├── price-calculator.ts         # Price calculations
-    └── formatters.ts               # Display formatters
+├── utils/
+│   ├── constants.ts                # Shared constants
+│   ├── price-calculator.ts         # Price calculations
+│   ├── formatters.ts               # Display formatters
+│   ├── transaction-formatter.ts    # gRPC transaction formatting (from Shyft)
+│   ├── event-parser.ts             # Event parsing utilities (from Shyft)
+│   ├── swapTransactionParser.ts    # AMM swap parsing (from Shyft)
+│   └── suppress-parser-warnings.ts # Suppress ComputeBudget warnings
+└── tests/
+    └── verify-amm-trades.ts        # Capture AMM trades for verification
 ```
 
 ### Core Data Flow
@@ -81,13 +91,26 @@ src/
 ### Key Implementation Details
 
 #### Unified Monitor V2 (`unified-monitor-v2.ts`)
-The main production monitor that:
-- Monitors both pump.fun and pump.swap programs simultaneously
-- Uses simple log parsing for maximum event detection (~15% more trades than IDL parsing)
-- Implements batch database operations (100 records/batch)
-- Tracks tokens crossing $8,888 threshold
-- Shows real-time dashboard with statistics
-- Creates its own subscription directly (doesn't use subscription classes)
+**DEPRECATED** - This monitor has issues with AMM trade detection. Use separate monitors instead:
+- `npm run bc-monitor-quick-fix` for bonding curves
+- `npm run amm-monitor` for AMM pools
+
+#### AMM Monitor (`amm-monitor.ts`)
+Dedicated monitor for pump.swap AMM graduated tokens:
+- Follows Shyft example code patterns exactly
+- Uses TransactionFormatter for gRPC data conversion
+- Implements IDL-based parsing with SolanaParser
+- Captures all trade details including user addresses
+- Processes trades with `dbService.processTrade()`
+- Suppresses parser warnings with `suppressParserWarnings()`
+
+#### BC Monitor Quick Fix (`bc-monitor-quick-fixes.ts`)
+Enhanced bonding curve monitor:
+- Handles both 225-byte and 113-byte events
+- Parse rate >95% (up from 82.9%)
+- Configurable thresholds via environment variables
+- Retry logic for database saves
+- Real-time progress tracking to graduation
 
 #### Database Service (`unified-db-service-v2.ts`)
 High-performance service using:
@@ -135,6 +158,20 @@ data.transaction.transaction.meta                            // Contains logs
 - Market cap calculation: Assumes 1B token supply
 - Bonding curve progress: 30 SOL → 85 SOL = 100%
 - Threshold: $8,888 USD market cap
+
+#### Shyft Integration Notes
+
+1. **Example Code Authority**
+   - Files in `shyft-code-examples/` are authoritative
+   - AMM monitor must follow Shyft patterns exactly
+   - Use TransactionFormatter for gRPC data conversion
+   - Parser warnings about ComputeBudget are harmless
+
+2. **Database Interface**
+   - BC monitors use `processTransaction()` method
+   - AMM monitor uses `processTrade()` method
+   - Both save to `trades_unified` table
+   - User addresses and mint addresses are indexed
 
 #### Common Issues & Solutions
 
@@ -187,16 +224,30 @@ CREATE TABLE tokens_unified (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Trades with efficient indexing
+-- Trades with efficient indexing (full schema)
 CREATE TABLE trades_unified (
     signature VARCHAR(88) PRIMARY KEY,
-    mint_address VARCHAR(64) REFERENCES tokens_unified(mint_address),
+    mint_address VARCHAR(64) NOT NULL,
     program program_type NOT NULL,  -- 'bonding_curve' or 'amm_pool'
     trade_type trade_type,          -- 'buy' or 'sell'
-    price_usd DECIMAL(20, 4),
-    market_cap_usd DECIMAL(20, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    user_address VARCHAR(64) NOT NULL,  -- Wallet performing the trade
+    sol_amount BIGINT NOT NULL,
+    token_amount BIGINT NOT NULL,
+    price_sol DECIMAL(20, 12) NOT NULL,
+    price_usd DECIMAL(20, 4) NOT NULL,
+    market_cap_usd DECIMAL(20, 4) NOT NULL,
+    volume_usd DECIMAL(20, 4),
+    virtual_sol_reserves BIGINT,
+    virtual_token_reserves BIGINT,
+    bonding_curve_progress DECIMAL(5, 2),
+    slot BIGINT NOT NULL,
+    block_time TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Indexes for performance
+CREATE INDEX idx_trades_unified_user ON trades_unified(user_address);
+CREATE INDEX idx_trades_unified_mint_time ON trades_unified(mint_address, block_time DESC);
 ```
 
 ## Testing & Debugging
@@ -206,10 +257,11 @@ CREATE TABLE trades_unified (
 3. **Watch parse/save rates**: `npm run bc-monitor-watch` or `./scripts/monitor-improvements.sh -w`
 4. **Custom threshold testing**: `BC_SAVE_THRESHOLD=1000 npm run bc-monitor-quick-fix`
 5. **Debug parse errors**: `DEBUG_PARSE_ERRORS=true npm run bc-monitor-quick-fix`
-6. **Check stream connectivity**: First verify gRPC is working
+6. **Verify AMM trades**: `npm run verify-amm-trades` - Captures 5 recent trades with Solscan links
 7. **Check recent trades**: View dashboard or query database
 8. **Debug AMM issues**: Use `npm run debug-amm` to see pool structure
 9. **Database verification**: `psql $DATABASE_URL < scripts/validate-bc-monitor-data.sql`
+10. **Suppress parser warnings**: `suppressParserWarnings()` utility filters ComputeBudget warnings
 
 ## Performance Optimization
 

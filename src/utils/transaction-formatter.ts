@@ -1,111 +1,157 @@
 import {
-  VersionedTransactionResponse,
+  ConfirmedTransactionMeta,
+  Message,
+  MessageV0,
   PublicKey,
-  TransactionSignature,
+  VersionedMessage,
+  VersionedTransactionResponse,
 } from "@solana/web3.js";
-import bs58 from 'bs58';
+import { utils } from "@coral-xyz/anchor";
 
 export class TransactionFormatter {
-  formTransactionFromJson(
-    txData: any,
-    timestamp: number
+  public formTransactionFromJson(
+    data: any,
+    time: number
   ): VersionedTransactionResponse {
-    try {
-      // Handle the nested gRPC transaction structure
-      const innerTx = txData.transaction?.transaction || txData;
-      
-      // Handle signatures - convert Buffers to base58 strings
-      let signatures: string[] = [];
-      if (innerTx.signatures) {
-        signatures = innerTx.signatures.map((sig: any) => {
-          if (Buffer.isBuffer(sig)) {
-            return bs58.encode(sig);
-          }
-          return sig;
-        });
-      } else if (txData.signature) {
-        const sig = Buffer.isBuffer(txData.signature) 
-          ? bs58.encode(txData.signature) 
-          : txData.signature;
-        signatures = [sig];
-      }
+    const rawTx = data["transaction"];
 
-      // Create the formatted transaction response
-      const formattedTx: VersionedTransactionResponse = {
-        transaction: {
-          message: innerTx.message,
-          signatures: signatures
-        },
-        meta: txData.meta || {
-          err: null,
-          fee: 0,
-          innerInstructions: [],
-          logMessages: [],
-          postBalances: [],
-          postTokenBalances: [],
-          preBalances: [],
-          preTokenBalances: [],
-          rewards: [],
-          status: { Ok: null }
-        },
-        version: 0,
-        slot: txData.slot || 0,
-        blockTime: Math.floor(timestamp / 1000)
-      };
+    const slot = data.slot;
+    const version = rawTx.transaction.message.versioned ? 0 : "legacy";
 
-      return formattedTx;
-    } catch (error) {
-      throw new Error(`Failed to format transaction: ${error}`);
+    const meta = this.formMeta(rawTx.meta);
+    const signatures = rawTx.transaction.signatures.map((s: Buffer) =>
+      utils.bytes.bs58.encode(s)
+    );
+
+    const message = this.formTxnMessage(rawTx.transaction.message);
+
+    return {
+      slot,
+      version,
+      blockTime: time,
+      meta,
+      transaction: {
+        signatures,
+        message,
+      },
+    };
+  }
+
+  private formTxnMessage(message: any): VersionedMessage {
+    if (!message.versioned) {
+      return new Message({
+        header: {
+          numRequiredSignatures: message.header.numRequiredSignatures,
+          numReadonlySignedAccounts: message.header.numReadonlySignedAccounts,
+          numReadonlyUnsignedAccounts:
+            message.header.numReadonlyUnsignedAccounts,
+        },
+        recentBlockhash: utils.bytes.bs58.encode(
+          Buffer.from(message.recentBlockhash, "base64")
+        ),
+        accountKeys: message.accountKeys?.map((d: string) =>
+          Buffer.from(d, "base64")
+        ),
+        instructions: message.instructions.map(
+          ({
+            data,
+            programIdIndex,
+            accounts,
+          }: {
+            data: any;
+            programIdIndex: any;
+            accounts: any;
+          }) => ({
+            programIdIndex: programIdIndex,
+            accounts: Array.from(accounts),
+            data: utils.bytes.bs58.encode(Buffer.from(data || "", "base64")),
+          })
+        ),
+      });
+    } else {
+      return new MessageV0({
+        header: {
+          numRequiredSignatures: message.header.numRequiredSignatures,
+          numReadonlySignedAccounts: message.header.numReadonlySignedAccounts,
+          numReadonlyUnsignedAccounts:
+            message.header.numReadonlyUnsignedAccounts,
+        },
+        recentBlockhash: utils.bytes.bs58.encode(
+          Buffer.from(message.recentBlockhash, "base64")
+        ),
+        staticAccountKeys: message.accountKeys.map(
+          (k: string) => new PublicKey(Buffer.from(k, "base64"))
+        ),
+        compiledInstructions: message.instructions.map(
+          ({
+            programIdIndex,
+            accounts,
+            data,
+          }: {
+            programIdIndex: any;
+            accounts: any;
+            data: any;
+          }) => ({
+            programIdIndex: programIdIndex,
+            accountKeyIndexes: Array.from(accounts),
+            data: Uint8Array.from(Buffer.from(data || "", "base64")),
+          })
+        ),
+        addressTableLookups:
+          message.addressTableLookups?.map(
+            ({
+              accountKey,
+              writableIndexes,
+              readonlyIndexes,
+            }: {
+              accountKey: any;
+              writableIndexes: any;
+              readonlyIndexes: any;
+            }) => ({
+              writableIndexes: writableIndexes || [],
+              readonlyIndexes: readonlyIndexes || [],
+              accountKey: new PublicKey(Buffer.from(accountKey, "base64")),
+            })
+          ) || [],
+      });
     }
   }
 
-  // Helper to extract account keys from different transaction formats
-  extractAccountKeys(txData: any): PublicKey[] {
-    try {
-      const innerTx = txData.transaction?.transaction || txData;
-      
-      if (innerTx.message?.accountKeys) {
-        // Handle Buffer format from gRPC
-        return innerTx.message.accountKeys.map((key: any) => {
-          if (Buffer.isBuffer(key)) {
-            return new PublicKey(key);
-          }
-          return new PublicKey(key);
-        });
-      }
-      
-      return [];
-    } catch (error) {
-      console.error('Error extracting account keys:', error);
-      return [];
-    }
-  }
-
-  // Helper to get transaction signature
-  getSignature(txData: any): TransactionSignature {
-    try {
-      if (txData.signature) {
-        // Handle Buffer signature from gRPC
-        if (Buffer.isBuffer(txData.signature)) {
-          return bs58.encode(txData.signature);
-        }
-        return txData.signature;
-      }
-      
-      const innerTx = txData.transaction?.transaction || txData;
-      if (innerTx.signatures && innerTx.signatures.length > 0) {
-        const signature = innerTx.signatures[0];
-        // Handle Buffer signature from gRPC
-        if (Buffer.isBuffer(signature)) {
-          return bs58.encode(signature);
-        }
-        return signature;
-      }
-      
-      return '';
-    } catch (error) {
-      console.error('Error extracting signature:', error);
-      return '';
-    }
+  private formMeta(meta: any): ConfirmedTransactionMeta {
+    return {
+      err: meta.errorInfo ? { err: meta.errorInfo } : null,
+      fee: meta.fee,
+      preBalances: meta.preBalances,
+      postBalances: meta.postBalances,
+      preTokenBalances: meta.preTokenBalances || [],
+      postTokenBalances: meta.postTokenBalances || [],
+      logMessages: meta.logMessages || [],
+      loadedAddresses:
+        meta.loadedWritableAddresses || meta.loadedReadonlyAddresses
+          ? {
+              writable:
+                meta.loadedWritableAddresses?.map(
+                  (address: PublicKey) => address
+                ) || [],
+              readonly:
+                meta.loadedReadonlyAddresses?.map(
+                  (address: PublicKey) => address
+                ) || [],
+            }
+          : undefined,
+      innerInstructions:
+        meta.innerInstructions?.map(
+          (i: { index: number; instructions: any }) => ({
+            index: i.index || 0,
+            instructions: i.instructions.map((instruction: any) => ({
+              programIdIndex: instruction.programIdIndex,
+              accounts: Array.from(instruction.accounts),
+              data: utils.bytes.bs58.encode(
+                Buffer.from(instruction.data || "", "base64")
+              ),
+            })),
+          })
+        ) || [],
+    };
   }
 }

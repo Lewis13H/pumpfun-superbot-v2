@@ -23,31 +23,34 @@ const SELL_DISCRIMINATOR = Buffer.from([51, 230, 133, 164, 1, 127, 131, 173]);
 export class AmmSwapParser {
   parseTransaction(txInfo: any, signature: string, slot: string, blockTime: string): AmmSwapEvent | null {
     try {
-      // txInfo contains the transaction data
-      const tx = txInfo.transaction || txInfo;
+      // txInfo contains the transaction data - handle different structures
+      let tx = txInfo.transaction || txInfo;
+      
+      // If we have nested transaction structure (from gRPC stream)
+      if (tx.transaction) {
+        tx = tx.transaction;
+      }
       
       // Get transaction details
       const message = tx.message || tx.getMessage?.();
       if (!message) {
-        console.log(`      ❌ No message in transaction`);
+        // Don't log for every transaction, it's too noisy
         return null;
       }
 
-      const meta = txInfo.meta || tx.meta || txInfo.getMeta?.() || tx.getMeta?.();
+      // Meta might be at different levels depending on structure
+      const meta = txInfo.transaction?.meta || txInfo.meta || tx.meta || txInfo.getMeta?.() || tx.getMeta?.();
       if (!meta || (meta.err || meta.getErr?.())) {
-        console.log(`      ❌ No meta or transaction failed`);
         return null;
       }
 
       const instructions = message.instructions || message.getInstructionsList?.();
       if (!instructions) {
-        console.log(`      ❌ No instructions found`);
         return null;
       }
 
       const accountKeys = message.accountKeys || message.getAccountKeysList?.();
       if (!accountKeys) {
-        console.log(`      ❌ No account keys found`);
         return null;
       }
 
