@@ -24,6 +24,14 @@ import {
   detectTradeTypeFromLogs,
   isValidMintAddress 
 } from '../parsers/bc-event-parser';
+import { 
+  calculateTokenPrice,
+  calculateBondingCurveProgress,
+  formatPrice,
+  formatMarketCap,
+  validateReserves
+} from '../services/bc-price-calculator';
+import { SolPriceService } from '../services/sol-price';
 import chalk from 'chalk';
 import bs58 from 'bs58';
 
@@ -50,6 +58,11 @@ interface ConnectionStats {
   sellsDetected: number;
   uniqueMints: Set<string>;
   parseErrors: number;
+  // Phase 3 additions
+  tokensAboveThreshold: number;
+  highestMarketCap: number;
+  totalVolumeUsd: number;
+  currentSolPrice: number;
 }
 
 /**
@@ -60,6 +73,7 @@ class BondingCurveMonitor {
   private reconnectDelay: number = RECONNECT_DELAY_MS;
   private statsInterval?: NodeJS.Timeout;
   private isShuttingDown: boolean = false;
+  private solPriceService: SolPriceService;
 
   constructor() {
     this.stats = {
@@ -74,21 +88,46 @@ class BondingCurveMonitor {
       buysDetected: 0,
       sellsDetected: 0,
       uniqueMints: new Set<string>(),
-      parseErrors: 0
+      parseErrors: 0,
+      // Phase 3 additions
+      tokensAboveThreshold: 0,
+      highestMarketCap: 0,
+      totalVolumeUsd: 0,
+      currentSolPrice: 180 // Default SOL price
     };
+    
+    // Initialize SOL price service
+    this.solPriceService = SolPriceService.getInstance();
   }
 
   /**
    * Start the monitoring service
    */
   async start(): Promise<void> {
-    console.log(chalk.cyan.bold(`\n🚀 Starting ${MONITOR_NAME} - Phase 2`));
+    console.log(chalk.cyan.bold(`\n🚀 Starting ${MONITOR_NAME} - Phase 3`));
     console.log(chalk.gray(`Program ID: ${PUMP_PROGRAM}`));
     console.log(chalk.gray(`Time: ${new Date().toISOString()}`));
-    console.log(chalk.blue(`Features: Connection ✓ | Parsing ✓ | Prices ⏳ | Database ⏳\n`));
+    console.log(chalk.blue(`Features: Connection ✓ | Parsing ✓ | Prices ✓ | Database ⏳\n`));
+
+    // Fetch initial SOL price
+    try {
+      this.stats.currentSolPrice = await this.solPriceService.getPrice();
+      console.log(chalk.green(`✅ SOL Price: $${this.stats.currentSolPrice.toFixed(2)}`));
+    } catch (error) {
+      console.log(chalk.yellow(`⚠️  Using default SOL price: $${this.stats.currentSolPrice}`));
+    }
 
     // Start statistics display
     this.startStatsDisplay();
+    
+    // Update SOL price periodically
+    setInterval(async () => {
+      try {
+        this.stats.currentSolPrice = await this.solPriceService.getPrice();
+      } catch (error) {
+        // Keep using last known price
+      }
+    }, 30000); // Update every 30 seconds
 
     // Set up graceful shutdown
     this.setupShutdownHandlers();
@@ -254,6 +293,12 @@ class BondingCurveMonitor {
           continue;
         }
 
+        // Validate reserves
+        if (!validateReserves(event.virtualSolReserves, event.virtualTokenReserves)) {
+          this.stats.parseErrors++;
+          continue;
+        }
+
         // Update statistics
         this.stats.tradesDetected++;
         this.stats.uniqueMints.add(event.mint);
@@ -266,9 +311,32 @@ class BondingCurveMonitor {
           event.isBuy = false;
         }
 
-        // Log significant trades (every 10th trade in Phase 2)
-        if (this.stats.tradesDetected % 10 === 0) {
-          this.logTradeEvent(event, tradeType, signature);
+        // Phase 3: Calculate price and market cap
+        const priceData = calculateTokenPrice(
+          event.virtualSolReserves,
+          event.virtualTokenReserves,
+          this.stats.currentSolPrice
+        );
+        
+        // Track volume
+        if (event.solAmount) {
+          const tradeValueUsd = (Number(event.solAmount) / 1e9) * this.stats.currentSolPrice;
+          this.stats.totalVolumeUsd += tradeValueUsd;
+        }
+        
+        // Track high market cap tokens
+        if (priceData.marketCapUsd >= 8888) {
+          this.stats.tokensAboveThreshold++;
+        }
+        
+        // Track highest market cap
+        if (priceData.marketCapUsd > this.stats.highestMarketCap) {
+          this.stats.highestMarketCap = priceData.marketCapUsd;
+        }
+
+        // Log significant trades (every 10th trade or high value)
+        if (this.stats.tradesDetected % 10 === 0 || priceData.marketCapUsd >= 50000) {
+          this.logTradeEventWithPrice(event, tradeType, signature, priceData);
         }
       }
     } catch (error) {
@@ -320,26 +388,54 @@ class BondingCurveMonitor {
   }
 
   /**
-   * Log trade event details
+   * Log trade event details with price (Phase 3)
    */
-  private logTradeEvent(event: BondingCurveTradeEvent, tradeType: string | null, signature: string): void {
+  private logTradeEventWithPrice(
+    event: BondingCurveTradeEvent, 
+    tradeType: string | null, 
+    signature: string,
+    priceData: ReturnType<typeof calculateTokenPrice>
+  ): void {
+    const progress = calculateBondingCurveProgress(event.virtualSolReserves);
+    
     console.log(chalk.cyan('\n📊 Trade Event Detected:'));
     console.log(chalk.gray('─'.repeat(50)));
-    console.log(`Type: ${tradeType ? chalk.green(tradeType.toUpperCase()) : chalk.gray('UNKNOWN')}`);
+    console.log(`Type: ${tradeType ? (tradeType === 'buy' ? chalk.green('BUY 🟢') : chalk.red('SELL 🔴')) : chalk.gray('UNKNOWN')}`);
     console.log(`Mint: ${chalk.yellow(event.mint.slice(0, 8) + '...' + event.mint.slice(-6))}`);
     console.log(`User: ${chalk.white(event.user ? event.user.slice(0, 8) + '...' : 'unknown')}`);
     
+    // Trade amounts
     if (event.solAmount) {
-      console.log(`SOL Amount: ${chalk.green((Number(event.solAmount) / 1e9).toFixed(4))} SOL`);
+      const solAmount = Number(event.solAmount) / 1e9;
+      const usdValue = solAmount * this.stats.currentSolPrice;
+      console.log(`Amount: ${chalk.green(solAmount.toFixed(4))} SOL (${chalk.green(formatPrice(usdValue))})`);
     }
     if (event.tokenAmount) {
-      console.log(`Token Amount: ${chalk.blue((Number(event.tokenAmount) / 1e6).toFixed(2))}`);
+      console.log(`Tokens: ${chalk.blue((Number(event.tokenAmount) / 1e6).toLocaleString())}`);
     }
     
-    console.log(`Virtual SOL: ${chalk.gray((Number(event.virtualSolReserves) / 1e9).toFixed(2))} SOL`);
-    console.log(`Virtual Tokens: ${chalk.gray((Number(event.virtualTokenReserves) / 1e6).toFixed(0))}`);
-    console.log(`Signature: ${chalk.gray(signature.slice(0, 16) + '...')}`);
+    // Price information
+    console.log(chalk.white.bold('\nPrice & Market Cap:'));
+    console.log(`Price: ${formatPrice(priceData.priceInUsd)} (${priceData.priceInSol.toFixed(8)} SOL)`);
+    console.log(`Market Cap: ${formatMarketCap(priceData.marketCapUsd)}`);
+    console.log(`Progress: ${chalk.cyan(progress.toFixed(1) + '%')} ${this.getProgressBar(progress)}`);
+    
+    // Threshold indicator
+    if (priceData.marketCapUsd >= 8888) {
+      console.log(chalk.yellow.bold('⭐ Above $8,888 threshold!'));
+    }
+    
+    console.log(chalk.gray(`Signature: ${signature.slice(0, 16)}...`));
     console.log(chalk.gray('─'.repeat(50)));
+  }
+  
+  /**
+   * Create a visual progress bar
+   */
+  private getProgressBar(progress: number): string {
+    const filled = Math.floor(progress / 5);
+    const empty = 20 - filled;
+    return chalk.green('█'.repeat(filled)) + chalk.gray('░'.repeat(empty));
   }
 
   /**
@@ -401,6 +497,13 @@ class BondingCurveMonitor {
       ? ((this.stats.tradesDetected / this.stats.transactionsReceived) * 100).toFixed(1)
       : '0.0';
     console.log(`  Detection rate: ${chalk.yellow(detectionRate + '%')}`);
+    
+    // Price & Market Cap (Phase 3)
+    console.log(chalk.white.bold('\nPrice & Market Cap:'));
+    console.log(`  SOL Price: ${chalk.green('$' + this.stats.currentSolPrice.toFixed(2))}`);
+    console.log(`  Total Volume: ${chalk.yellow(formatPrice(this.stats.totalVolumeUsd))}`);
+    console.log(`  Highest MC: ${chalk.cyan(formatMarketCap(this.stats.highestMarketCap))}`);
+    console.log(`  Above $8,888: ${chalk.yellow(this.stats.tokensAboveThreshold)} tokens`);
     
     // System health
     console.log(chalk.white.bold('\nSystem:'));
