@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Bonding Curve Monitor - Phase 2: Transaction Parsing
+ * Bonding Curve Monitor - Phase 4: Database Integration
  * 
  * A focused pump.fun bonding curve monitoring service that:
  * - Establishes reliable gRPC connection to Shyft
@@ -9,9 +9,11 @@
  * - Tracks basic statistics and connection health
  * - Parses trade events from transaction logs (Phase 2)
  * - Detects buy/sell operations and extracts trade data (Phase 2)
+ * - Calculates prices and market caps in SOL/USD (Phase 3)
+ * - Persists tokens and trades to database (Phase 4)
  * 
- * Phase 2 adds transaction parsing capabilities to extract
- * meaningful trade data from pump.fun transactions.
+ * Phase 4 adds database integration for persistent storage
+ * of tokens crossing the $8,888 threshold.
  */
 
 import 'dotenv/config';
@@ -32,6 +34,7 @@ import {
   validateReserves
 } from '../services/bc-price-calculator';
 import { SolPriceService } from '../services/sol-price';
+import { BondingCurveDbHandler, ProcessedTradeData } from '../handlers/bc-db-handler';
 import chalk from 'chalk';
 import bs58 from 'bs58';
 
@@ -74,6 +77,7 @@ class BondingCurveMonitor {
   private statsInterval?: NodeJS.Timeout;
   private isShuttingDown: boolean = false;
   private solPriceService: SolPriceService;
+  private dbHandler: BondingCurveDbHandler;
 
   constructor() {
     this.stats = {
@@ -96,18 +100,19 @@ class BondingCurveMonitor {
       currentSolPrice: 180 // Default SOL price
     };
     
-    // Initialize SOL price service
+    // Initialize services
     this.solPriceService = SolPriceService.getInstance();
+    this.dbHandler = new BondingCurveDbHandler();
   }
 
   /**
    * Start the monitoring service
    */
   async start(): Promise<void> {
-    console.log(chalk.cyan.bold(`\n🚀 Starting ${MONITOR_NAME} - Phase 3`));
+    console.log(chalk.cyan.bold(`\n🚀 Starting ${MONITOR_NAME} - Phase 4`));
     console.log(chalk.gray(`Program ID: ${PUMP_PROGRAM}`));
     console.log(chalk.gray(`Time: ${new Date().toISOString()}`));
-    console.log(chalk.blue(`Features: Connection ✓ | Parsing ✓ | Prices ✓ | Database ⏳\n`));
+    console.log(chalk.blue(`Features: Connection ✓ | Parsing ✓ | Prices ✓ | Database ✓\n`));
 
     // Fetch initial SOL price
     try {
@@ -334,6 +339,30 @@ class BondingCurveMonitor {
           this.stats.highestMarketCap = priceData.marketCapUsd;
         }
 
+        // Phase 4: Send to database if above threshold
+        if (priceData.marketCapUsd >= 8888) {
+          // Extract slot and block time if available
+          const slot = this.extractSlot(transactionData);
+          const blockTime = this.extractBlockTime(transactionData);
+          
+          const processedData: ProcessedTradeData = {
+            event,
+            tradeType: tradeType || 'unknown',
+            signature,
+            priceInSol: priceData.priceInSol,
+            priceInUsd: priceData.priceInUsd,
+            marketCapUsd: priceData.marketCapUsd,
+            progress,
+            slot,
+            blockTime
+          };
+          
+          // Send to database handler (non-blocking)
+          this.dbHandler.processTrade(processedData).catch(err => {
+            console.error('Database error:', err);
+          });
+        }
+        
         // Log significant trades (every 10th trade or high value)
         if (this.stats.tradesDetected % 10 === 0 || priceData.marketCapUsd >= 50000) {
           this.logTradeEventWithPrice(event, tradeType, signature, priceData);
@@ -384,6 +413,44 @@ class BondingCurveMonitor {
       return 'unknown';
     } catch {
       return 'unknown';
+    }
+  }
+
+  /**
+   * Extract slot from transaction
+   */
+  private extractSlot(transactionData: any): bigint | undefined {
+    try {
+      // Check different possible locations
+      const slot = transactionData?.slot || 
+                   transactionData?.transaction?.slot ||
+                   transactionData?.transaction?.transaction?.slot;
+      
+      if (slot !== undefined && slot !== null) {
+        return BigInt(slot);
+      }
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Extract block time from transaction
+   */
+  private extractBlockTime(transactionData: any): Date | undefined {
+    try {
+      // Check meta for block time
+      const meta = transactionData?.transaction?.meta || transactionData?.meta;
+      const blockTime = meta?.blockTime || transactionData?.blockTime;
+      
+      if (blockTime) {
+        // Block time is in seconds, convert to milliseconds
+        return new Date(blockTime * 1000);
+      }
+      return undefined;
+    } catch {
+      return undefined;
     }
   }
 
@@ -505,6 +572,14 @@ class BondingCurveMonitor {
     console.log(`  Highest MC: ${chalk.cyan(formatMarketCap(this.stats.highestMarketCap))}`);
     console.log(`  Above $8,888: ${chalk.yellow(this.stats.tokensAboveThreshold)} tokens`);
     
+    // Database stats (Phase 4)
+    const dbStats = this.dbHandler.getStats();
+    console.log(chalk.white.bold('\nDatabase:'));
+    console.log(`  Discovered tokens: ${chalk.blue(dbStats.discoveredTokens)}`);
+    console.log(`  Tokens saved: ${chalk.green(dbStats.dbStats.tokensTracked)}`);
+    console.log(`  Trades saved: ${chalk.green(dbStats.dbStats.tradesProcessed)}`);
+    console.log(`  Batch queue: ${chalk.yellow(dbStats.dbStats.queueSize)}`);
+    
     // System health
     console.log(chalk.white.bold('\nSystem:'));
     console.log(`  Reconnections: ${chalk.yellow(this.stats.reconnections)}`);
@@ -580,6 +655,10 @@ class BondingCurveMonitor {
       if (this.statsInterval) {
         clearInterval(this.statsInterval);
       }
+      
+      // Flush database batches
+      console.log(chalk.yellow('💾 Flushing database batches...'));
+      await this.dbHandler.flush();
       
       // Display final statistics
       this.displayStats();
