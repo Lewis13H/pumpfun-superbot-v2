@@ -6,6 +6,7 @@
 import { ShyftGraphQLClient } from './graphql-client';
 import { SolPriceService } from './sol-price';
 import { AmmPoolPriceRecovery } from './amm-pool-price-recovery';
+import { ShyftAmmPriceRecovery } from './shyft-amm-price-recovery';
 import { db } from '../database';
 import {
   BondingCurveData,
@@ -42,12 +43,14 @@ export class UnifiedGraphQLPriceRecovery {
   private client: ShyftGraphQLClient;
   private solPriceService: SolPriceService;
   private ammPoolRecovery: AmmPoolPriceRecovery;
+  private shyftAmmRecovery: ShyftAmmPriceRecovery;
   private cache: Map<string, { data: PriceUpdate; timestamp: number }> = new Map();
 
   private constructor() {
     this.client = ShyftGraphQLClient.getInstance();
     this.solPriceService = SolPriceService.getInstance();
     this.ammPoolRecovery = AmmPoolPriceRecovery.getInstance();
+    this.shyftAmmRecovery = ShyftAmmPriceRecovery.getInstance();
   }
 
   static getInstance(): UnifiedGraphQLPriceRecovery {
@@ -124,26 +127,36 @@ export class UnifiedGraphQLPriceRecovery {
 
     // Process graduated tokens (AMM pools)
     if (graduatedMints.length > 0) {
-      const ammResult = await this.recoverAmmPoolPrices(graduatedMints, currentSolPrice);
-      successful.push(...ammResult.successful);
+      // First try Shyft AMM recovery (which actually works)
+      console.log(chalk.blue(`🔍 Trying Shyft AMM recovery for ${graduatedMints.length} graduated tokens...`));
+      const shyftResult = await this.shyftAmmRecovery.recoverAmmPrices(graduatedMints);
+      successful.push(...shyftResult.successful);
       
-      // For failed AMM recoveries, try pool state fallback
-      if (ammResult.failed.length > 0) {
-        console.log(chalk.yellow(`⚠️ ${ammResult.failed.length} tokens failed GraphQL recovery, trying pool state fallback...`));
+      // For tokens that failed Shyft recovery, try the original AMM pool query
+      if (shyftResult.failed.length > 0) {
+        console.log(chalk.yellow(`⚠️ ${shyftResult.failed.length} tokens failed Shyft recovery, trying legacy AMM query...`));
+        const failedMints = shyftResult.failed.map(f => f.mintAddress);
+        const ammResult = await this.recoverAmmPoolPrices(failedMints, currentSolPrice);
+        successful.push(...ammResult.successful);
         
-        const failedMints = ammResult.failed.map(f => f.mintAddress);
-        const poolStateResult = await this.ammPoolRecovery.recoverPricesFromPoolStates(failedMints);
+        // For tokens that failed both Shyft and legacy, try pool state fallback
+        if (ammResult.failed.length > 0) {
+          console.log(chalk.yellow(`⚠️ ${ammResult.failed.length} tokens failed all GraphQL recovery, trying pool state fallback...`));
+          
+          const stillFailedMints = ammResult.failed.map(f => f.mintAddress);
+          const poolStateResult = await this.ammPoolRecovery.recoverPricesFromPoolStates(stillFailedMints);
+          
+          successful.push(...poolStateResult.successful);
+          failed.push(...poolStateResult.failed);
+        }
         
-        // Add successful pool state recoveries
-        successful.push(...poolStateResult.successful);
-        
-        // Only keep the tokens that failed both methods as failed
-        failed.push(...poolStateResult.failed);
+        graphqlQueries += ammResult.graphqlQueries;
       } else {
-        failed.push(...ammResult.failed);
+        // All succeeded with Shyft
+        failed.push(...shyftResult.failed);
       }
       
-      graphqlQueries += ammResult.graphqlQueries;
+      graphqlQueries += 2; // Count Shyft queries
     }
 
     const queryTime = Date.now() - startTime;

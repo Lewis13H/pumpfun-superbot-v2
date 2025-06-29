@@ -36,7 +36,11 @@
     "query-trades": "tsx src/examples-unified/query-trades.ts",
     "startup-recovery": "tsx src/scripts/startup-recovery.ts",
     "test-stale-detection": "tsx src/tests/test-stale-detection.ts",
-    "add-stale-tables": "tsx scripts/add-stale-recovery-tables.ts"
+    "add-stale-tables": "tsx scripts/add-stale-recovery-tables.ts",
+    "amm-account-monitor-v2": "tsx src/monitors/amm-account-monitor-v2.ts",
+    "fetch-pool-reserves": "tsx scripts/fetch-amm-pool-reserves.ts",
+    "fix-pool-mapping": "tsx scripts/fix-amm-pool-mint-mapping.ts",
+    "test-jupiter": "tsx scripts/test-jupiter-prices.ts"
   },
   "name": "pumpfun-superbot-v2",
   "version": "1.0.0",
