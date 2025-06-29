@@ -32,7 +32,10 @@
     "migrate-unified": "tsx scripts/migrate-unified.ts",
     "view-tokens-unified": "tsx src/examples-unified/view-tokens.ts",
     "enrich-tokens-unified": "tsx src/examples-unified/enrich-tokens.ts",
-    "query-trades": "tsx src/examples-unified/query-trades.ts"
+    "query-trades": "tsx src/examples-unified/query-trades.ts",
+    "startup-recovery": "tsx src/scripts/startup-recovery.ts",
+    "test-stale-detection": "tsx src/tests/test-stale-detection.ts",
+    "add-stale-tables": "tsx scripts/add-stale-recovery-tables.ts"
   },
   "name": "pumpfun-superbot-v2",
   "version": "1.0.0",
