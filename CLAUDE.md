@@ -18,12 +18,6 @@ npm run bc-account-monitor    # Bonding curve account monitor (detects graduatio
 npm run amm-monitor           # AMM pool trade monitor for graduated tokens
 npm run amm-account-monitor   # AMM account state monitor for pool reserves
 
-# Simplified Monitors (Standardized Terminal Output)
-npm run bc-monitor-simple     # BC trade monitor with clean formatting
-npm run bc-account-simple     # BC account monitor with clean formatting
-npm run amm-monitor-simple    # AMM trade monitor with clean formatting
-npm run amm-account-simple    # AMM account monitor with clean formatting
-
 # Price Recovery Services
 tsx scripts/start-dexscreener-recovery.ts  # DexScreener recovery for stale graduated tokens
 npm run sol-price-updater     # SOL price updater (runs automatically with monitors)
@@ -67,13 +61,9 @@ src/
 │   ├── unified-monitor-v2.ts       # Main production monitor (DEPRECATED - has issues)
 │   ├── bc-monitor.ts               # Bonding curve focused monitor
 │   ├── bc-monitor-quick-fixes.ts   # Improved BC monitor (handles 225 & 113 byte events)
-│   ├── bc-monitor-simplified.ts    # BC monitor with standardized terminal output
 │   ├── bc-account-monitor.ts       # BC account state monitor (detects graduations)
-│   ├── bc-account-monitor-simplified.ts # BC account monitor with standardized output
 │   ├── amm-monitor.ts              # Dedicated AMM monitor following Shyft examples
-│   ├── amm-monitor-simplified.ts   # AMM monitor with standardized terminal output
 │   ├── amm-account-monitor.ts      # AMM account state monitor for pool reserves
-│   ├── amm-account-monitor-simplified.ts # AMM account monitor with standardized output
 │   ├── bc-monitor-plan.md          # Phased implementation plan
 │   └── debug/
 │       └── debug-amm-pool.ts       # AMM debugging tool
@@ -760,44 +750,3 @@ Recovery Flow:
 └── Stale graduated tokens → DexScreener API
 ```
 
-## Simplified Monitors (Standardized Output)
-
-The project includes simplified versions of all 4 monitors with standardized terminal output for better readability and consistent user experience:
-
-### Features
-- **Unified Formatting**: All monitors use the same header style, status icons, and layout
-- **Clean Status Messages**: ✅ Success, ❌ Error, ⚠️ Warning, ℹ️ Info
-- **Consistent Statistics**: Updates every 10 seconds with aligned columns
-- **No Functionality Loss**: Exact same features as original monitors, only cosmetic changes
-
-### Visual Elements
-```
-════════════════════════════════════════════════════════════════════════════════
-  MONITOR NAME
-════════════════════════════════════════════════════════════════════════════════
-Program: [Program ID]
-Started: [Timestamp]
-[Configuration parameters]
-────────────────────────────────────────────────────────────────────────────────
-
-📊 STATISTICS
-────────────────────────────────────────
-[Real-time metrics updated every 10 seconds]
-```
-
-### Running Simplified Monitors
-```bash
-# Individual simplified monitors
-npm run bc-monitor-simple     # BC trade monitor
-npm run bc-account-simple     # BC account monitor
-npm run amm-monitor-simple    # AMM trade monitor
-npm run amm-account-simple    # AMM account monitor
-
-# Enable detailed error logging
-DEBUG_ERRORS=true npm run bc-monitor-simple
-
-# Demo all monitors
-./scripts/demo-simplified-monitors.sh
-```
-
-The `MonitorFormatter` utility class in `src/utils/monitor-formatter.ts` provides the standardized output formatting across all monitors.
