@@ -9,9 +9,10 @@ Real-time Solana token monitor for pump.fun bonding curves and pump.swap AMM poo
 ## Development Commands
 
 ```bash
-# Recommended Production Setup (run all three monitors)
-npm run bc-monitor-quick-fix  # Bonding curve monitor (>95% parse rate)
-npm run amm-monitor           # AMM pool monitor for graduated tokens
+# Recommended Production Setup (run all four monitors)
+npm run bc-monitor-quick-fix  # Bonding curve trade monitor (>95% parse rate)
+npm run bc-account-monitor    # Bonding curve account monitor (detects graduations)
+npm run amm-monitor           # AMM pool trade monitor for graduated tokens
 npm run amm-account-monitor   # AMM account state monitor for pool reserves
 
 # Legacy Monitors
@@ -48,6 +49,7 @@ src/
 │   ├── unified-monitor-v2.ts       # Main production monitor (DEPRECATED - has issues)
 │   ├── bc-monitor.ts               # Bonding curve focused monitor
 │   ├── bc-monitor-quick-fixes.ts   # Improved BC monitor (handles 225 & 113 byte events)
+│   ├── bc-account-monitor.ts       # BC account state monitor (detects graduations)
 │   ├── amm-monitor.ts              # Dedicated AMM monitor following Shyft examples
 │   ├── amm-account-monitor.ts      # AMM account state monitor for pool reserves
 │   ├── bc-monitor-plan.md          # Phased implementation plan
@@ -63,7 +65,13 @@ src/
 │   ├── unified-websocket-server.ts  # Unified WebSocket for all monitors
 │   ├── auto-enricher.ts            # Token metadata enrichment
 │   ├── helius.ts                   # Helius API client
-│   └── amm-pool-state-service.ts   # AMM pool state tracking and caching
+│   ├── amm-pool-state-service.ts   # AMM pool state tracking and caching
+│   ├── graphql-client.ts           # Shyft GraphQL client with retry logic
+│   ├── graphql-price-recovery.ts   # BC-only price recovery (deprecated)
+│   ├── unified-graphql-price-recovery.ts # Unified BC/AMM price recovery
+│   ├── amm-pool-price-recovery.ts  # Pool state-based price recovery
+│   ├── stale-token-detector.ts     # Automatic stale token detection/recovery
+│   └── recovery-queue.ts           # Priority queue for token recovery
 ├── api/
 │   ├── server-unified.ts           # Main API server
 │   ├── bc-monitor-endpoints.ts     # BC monitor specific endpoints
@@ -104,8 +112,10 @@ src/
 
 #### Unified Monitor V2 (`unified-monitor-v2.ts`)
 **DEPRECATED** - This monitor has issues with AMM trade detection. Use separate monitors instead:
-- `npm run bc-monitor-quick-fix` for bonding curves
-- `npm run amm-monitor` for AMM pools
+- `npm run bc-monitor-quick-fix` for bonding curve trades
+- `npm run bc-account-monitor` for bonding curve graduations
+- `npm run amm-monitor` for AMM pool trades
+- `npm run amm-account-monitor` for AMM pool states
 
 #### AMM Monitor (`amm-monitor.ts`)
 Dedicated monitor for pump.swap AMM graduated tokens:
@@ -129,12 +139,22 @@ Monitors AMM pool account states in real-time:
 - Suppresses parser warnings with `suppressParserWarnings()`
 
 #### BC Monitor Quick Fix (`bc-monitor-quick-fixes.ts`)
-Enhanced bonding curve monitor:
+Enhanced bonding curve trade monitor:
 - Handles both 225-byte and 113-byte events
 - Parse rate >95% (up from 82.9%)
 - Configurable thresholds via environment variables
 - Retry logic for database saves
 - Real-time progress tracking to graduation
+- **Note**: Account decoding disabled, use bc-account-monitor for graduations
+
+#### BC Account Monitor (`bc-account-monitor.ts`)
+Bonding curve account state monitor:
+- Subscribes to all pump.fun program accounts
+- Uses Borsh decoding for BondingCurve account data
+- Detects graduations when progress >= 100% or complete = true
+- Reverse-engineers mint addresses from bonding curve PDAs
+- Updates graduation status in real-time
+- **Critical**: Required for proper graduation detection
 
 #### Database Service (`unified-db-service-v2.ts`)
 High-performance service using:
@@ -240,6 +260,22 @@ data.transaction.transaction.meta                            // Contains logs
    - 'open' module removed (not critical)
    - Some warnings remain but don't affect functionality
 
+8. **Graduation Detection Issues (FIXED)**
+   - BC monitor had account decoding disabled (hardcoded to `complete: false`)
+   - Solution: Created separate `bc-account-monitor` for account state tracking
+   - 62 tokens with 100% progress weren't marked as graduated - now fixed
+
+9. **Graduated Token Price Updates**
+   - GraphQL `pump_fun_amm_Pool` table is empty (no AMM pools indexed)
+   - Real-time updates work via AMM monitor trades
+   - Stale graduated tokens have no fallback price source
+   - Pool state recovery exists but has data quality issues
+
+10. **AMM Pool State Data Issues**
+    - `amm_pool_states.mint_address` contains SOL mint instead of token mint
+    - Need proper pool address → token mint mapping
+    - Makes pool state fallback recovery non-functional
+
 5. **Rate limits**
    - Shyft: 50 subscriptions/60s per token
    - Binance API: No limits for public endpoints
@@ -269,6 +305,11 @@ CREATE TABLE tokens_unified (
     first_market_cap_usd DECIMAL(20, 4),
     threshold_crossed_at TIMESTAMP,
     graduated_to_amm BOOLEAN DEFAULT FALSE,
+    graduation_at TIMESTAMP,
+    graduation_slot BIGINT,
+    price_source TEXT DEFAULT 'unknown', -- 'bonding_curve', 'amm', 'graphql', 'rpc'
+    last_graphql_update TIMESTAMP,
+    last_rpc_update TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -358,13 +399,13 @@ The bonding curve monitor (`bc-monitor.ts`) was developed in 5 phases:
 - Batch processing with deduplication
 - Configurable save thresholds
 
-### Running the Monitor
+### Running the Monitors
 ```bash
-# Standard bonding curve monitor
-npm run bc-monitor
-
-# Improved version with better parse rates
-npm run bc-monitor-quick-fix
+# Complete 4-monitor setup
+npm run bc-monitor-quick-fix  # BC trades
+npm run bc-account-monitor    # BC graduations
+npm run amm-monitor           # AMM trades
+npm run amm-account-monitor   # AMM pool states
 
 # With custom settings
 BC_SAVE_THRESHOLD=5000 SAVE_ALL_TOKENS=false npm run bc-monitor-quick-fix
@@ -372,6 +413,35 @@ BC_SAVE_THRESHOLD=5000 SAVE_ALL_TOKENS=false npm run bc-monitor-quick-fix
 # Using helper script
 ./scripts/monitor-improvements.sh -t 5000 -d  # $5k threshold with debug
 ```
+
+## Price Recovery & Stale Token Handling
+
+### Price Update Sources
+1. **Real-time Monitors** (Primary)
+   - BC trades update non-graduated token prices
+   - AMM trades update graduated token prices
+   - Account monitors track state changes
+
+2. **GraphQL Bulk Recovery** (Secondary)
+   - `UnifiedGraphQLPriceRecovery` handles both BC and AMM tokens
+   - Bonding curves: Working via `pump_BondingCurve` table
+   - AMM pools: Not working - `pump_fun_amm_Pool` table is empty
+
+3. **Pool State Recovery** (Tertiary)
+   - Uses cached data from `amm-account-monitor`
+   - Currently broken: `amm_pool_states` has data quality issues
+   - Mint address column contains SOL mint instead of token mint
+
+4. **RPC Recovery** (Future)
+   - Direct blockchain queries for pool reserves
+   - Scaffolded but not implemented
+
+### Graduation Detection
+- **BC Account Monitor** detects graduations in real-time
+- Monitors `complete` flag and progress >= 100%
+- Updates `graduated_to_amm` in database
+- **Issue**: BC trade monitor has account decoding disabled
+- **Solution**: Run both BC monitors for complete coverage
 
 ## AMM Monitor Development
 
