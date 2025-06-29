@@ -24,7 +24,7 @@ import { TransactionFormatter } from '../utils/transaction-formatter';
 import { bnLayoutFormatter } from '../utils/bn-layout-formatter';
 import { suppressParserWarnings } from '../utils/suppress-parser-warnings';
 import { AmmPoolStateService } from '../services/amm-pool-state-service';
-import { unifiedWebSocketServer, TradeEvent } from '../services/unified-websocket-server-stub';
+import { unifiedWebSocketServer, TradeEvent } from '../services/unified-websocket-server';
 
 // Program ID
 const PUMP_AMM_PROGRAM_ID = new PublicKey('pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA');

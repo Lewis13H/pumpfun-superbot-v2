@@ -13,7 +13,7 @@ import { suppressParserWarnings } from '../utils/suppress-parser-warnings';
 import { AmmPoolStateService } from '../services/amm-pool-state-service';
 import { formatCurrency } from '../utils/formatters';
 import { decodePoolAccount, poolAccountToPlain } from '../utils/amm-pool-decoder';
-import { unifiedWebSocketServer, PoolStateEvent } from '../services/unified-websocket-server-stub';
+import { unifiedWebSocketServer, PoolStateEvent } from '../services/unified-websocket-server';
 
 // Program ID
 const PUMP_AMM_PROGRAM_ID = new PublicKey('pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA');

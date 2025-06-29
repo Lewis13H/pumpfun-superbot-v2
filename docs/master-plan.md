@@ -1,234 +1,216 @@
-# Master Implementation Plan
+# Master Implementation Plan (Updated December 2024)
 
 ## Overview
 
 This document unifies all implementation plans for the Pump.fun monitoring system. It consolidates the original unified monitoring plan with the AMM-specific upgrades into a single, coherent roadmap.
 
+## Current System Status
+
+### ✅ Completed Components (December 2024)
+
+1. **4-Monitor Architecture**
+   - BC Monitor (Quick Fix) - >95% parse rate, handles 225 & 113 byte events
+   - BC Account Monitor - Real-time graduation detection
+   - AMM Monitor - Trade capture with automatic token creation
+   - AMM Account Monitor - Pool state tracking
+
+2. **Price Recovery**
+   - GraphQL recovery for bonding curve tokens (working)
+   - DexScreener API integration for graduated tokens (working)
+   - Automatic token creation for AMM trades
+
+3. **Infrastructure**
+   - High-performance database service with batching
+   - SOL price updater with Binance integration
+   - Complete monitoring script for easy deployment
+
 ## System Architecture
 
-The complete system consists of three main components:
+The complete system consists of four main monitors:
 
-1. **Bonding Curve Monitor** (`bc-monitor.ts`) - Monitors pump.fun bonding curves
-2. **AMM Monitor** (`amm-monitor.ts`) - Monitors pump.swap graduated tokens
-3. **Unified Services** - Shared services for both monitors (GraphQL, enrichment, etc.)
+1. **Bonding Curve Trade Monitor** (`bc-monitor-quick-fixes.ts`) - Monitors pump.fun trades
+2. **Bonding Curve Account Monitor** (`bc-account-monitor.ts`) - Detects graduations
+3. **AMM Trade Monitor** (`amm-monitor.ts`) - Monitors pump.swap graduated tokens
+4. **AMM Account Monitor** (`amm-account-monitor.ts`) - Tracks pool states
 
 ## Implementation Tracks
 
-### Track A: AMM Monitor Upgrades (Priority: HIGH)
-Fix critical issues with the newly created AMM monitor, particularly the hardcoded zero reserves.
+### Track A: Core System Improvements (Priority: HIGH)
+Enhance monitoring coverage and reliability.
 
-### Track B: Unified System Enhancements (Priority: HIGH)
-Implement GraphQL bulk recovery and stale token detection for both monitors.
+### Track B: Dashboard & API Enhancements (Priority: MEDIUM)
+Fix WebSocket issues and improve real-time updates.
 
-### Track C: Advanced Features (Priority: MEDIUM-LOW)
-Add historical backfilling, metadata enrichment, and performance optimizations.
+### Track C: Advanced Features (Priority: LOW)
+Add historical backfilling, advanced analytics, and performance optimizations.
 
 ---
 
-## Detailed Session Plan
+## Completed Sessions ✅
 
-### 🔴 Critical Foundation (Complete First)
+### ✅ AMM-1: Pool Reserve Monitoring (COMPLETED)
+- Created `amm-account-monitor.ts` with real-time pool state tracking
+- Implemented Borsh decoding for pool accounts
+- Successfully tracks LP supply and token accounts
+- Pool state service manages in-memory cache
 
-#### AMM-1: Pool Reserve Monitoring
-**Track**: AMM Upgrades  
-**Priority**: CRITICAL  
+### ✅ AMM-2: Real-time Price Calculations (COMPLETED)
+- AMM monitor uses actual reserves from trade events
+- Constant product formula implemented
+- Price calculations accurate to on-chain values
+- Market cap calculations based on token supply
+
+### ✅ SYSTEM-1: Price Recovery (COMPLETED)
+- GraphQL recovery works for bonding curve tokens
+- DexScreener API integrated for graduated tokens
+- Automatic recovery runs every 30 minutes
+- Includes liquidity, volume, and 24h change data
+
+### ✅ SYSTEM-2: Token Creation (COMPLETED)
+- AMM monitor automatically creates token entries
+- Different thresholds: $1,000 for AMM, $8,888 for BC
+- Tokens marked as graduated upon creation
+- Enables immediate price tracking
+
+### ✅ SYSTEM-3: Enhanced Token Enrichment (COMPLETED - December 29, 2024)
+- Automatic enrichment for tokens above $8,888 market cap
+- **GraphQL bulk queries** as primary source (50 tokens per query - 50x faster!)
+- Shyft REST API as secondary fallback
+- Helius DAS API as tertiary fallback  
+- Batch processing for maximum efficiency
+- Immediate enrichment when tokens cross threshold
+- Background service runs automatically with monitors
+- Comprehensive metadata collection including creators, supply, authorities
+- Manual batch enrichment scripts for existing tokens
+
+---
+
+## Remaining Sessions
+
+### 🟡 High Priority Sessions
+
+#### DASHBOARD-1: Fix WebSocket Server Issues
+**Track**: Dashboard & API  
+**Priority**: HIGH  
+**Duration**: 2-3 days  
+**Dependencies**: None
+
+**Goals**:
+- Fix WebSocket initialization conflicts
+- Resolve import and type issues
+- Enable real-time updates for all monitors
+
+**Key Files**:
+- Update: `src/services/unified-websocket-server.ts`
+- Update: `src/api/server-unified.ts`
+- Update: `dashboard/unified-websocket-client.js`
+
+**Success Criteria**:
+- WebSocket connections stable
+- All monitor events broadcast correctly
+- Dashboard receives real-time updates
+
+---
+
+#### SYSTEM-4: RPC Price Recovery
+**Track**: Core System  
+**Priority**: MEDIUM  
 **Duration**: 1 week  
 **Dependencies**: None
 
 **Goals**:
-- Add real-time pool state monitoring
-- Decode actual reserves using BorshAccountsCoder
-- Replace hardcoded zeros with real data
+- Direct blockchain queries for pool reserves
+- Fallback when DexScreener data unavailable
+- Handle rate limits and retries
 
 **Key Files**:
-- Create: `src/monitors/amm-account-monitor.ts`
-- Create: `src/types/amm-pool-state.ts`
-- Create: `src/utils/amm-account-decoder.ts`
+- Create: `src/services/rpc-price-recovery.ts`
+- Create: `src/utils/pool-account-decoder.ts`
+- Update: `src/services/stale-token-detector.ts`
 
 **Success Criteria**:
-- Decode 95%+ of pool updates
-- Reserve values match on-chain data
-- No memory leaks during monitoring
+- Accurate pool reserve queries
+- <5 second recovery per token
+- Proper rate limit handling
 
 ---
 
-#### AMM-2: Real-time Price Calculations
-**Track**: AMM Upgrades  
-**Priority**: CRITICAL  
+### 🟢 Medium Priority Sessions
+
+#### DASHBOARD-2: Complete Dashboard Implementation
+**Track**: Dashboard & API  
+**Priority**: MEDIUM  
 **Duration**: 1 week  
-**Dependencies**: AMM-1
+**Dependencies**: DASHBOARD-1
 
 **Goals**:
-- Calculate accurate prices from actual reserves
-- Implement constant product formula
-- Track price impact
+- Fix AMM analytics dashboard
+- Add real-time charts and metrics
+- Implement filtering and search
 
 **Key Files**:
-- Update: `src/utils/amm-price-calculator.ts`
-- Update: `src/monitors/amm-monitor.ts`
-- Create: `src/services/amm-price-tracker.ts`
+- Update: `dashboard/amm-dashboard.html`
+- Create: `dashboard/js/chart-components.js`
+- Update: `src/api/amm-endpoints.ts`
 
 **Success Criteria**:
-- Prices match DEX aggregators within 1%
-- Price updates in <100ms after trades
+- All dashboards functional
+- Real-time updates working
+- Performance with 1000+ tokens
 
 ---
 
-### 🟡 Core System Enhancements
-
-#### SYSTEM-1: GraphQL Bulk Price Recovery
-**Track**: Unified System  
-**Priority**: HIGH  
-**Duration**: 1 week  
-**Dependencies**: None
-
-**Goals**:
-- Implement efficient bulk price queries (100 tokens/query)
-- Create GraphQL client with connection pooling
-- Build price calculation from virtual reserves
-
-**Key Files**:
-- Create: `src/services/graphql-price-recovery.ts`
-- Create: `src/services/graphql-client.ts`
-- Update: `src/database/unified-db-service-v2.ts`
-
-**Success Criteria**:
-- Query 100 tokens in <1 second
-- Price calculations match on-chain
-- Proper error handling and retries
-
----
-
-#### SYSTEM-2: Stale Token Detection
-**Track**: Unified System  
-**Priority**: HIGH  
-**Duration**: 3-4 days  
-**Dependencies**: SYSTEM-1
-
-**Goals**:
-- Detect tokens with outdated prices
-- Implement recovery priority queue
-- Handle startup recovery after downtime
-
-**Key Files**:
-- Create: `src/services/stale-token-detector.ts`
-- Create: `src/services/recovery-queue.ts`
-- Create: `src/scripts/startup-recovery.ts`
-
-**Success Criteria**:
-- Detect stale tokens within 5 minutes
-- Recover 1000 tokens in <30 seconds
-- Prioritize by market cap and activity
-
----
-
-#### SYSTEM-3: Tiered Monitoring System
-**Track**: Unified System  
-**Priority**: HIGH  
-**Duration**: 3-4 days  
-**Dependencies**: SYSTEM-2
-
-**Goals**:
-- Classify tokens into monitoring tiers
-- Assign appropriate update methods
-- Dynamic tier transitions
-
-**Key Files**:
-- Create: `src/services/token-tier-manager.ts`
-- Create: `src/types/monitoring-tiers.ts`
-- Update: `src/monitors/unified-monitor-v3.ts`
-
-**Tier Structure**:
-- **Tier 1**: Top 50 tokens - WebSocket real-time
-- **Tier 2**: $100K+ market cap - GraphQL frequent (1 min)
-- **Tier 3**: All others - GraphQL periodic (5 min)
-
-**Success Criteria**:
-- Correct tier assignment for 100% of tokens
-- Smooth tier transitions
-- Monitoring method routing works correctly
-
----
-
-### 🟢 Enhanced Monitoring Features
-
-#### AMM-3: Transaction Status Monitoring
-**Track**: AMM Upgrades  
+#### SYSTEM-5: Transaction Status Monitoring
+**Track**: Core System  
 **Priority**: MEDIUM  
 **Duration**: 3-4 days  
-**Dependencies**: AMM-2
+**Dependencies**: None
 
 **Goals**:
-- Track confirmation states (processed → confirmed → finalized)
-- Handle transaction failures and reorgs
+- Track confirmation states
+- Handle transaction failures
 - Update database with status changes
 
+**Key Files**:
+- Create: `src/services/transaction-status-monitor.ts`
+- Update: `src/database/migrations/add-tx-status.sql`
+- Update: `src/monitors/amm-monitor.ts`
+
 **Success Criteria**:
-- Track 100% of trades through status changes
+- Track 100% of trades through states
 - Proper reorg handling
 - Database consistency maintained
 
 ---
 
-#### SYSTEM-4: Selective WebSocket Monitoring
-**Track**: Unified System  
-**Priority**: MEDIUM  
-**Duration**: 3-4 days  
-**Dependencies**: SYSTEM-3
-
-**Goals**:
-- Real-time account monitoring for Tier 1 tokens
-- Manage WebSocket subscription limits
-- Implement connection pooling
-
-**Key Files**:
-- Create: `src/services/selective-account-monitor.ts`
-- Create: `src/services/websocket-pool.ts`
-- Update: `src/config/monitoring-limits.ts`
-
-**Success Criteria**:
-- Monitor 50 tokens simultaneously
-- Update latency <100ms
-- Automatic reconnection on failures
-
----
-
-#### SYSTEM-5: Unified Event Processor
-**Track**: Unified System  
+#### SYSTEM-6: Historical Trade Backfilling
+**Track**: Core System  
 **Priority**: MEDIUM  
 **Duration**: 1 week  
-**Dependencies**: SYSTEM-4, AMM-2
+**Dependencies**: None
 
 **Goals**:
-- Coordinate all data sources
-- Implement deduplication
-- Handle source priorities
+- Fetch trade history at key thresholds
+- Analyze trading patterns
+- Detect suspicious activity
 
 **Key Files**:
-- Create: `src/services/unified-event-processor.ts`
-- Create: `src/types/event-types.ts`
-- Update: `src/monitors/bc-monitor.ts`
-- Update: `src/monitors/amm-monitor.ts`
-
-**Source Priority**:
-1. WebSocket (most recent)
-2. Trade events (accurate)
-3. GraphQL (bulk updates)
+- Create: `src/services/trade-backfill-service.ts`
+- Create: `src/services/pattern-analyzer.ts`
+- Create: `src/utils/rpc-transaction-fetcher.ts`
 
 **Success Criteria**:
-- No duplicate price updates
-- Correct source priority handling
-- Process 1000+ events/second
+- Backfill 1000+ trades in <30 seconds
+- Pattern detection accuracy >90%
+- Efficient RPC usage
 
----
+### 🔵 Low Priority Enhancements
 
-### 🔵 Production Features
-
-#### AMM-4: File Logging System
-**Track**: AMM Upgrades  
-**Priority**: MEDIUM  
+#### SYSTEM-7: File Logging System
+**Track**: Core System  
+**Priority**: LOW  
 **Duration**: 2-3 days  
-**Dependencies**: AMM-3
+**Dependencies**: None
 
 **Goals**:
 - Structured JSON logging
@@ -242,131 +224,65 @@ Add historical backfilling, metadata enrichment, and performance optimizations.
 
 ---
 
-#### AMM-5: Comprehensive Error Handling
-**Track**: AMM Upgrades  
-**Priority**: MEDIUM  
-**Duration**: 3-4 days  
-**Dependencies**: AMM-4
-
-**Goals**:
-- Categorize and handle all error types
-- Implement retry strategies
-- Add circuit breakers
-
-**Success Criteria**:
-- 99.9% uptime with auto-recovery
-- <0.1% data loss during failures
-- Recovery within 30 seconds
-
----
-
-#### SYSTEM-6: Historical Trade Backfilling
-**Track**: Unified System  
-**Priority**: MEDIUM  
+#### SYSTEM-8: Advanced Analytics
+**Track**: Core System  
+**Priority**: LOW  
 **Duration**: 1 week  
-**Dependencies**: SYSTEM-5
+**Dependencies**: SYSTEM-6
 
 **Goals**:
-- Fetch trade history at $18,888 threshold
-- Parse historical pump.fun transactions
-- Analyze trade patterns
+- Trade velocity tracking
+- Whale wallet detection
+- MEV analysis
 
 **Key Files**:
-- Create: `src/services/trade-backfill-service.ts`
-- Create: `src/services/pattern-analyzer.ts`
-- Create: `src/utils/rpc-transaction-fetcher.ts`
+- Create: `src/services/analytics-engine.ts`
+- Create: `src/services/whale-tracker.ts`
+- Create: `src/api/analytics-endpoints.ts`
 
 **Success Criteria**:
-- Backfill 1000+ trades in <30 seconds
-- Detect trading patterns (snipers, wash)
-- Queue management works smoothly
+- Real-time analytics updates
+- Accurate whale detection
+- API response <100ms
 
----
-
-### ⚪ Optimization & Polish
-
-#### SYSTEM-7: Metadata Enrichment
-**Track**: Unified System  
+#### SYSTEM-9: Performance Optimization
+**Track**: Core System  
 **Priority**: LOW  
-**Duration**: 3-4 days  
+**Duration**: 1 week  
 **Dependencies**: None
 
 **Goals**:
-- Fetch token metadata via DAS API
-- Implement caching strategy
-- Validate metadata quality
+- Multi-level caching
+- Connection pooling optimization
+- Database query optimization
+
+**Key Files**:
+- Create: `src/services/cache-manager.ts`
+- Update: `src/database/query-optimizer.ts`
+- Create: `src/utils/connection-pool.ts`
 
 **Success Criteria**:
-- Enrich 100 tokens in batch
-- Cache hit rate >80%
-- Metadata validation works
+- Handle 10,000 tokens
+- <50MB memory growth/24h
+- Query response <10ms
 
 ---
 
-#### AMM-6: Configurable Parameters
-**Track**: AMM Upgrades  
-**Priority**: LOW  
-**Duration**: 2-3 days  
-**Dependencies**: AMM-5
-
-**Goals**:
-- Make all parameters configurable
-- Support runtime updates
-- Add CLI configuration
-
-**Success Criteria**:
-- All parameters configurable
-- Runtime updates apply <10 seconds
-- Clear validation errors
-
----
-
-#### AMM-7: Enhanced Analytics
-**Track**: AMM Upgrades  
-**Priority**: LOW  
-**Duration**: 3-4 days  
-**Dependencies**: AMM-6
-
-**Goals**:
-- Add trade routing details
-- Calculate advanced metrics (VWAP, MEV)
-- Create analytics API
-
-**Success Criteria**:
-- Routing details 100% accurate
-- MEV detection works
-- API responds <100ms
-
----
-
-#### SYSTEM-8: Performance Optimization
-**Track**: Unified System  
+#### SYSTEM-10: Production Hardening
+**Track**: Core System  
 **Priority**: LOW  
 **Duration**: 1 week  
 **Dependencies**: All previous
 
 **Goals**:
-- Multi-level caching
-- Connection pooling
-- Database optimization
-
-**Success Criteria**:
-- Handle 10,000 tokens
-- <50MB memory growth/24h
-- API usage minimized
-
----
-
-#### AMM-8: Production Hardening
-**Track**: AMM Upgrades  
-**Priority**: LOW  
-**Duration**: 1 week  
-**Dependencies**: AMM-7
-
-**Goals**:
 - Add monitoring/alerting
 - Security hardening
 - Load testing
+
+**Key Files**:
+- Create: `src/monitoring/health-checker.ts`
+- Create: `src/security/rate-limiter.ts`
+- Create: `tests/load-test.ts`
 
 **Success Criteria**:
 - Handle 1000+ trades/second
@@ -375,111 +291,61 @@ Add historical backfilling, metadata enrichment, and performance optimizations.
 
 ---
 
-#### SYSTEM-9: Dashboard Updates
-**Track**: Unified System  
-**Priority**: LOW  
-**Duration**: 3-4 days  
-**Dependencies**: SYSTEM-8
+## Updated Implementation Schedule
 
-**Goals**:
-- Show monitoring sources
-- Add tier visualization
-- Real-time indicators
-
-**Success Criteria**:
-- Real-time updates work
-- Performance with 1000+ tokens
-- Mobile responsive
-
----
-
-#### SYSTEM-10: Integration Testing
-**Track**: Unified System  
-**Priority**: LOW  
-**Duration**: 1 week  
-**Dependencies**: All previous
-
-**Goals**:
-- Full system testing
-- Deployment automation
-- Monitoring setup
-
-**Success Criteria**:
-- All components integrated
-- Gradual rollout successful
-- Alerts working correctly
-
----
-
-## Implementation Schedule
-
-### Phase 1: Critical Foundation (Weeks 1-2)
+### ✅ Completed (December 2024)
 - AMM-1: Pool Reserve Monitoring
 - AMM-2: Real-time Price Calculations
-- SYSTEM-1: GraphQL Bulk Recovery
+- SYSTEM-1: GraphQL/DexScreener Recovery
+- SYSTEM-2: AMM Token Creation
+- SYSTEM-3: Enhanced Token Enrichment
 
-### Phase 2: Core Systems (Weeks 3-4)
-- SYSTEM-2: Stale Token Detection
-- SYSTEM-3: Tiered Monitoring
-- AMM-3: Transaction Status
+### Phase 1: High Priority (Next 2 weeks)
+- DASHBOARD-1: Fix WebSocket Issues
+- SYSTEM-4: RPC Price Recovery
 
-### Phase 3: Enhanced Features (Weeks 5-6)
-- SYSTEM-4: WebSocket Monitoring
-- SYSTEM-5: Unified Event Processor
-- AMM-4: File Logging
-- AMM-5: Error Handling
-
-### Phase 4: Production Features (Weeks 7-8)
+### Phase 2: Medium Priority (Weeks 3-4)
+- DASHBOARD-2: Complete Dashboard
+- SYSTEM-5: Transaction Status
 - SYSTEM-6: Historical Backfilling
-- SYSTEM-7: Metadata Enrichment
-- AMM-6: Configurable Parameters
 
-### Phase 5: Optimization (Weeks 9-10)
-- AMM-7: Enhanced Analytics
-- SYSTEM-8: Performance Optimization
-- AMM-8: Production Hardening
-
-### Phase 6: Final Polish (Week 11)
-- SYSTEM-9: Dashboard Updates
-- SYSTEM-10: Integration Testing
+### Phase 3: Low Priority (Weeks 5-6)
+- SYSTEM-7: File Logging
+- SYSTEM-8: Advanced Analytics
+- SYSTEM-9: Performance Optimization
+- SYSTEM-10: Production Hardening
 
 ---
 
-## Success Metrics
+## Current Success Metrics (December 2024)
 
-### System-Wide Metrics
-- **Price Accuracy**: Within 0.1% of on-chain
-- **Update Latency**: <100ms for Tier 1 tokens
-- **API Efficiency**: <10 calls per token per day
+### ✅ Achieved Metrics
+- **BC Parse Rate**: >95% (improved from 82.9%)
+- **AMM Token Creation**: 100% automatic
+- **Graduation Detection**: Real-time via account monitor
+- **DexScreener Recovery**: 90%+ success rate
+- **Price Updates**: <100ms for active trades
+- **Metadata Enrichment**: 50x faster with GraphQL
+- **Auto Enrichment**: All tokens >$8,888 within 30 seconds
+
+### 🎯 Target Metrics
 - **System Uptime**: >99.9%
+- **Price Accuracy**: Within 0.1% of on-chain
+- **API Efficiency**: <10 calls per token per day
+- **Dashboard Performance**: <100ms updates
 - **Total Cost**: <$50/month for all APIs
-
-### AMM-Specific Metrics
-- **Parse Rate**: >99% for AMM transactions
-- **Reserve Accuracy**: Exact match with on-chain
-- **Price Deviation**: <1% from DEX aggregators
-
-### BC-Specific Metrics
-- **Parse Rate**: >95% maintained
-- **Graduation Detection**: Within 5 seconds
-- **Stale Recovery**: <30 seconds for 1000 tokens
 
 ---
 
 ## Database Schema Updates
 
+### ✅ Already Implemented
 ```sql
--- Monitoring tier system
+-- Main token table with DexScreener tracking
 ALTER TABLE tokens_unified ADD COLUMN IF NOT EXISTS 
-  monitoring_tier INTEGER DEFAULT 3,
-  monitoring_method VARCHAR(20) DEFAULT 'graphql-periodic',
-  last_graphql_update TIMESTAMPTZ,
-  last_websocket_update TIMESTAMPTZ,
-  last_account_update TIMESTAMPTZ,
-  tier_assigned_at TIMESTAMPTZ DEFAULT NOW(),
-  tier_transition_count INTEGER DEFAULT 0;
+  last_dexscreener_update TIMESTAMP;
 
--- AMM pool state tracking
+-- AMM pool state tracking (already exists)
 CREATE TABLE IF NOT EXISTS amm_pool_states (
   id BIGSERIAL PRIMARY KEY,
   mint_address VARCHAR(64) NOT NULL,
@@ -490,38 +356,12 @@ CREATE TABLE IF NOT EXISTS amm_pool_states (
   real_token_reserves BIGINT,
   pool_open BOOLEAN DEFAULT TRUE,
   slot BIGINT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  FOREIGN KEY (mint_address) REFERENCES tokens_unified(mint_address)
-);
-
-CREATE INDEX idx_amm_pool_states_lookup ON amm_pool_states(mint_address, created_at DESC);
-
--- Price update tracking
-CREATE TABLE IF NOT EXISTS price_update_sources (
-  id BIGSERIAL PRIMARY KEY,
-  mint_address VARCHAR(64) REFERENCES tokens_unified(mint_address),
-  update_source VARCHAR(20) NOT NULL,
-  price_sol DECIMAL(20,12),
-  price_usd DECIMAL(20,4),
-  market_cap_usd DECIMAL(20,4),
-  reserves_sol BIGINT,
-  reserves_token BIGINT,
-  latency_ms INTEGER,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+```
 
--- Stale token recovery tracking
-CREATE TABLE IF NOT EXISTS stale_token_recovery (
-  id BIGSERIAL PRIMARY KEY,
-  recovery_batch_id UUID DEFAULT gen_random_uuid(),
-  tokens_checked INTEGER NOT NULL,
-  tokens_stale INTEGER NOT NULL,
-  tokens_recovered INTEGER NOT NULL,
-  graphql_queries INTEGER NOT NULL,
-  total_duration_ms INTEGER NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
+### 📝 Pending Schema Updates
+```sql
 -- Transaction status tracking
 ALTER TABLE trades_unified ADD COLUMN IF NOT EXISTS
   confirmation_status VARCHAR(20) DEFAULT 'confirmed',
@@ -529,64 +369,93 @@ ALTER TABLE trades_unified ADD COLUMN IF NOT EXISTS
   finalized_at TIMESTAMPTZ,
   failed BOOLEAN DEFAULT FALSE,
   failure_reason VARCHAR(255);
+
+-- Enhanced price tracking
+CREATE TABLE IF NOT EXISTS price_history (
+  id BIGSERIAL PRIMARY KEY,
+  mint_address VARCHAR(64) REFERENCES tokens_unified(mint_address),
+  price_usd DECIMAL(20,4),
+  liquidity_usd DECIMAL(20,4),
+  volume_24h_usd DECIMAL(20,4),
+  price_change_24h DECIMAL(10,4),
+  source VARCHAR(50),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Analytics tracking
+CREATE TABLE IF NOT EXISTS whale_wallets (
+  wallet_address VARCHAR(64) PRIMARY KEY,
+  total_volume_usd DECIMAL(20,4),
+  trade_count INTEGER,
+  tokens_traded INTEGER,
+  first_seen TIMESTAMPTZ,
+  last_seen TIMESTAMPTZ
+);
 ```
 
 ---
 
 ## Risk Mitigation
 
-### Technical Risks
-- **API Rate Limits**: Circuit breakers, exponential backoff
-- **Data Inconsistency**: Source priorities, deduplication
-- **Memory Leaks**: Regular profiling, automatic restarts
-- **Network Failures**: Connection pooling, auto-reconnect
+### Current Mitigations
+- **API Rate Limits**: DexScreener has 300ms delays
+- **Memory Management**: Batch processing, cache limits
+- **Error Recovery**: Retry logic in database service
+- **Multiple Price Sources**: GraphQL → DexScreener → RPC
 
-### Operational Risks
-- **Feature Flags**: Every major feature can be toggled
-- **Gradual Rollout**: Start with 10% of tokens
-- **Rollback Plan**: Git tags for each phase
-- **Monitoring**: Comprehensive metrics and alerts
+### Future Mitigations
+- **Circuit Breakers**: For all external APIs
+- **Feature Flags**: Toggle major features
+- **Gradual Rollout**: Test with subset first
+- **Monitoring**: Health checks and alerts
 
 ---
 
-## Testing Strategy
+## Quick Start Guide
 
-### Unit Tests
-- Each new service gets comprehensive unit tests
-- Mock external dependencies
-- Test error conditions
-
-### Integration Tests
-- Test data flow between components
-- Verify database consistency
-- Test failover scenarios
-
-### Performance Tests
-- Load test with 10x normal volume
-- Memory leak detection
-- API usage optimization
-
-### Verification Scripts
+### Running the Complete System
 ```bash
-# After each session
-npm run verify-amm-1     # Verify pool state decoding
-npm run verify-system-1  # Verify GraphQL recovery
-# ... etc
+# One command to start everything
+./scripts/run-complete-monitoring.sh
 
-# Full system verification
-npm run verify-all-systems
+# Or manually:
+npm run bc-monitor-quick-fix     # BC trades
+npm run bc-account-monitor       # Graduations
+npm run amm-monitor              # AMM trades
+npm run amm-account-monitor      # Pool states
+npm run sol-price-updater        # SOL prices
+tsx scripts/start-dexscreener-recovery.ts  # Stale recovery
+npm run dashboard                # Web UI
+```
+
+### Testing
+```bash
+# Test DexScreener integration
+tsx scripts/test-dexscreener-recovery.ts
+
+# Test AMM token creation
+tsx scripts/quick-test-amm-creation.ts
+
+# Full recovery test
+tsx scripts/test-dexscreener-full-recovery.ts
 ```
 
 ---
 
 ## Next Steps
 
-1. **Immediate Priority**: Start with AMM-1 (Pool Reserve Monitoring) to fix the critical issue of hardcoded zeros in the AMM monitor
+### Immediate Priority (This Week)
+1. **DASHBOARD-1**: Fix WebSocket server issues to enable real-time dashboard updates
+2. **SYSTEM-3**: Enhance token enrichment for better metadata coverage
 
-2. **Parallel Work**: While working on AMM fixes, another developer can start SYSTEM-1 (GraphQL Bulk Recovery)
+### Medium Term (Next Month)
+1. **SYSTEM-4**: Implement RPC price recovery as additional fallback
+2. **DASHBOARD-2**: Complete dashboard with charts and analytics
+3. **SYSTEM-5**: Add transaction status monitoring
 
-3. **Weekly Reviews**: Assess progress and adjust priorities based on findings
+### Long Term (Q1 2025)
+1. **SYSTEM-6**: Historical trade backfilling
+2. **SYSTEM-8**: Advanced analytics and whale tracking
+3. **SYSTEM-10**: Production hardening for 99.99% uptime
 
-4. **Documentation**: Update CLAUDE.md after each major session
-
-This master plan provides a clear path forward with well-defined sessions, dependencies, and success criteria. Each session builds upon the previous ones while maintaining system stability.
+This master plan reflects the current state of the system with significant progress made on core monitoring and price recovery. The focus now shifts to dashboard improvements and advanced features.

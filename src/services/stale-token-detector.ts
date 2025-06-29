@@ -5,6 +5,7 @@
 
 import { db } from '../database';
 import { UnifiedGraphQLPriceRecovery } from './unified-graphql-price-recovery';
+import { DexScreenerPriceRecovery } from './dexscreener-price-recovery';
 import { RecoveryQueue } from './recovery-queue';
 import { 
   StaleToken, 
@@ -21,6 +22,7 @@ export class StaleTokenDetector {
   private config: StaleDetectionConfig;
   private recoveryQueue: RecoveryQueue;
   private priceRecovery: UnifiedGraphQLPriceRecovery;
+  private dexScreenerRecovery: DexScreenerPriceRecovery;
   private isRunning = false;
   private scanInterval: NodeJS.Timeout | null = null;
   private stats: StaleDetectionStats = {
@@ -51,6 +53,7 @@ export class StaleTokenDetector {
     
     this.recoveryQueue = new RecoveryQueue();
     this.priceRecovery = UnifiedGraphQLPriceRecovery.getInstance();
+    this.dexScreenerRecovery = DexScreenerPriceRecovery.getInstance();
   }
   
   static getInstance(config?: Partial<StaleDetectionConfig>): StaleTokenDetector {

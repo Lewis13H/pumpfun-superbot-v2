@@ -6,6 +6,7 @@
 
 import { db } from '../database';
 import { SolPriceService } from '../services/sol-price';
+import { EnhancedAutoEnricher } from '../services/enhanced-auto-enricher';
 
 export interface UnifiedTokenData {
   mintAddress: string;
@@ -45,6 +46,7 @@ export interface BatchItem {
 
 export class UnifiedDbServiceV2 {
   private static instance: UnifiedDbServiceV2;
+  private autoEnricher: EnhancedAutoEnricher;
   
   // Batch processing
   private batchQueue: BatchItem[] = [];
@@ -69,6 +71,9 @@ export class UnifiedDbServiceV2 {
   };
 
   private constructor() {
+    // Initialize auto-enricher
+    this.autoEnricher = EnhancedAutoEnricher.getInstance();
+    
     this.startBatchProcessor();
     // Refresh cache periodically
     setInterval(() => this.refreshCache(), 60000); // Every minute
@@ -108,11 +113,49 @@ export class UnifiedDbServiceV2 {
    * Process a trade event
    */
   async processTrade(trade: UnifiedTradeData): Promise<void> {
-    // Only process if market cap >= $8,888
-    if (trade.marketCapUsd < 8888) return;
+    // Different thresholds for different programs
+    const threshold = trade.program === 'amm_pool' 
+      ? 1000  // Lower threshold for AMM tokens ($1,000)
+      : 8888; // Standard threshold for bonding curves
+    
+    // Only process if market cap >= threshold
+    if (trade.marketCapUsd < threshold) return;
     
     // Check cache first
     const cached = this.tokenCache.get(trade.mintAddress);
+    
+    // For AMM trades, create token if it doesn't exist
+    if (trade.program === 'amm_pool' && !cached) {
+      // Check if token exists in database
+      const exists = await db.query(
+        'SELECT 1 FROM tokens_unified WHERE mint_address = $1',
+        [trade.mintAddress]
+      );
+      
+      if (exists.rows.length === 0) {
+        // Create new AMM token entry
+        console.log(`📝 Creating new AMM token: ${trade.mintAddress}`);
+        await this.processToken({
+          mintAddress: trade.mintAddress,
+          symbol: null, // Will be enriched later
+          name: null,
+          uri: null,
+          firstProgram: 'amm_pool',
+          firstSeenSlot: trade.slot,
+          firstPriceSol: trade.priceSol,
+          firstPriceUsd: trade.priceUsd,
+          firstMarketCapUsd: trade.marketCapUsd,
+          tokenCreatedAt: null
+        });
+        
+        // Mark as graduated since it's already on AMM
+        await this.markTokenGraduated(trade.mintAddress, trade.slot);
+        
+        // Trigger automatic enrichment for new AMM tokens
+        await this.autoEnricher.enrichTokenOnThreshold(trade.mintAddress, trade.marketCapUsd);
+      }
+    }
+    
     if (!cached || !cached.thresholdCrossed) {
       // Token might have just crossed threshold
       await this.checkAndUpdateThreshold(trade);
@@ -226,6 +269,9 @@ export class UnifiedDbServiceV2 {
         };
         cached.thresholdCrossed = true;
         this.tokenCache.set(trade.mintAddress, cached);
+        
+        // Trigger automatic enrichment for tokens crossing threshold
+        await this.autoEnricher.enrichTokenOnThreshold(trade.mintAddress, trade.marketCapUsd);
       }
     } catch (error) {
       console.error('Error updating threshold:', error);

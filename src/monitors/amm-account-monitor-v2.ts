@@ -14,7 +14,7 @@ import { suppressParserWarnings } from '../utils/suppress-parser-warnings';
 import { AmmPoolStateService } from '../services/amm-pool-state-service';
 import { formatCurrency } from '../utils/formatters';
 import { decodePoolAccount, poolAccountToPlain } from '../utils/amm-pool-decoder';
-import { unifiedWebSocketServer, PoolStateEvent } from '../services/unified-websocket-server-stub';
+import { unifiedWebSocketServer, PoolStateEvent } from '../services/unified-websocket-server';
 import * as borsh from '@coral-xyz/borsh';
 
 // Program IDs

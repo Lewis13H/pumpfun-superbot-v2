@@ -9,31 +9,43 @@ Real-time Solana token monitor for pump.fun bonding curves and pump.swap AMM poo
 ## Development Commands
 
 ```bash
-# Recommended Production Setup (run all four monitors)
+# Complete Production Setup (run all monitors + recovery)
+./scripts/run-complete-monitoring.sh    # Runs all 4 monitors + SOL price + DexScreener recovery
+
+# Individual Monitors
 npm run bc-monitor-quick-fix  # Bonding curve trade monitor (>95% parse rate)
 npm run bc-account-monitor    # Bonding curve account monitor (detects graduations)
 npm run amm-monitor           # AMM pool trade monitor for graduated tokens
 npm run amm-account-monitor   # AMM account state monitor for pool reserves
 
-# Legacy Monitors
+# Price Recovery Services
+tsx scripts/start-dexscreener-recovery.ts  # DexScreener recovery for stale graduated tokens
+npm run sol-price-updater     # SOL price updater (runs automatically with monitors)
+
+# Legacy/Deprecated Monitors
 npm run unified-v2         # DEPRECATED - has AMM detection issues
 npm run bc-monitor         # Original BC monitor (lower parse rate)
 
 # Database Operations
 npm run migrate-unified    # Run database migrations
-npm run migrate-amm-pools  # Run AMM pool states migration (or use fix-amm-pool-states.ts if table exists)
+npm run migrate-amm-pools  # Run AMM pool states migration
 npm run view-tokens-unified # View saved tokens
 npm run enrich-tokens-unified # Fetch metadata from Helius API
 npm run query-trades       # Query recent trades
 
-# Dashboard & Services
+# Dashboard & API
 npm run dashboard          # Web dashboard (http://localhost:3001)
-npm run sol-price-updater  # SOL price updater (runs automatically with monitors)
 
 # Testing & Debugging
 npm run debug-amm          # Debug AMM pool structure
 npm run verify-amm-session-1  # Verify pool reserve monitoring
 npm run bc-monitor-watch   # Watch parse/save rates only
+tsx scripts/test-dexscreener-recovery.ts     # Test DexScreener API
+tsx scripts/test-enhanced-enrichment.ts      # Test token metadata enrichment
+tsx scripts/batch-enrich-graphql.ts         # Batch enrich using GraphQL (fastest)
+tsx scripts/batch-enrich-tokens.ts          # Batch enrich using REST APIs
+tsx scripts/test-graphql-metadata.ts        # Test GraphQL metadata queries
+tsx scripts/quick-test-amm-creation.ts       # Test AMM token creation (1 min)
 ./scripts/quick-test-bc-monitor.sh   # 5-minute quick test
 ./scripts/test-bc-monitor.sh         # 1-hour comprehensive test
 ./scripts/monitor-improvements.sh    # Run monitor with custom settings
@@ -63,15 +75,20 @@ src/
 │   ├── bc-monitor-stats.ts         # Enhanced statistics tracking
 │   ├── bc-websocket-server.ts      # Legacy BC WebSocket server
 │   ├── unified-websocket-server.ts  # Unified WebSocket for all monitors
-│   ├── auto-enricher.ts            # Token metadata enrichment
-│   ├── helius.ts                   # Helius API client
+│   ├── auto-enricher.ts            # Legacy token metadata enrichment
+│   ├── enhanced-auto-enricher.ts   # Enhanced enricher with GraphQL + API fallbacks
+│   ├── graphql-metadata-enricher.ts # GraphQL bulk metadata queries (50 tokens/query)
+│   ├── shyft-metadata-service.ts   # Shyft REST API for metadata
+│   ├── helius.ts                   # Helius DAS API client
 │   ├── amm-pool-state-service.ts   # AMM pool state tracking and caching
 │   ├── graphql-client.ts           # Shyft GraphQL client with retry logic
 │   ├── graphql-price-recovery.ts   # BC-only price recovery (deprecated)
 │   ├── unified-graphql-price-recovery.ts # Unified BC/AMM price recovery
 │   ├── amm-pool-price-recovery.ts  # Pool state-based price recovery
 │   ├── stale-token-detector.ts     # Automatic stale token detection/recovery
-│   └── recovery-queue.ts           # Priority queue for token recovery
+│   ├── recovery-queue.ts           # Priority queue for token recovery
+│   ├── dexscreener-price-service.ts    # DexScreener API client
+│   └── dexscreener-price-recovery.ts   # Stale graduated token recovery
 ├── api/
 │   ├── server-unified.ts           # Main API server
 │   ├── bc-monitor-endpoints.ts     # BC monitor specific endpoints
@@ -163,6 +180,8 @@ High-performance service using:
 - In-memory cache for recent tokens
 - Atomic threshold crossing detection
 - Connection pooling for PostgreSQL
+- **NEW**: Automatic token creation for AMM trades
+- Different thresholds: $1,000 for AMM, $8,888 for BC
 
 #### Parser Strategy (`unified-parser.ts`)
 - Simple log parsing for pump.fun events (catches more trades)
@@ -180,7 +199,8 @@ SHYFT_GRPC_TOKEN=your-token-here
 DATABASE_URL=postgresql://user@localhost:5432/pump_monitor
 
 # Optional
-HELIUS_API_KEY=your-api-key          # For metadata enrichment
+HELIUS_API_KEY=your-api-key          # For metadata enrichment (fallback)
+SHYFT_API_KEY=your-api-key           # For Shyft DAS API (primary metadata source)
 API_PORT=3001                        # Dashboard port
 
 # BC Monitor Configuration
@@ -265,16 +285,18 @@ data.transaction.transaction.meta                            // Contains logs
    - Solution: Created separate `bc-account-monitor` for account state tracking
    - 62 tokens with 100% progress weren't marked as graduated - now fixed
 
-9. **Graduated Token Price Updates**
+9. **Graduated Token Price Updates (FIXED)**
    - GraphQL `pump_fun_amm_Pool` table is empty (no AMM pools indexed)
    - Real-time updates work via AMM monitor trades
-   - Stale graduated tokens have no fallback price source
-   - Pool state recovery exists but has data quality issues
+   - **NEW**: DexScreener API integration for stale graduated tokens
+   - Successfully recovers prices from multiple DEXs
+   - Includes liquidity, volume, and price change data
 
-10. **AMM Pool State Data Issues**
-    - `amm_pool_states.mint_address` contains SOL mint instead of token mint
-    - Need proper pool address → token mint mapping
-    - Makes pool state fallback recovery non-functional
+10. **AMM Token Creation (FIXED)**
+    - AMM monitor now creates token entries for new AMM tokens
+    - Lower threshold for AMM tokens ($1,000 vs $8,888)
+    - Automatically marks as graduated
+    - Enables price tracking for all traded tokens
 
 5. **Rate limits**
    - Shyft: 50 subscriptions/60s per token
@@ -307,9 +329,10 @@ CREATE TABLE tokens_unified (
     graduated_to_amm BOOLEAN DEFAULT FALSE,
     graduation_at TIMESTAMP,
     graduation_slot BIGINT,
-    price_source TEXT DEFAULT 'unknown', -- 'bonding_curve', 'amm', 'graphql', 'rpc'
+    price_source TEXT DEFAULT 'unknown', -- 'bonding_curve', 'amm', 'graphql', 'dexscreener', 'rpc'
     last_graphql_update TIMESTAMP,
     last_rpc_update TIMESTAMP,
+    last_dexscreener_update TIMESTAMP,  -- NEW: DexScreener update tracking
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -365,10 +388,12 @@ CREATE INDEX idx_amm_pool_states_pool ON amm_pool_states(pool_address, created_a
 4. **Custom threshold testing**: `BC_SAVE_THRESHOLD=1000 npm run bc-monitor-quick-fix`
 5. **Debug parse errors**: `DEBUG_PARSE_ERRORS=true npm run bc-monitor-quick-fix`
 6. **Verify AMM trades**: `npm run verify-amm-trades` - Captures 5 recent trades with Solscan links
-7. **Check recent trades**: View dashboard or query database
-8. **Debug AMM issues**: Use `npm run debug-amm` to see pool structure
-9. **Database verification**: `psql $DATABASE_URL < scripts/validate-bc-monitor-data.sql`
-10. **Suppress parser warnings**: `suppressParserWarnings()` utility filters ComputeBudget warnings
+7. **Test DexScreener recovery**: `tsx scripts/test-dexscreener-recovery.ts`
+8. **Test AMM token creation**: `tsx scripts/quick-test-amm-creation.ts`
+9. **Check recent trades**: View dashboard or query database
+10. **Debug AMM issues**: Use `npm run debug-amm` to see pool structure
+11. **Database verification**: `psql $DATABASE_URL < scripts/validate-bc-monitor-data.sql`
+12. **Suppress parser warnings**: `suppressParserWarnings()` utility filters ComputeBudget warnings
 
 ## Performance Optimization
 
@@ -421,20 +446,24 @@ BC_SAVE_THRESHOLD=5000 SAVE_ALL_TOKENS=false npm run bc-monitor-quick-fix
    - BC trades update non-graduated token prices
    - AMM trades update graduated token prices
    - Account monitors track state changes
+   - **NEW**: AMM monitor creates tokens automatically
 
 2. **GraphQL Bulk Recovery** (Secondary)
-   - `UnifiedGraphQLPriceRecovery` handles both BC and AMM tokens
+   - `UnifiedGraphQLPriceRecovery` handles BC tokens
    - Bonding curves: Working via `pump_BondingCurve` table
    - AMM pools: Not working - `pump_fun_amm_Pool` table is empty
 
-3. **Pool State Recovery** (Tertiary)
-   - Uses cached data from `amm-account-monitor`
-   - Currently broken: `amm_pool_states` has data quality issues
-   - Mint address column contains SOL mint instead of token mint
+3. **DexScreener Recovery** (NEW - Working!)
+   - `DexScreenerPriceService` - API client for token prices
+   - `DexScreenerPriceRecovery` - Automated recovery service
+   - Successfully recovers graduated token prices
+   - Includes liquidity, volume, and 24h change data
+   - Rate limited to 300ms between requests
+   - Runs every 30 minutes for stale tokens
 
-4. **RPC Recovery** (Future)
-   - Direct blockchain queries for pool reserves
-   - Scaffolded but not implemented
+4. **Pool State Recovery** (Broken)
+   - Uses cached data from `amm-account-monitor`
+   - Data quality issues prevent proper recovery
 
 ### Graduation Detection
 - **BC Account Monitor** detects graduations in real-time
@@ -629,3 +658,93 @@ npm run sol-price-updater
 3. Add proper error handling to API endpoints
 4. Test end-to-end data flow
 5. Implement missing UI components
+
+## Current System Status (December 2024)
+
+### ✅ Working Components
+
+1. **Real-time Monitoring**
+   - BC Monitor: Captures bonding curve trades with >95% parse rate
+   - BC Account Monitor: Detects graduations in real-time
+   - AMM Monitor: Captures AMM trades AND creates token entries automatically
+   - AMM Account Monitor: Tracks pool states and reserves
+
+2. **Price Recovery**
+   - GraphQL: Works for bonding curve tokens only
+   - DexScreener: Successfully recovers graduated token prices
+   - Includes liquidity, volume, and 24h change data
+
+3. **Enhanced Token Enrichment**
+   - **NEW**: Automatic metadata enrichment for tokens above $8,888
+   - **GraphQL bulk queries** as primary source (50 tokens per query - 50x faster!)
+   - Shyft REST API as secondary fallback
+   - Helius DAS API as tertiary fallback
+   - Batch processing for efficiency
+   - Immediate enrichment when tokens cross threshold or AMM creation
+   - Background service runs automatically with monitors
+   - Comprehensive metadata: name, symbol, description, image, creators, supply, decimals, authorities
+
+4. **Key Improvements**
+   - AMM tokens now created automatically with $1,000 threshold
+   - DexScreener integration provides fallback for stale graduated tokens
+   - Complete monitoring script runs all services
+   - All tokens above $8,888 market cap automatically get metadata
+
+### 🚀 Quick Start
+
+```bash
+# Run everything with one command
+./scripts/run-complete-monitoring.sh
+
+# This starts:
+# - 4 monitors (BC trade, BC account, AMM trade, AMM account)
+# - SOL price updater
+# - API server & dashboard
+# - DexScreener recovery service
+# - Auto enricher service (GraphQL-based metadata)
+```
+
+### 🎯 Token Metadata Enrichment
+
+The system automatically enriches all tokens above $8,888 market cap with comprehensive metadata:
+
+**Metadata Collection Priority**:
+1. **GraphQL bulk queries** (50 tokens per query - fastest)
+2. **Shyft REST API** (fallback for tokens not in GraphQL)
+3. **Helius DAS API** (final fallback)
+4. **Basic RPC data** (minimal metadata)
+
+**Collected Metadata**:
+- Basic: name, symbol, description, image, uri
+- Extended: creators array, supply, decimals, is_mutable
+- Authorities: mint_authority, freeze_authority
+- Tracking: metadata_source, metadata_updated_at
+
+**Automatic Enrichment**:
+- Runs automatically with monitors
+- Checks every 30 seconds for new tokens
+- Immediate enrichment when tokens cross $8,888
+- Immediate enrichment for all new AMM tokens
+
+**Manual Batch Enrichment**:
+```bash
+# Enrich all existing tokens using GraphQL (recommended - 50x faster)
+tsx scripts/batch-enrich-graphql.ts
+
+# Alternative: Use REST APIs (slower but more thorough)
+tsx scripts/batch-enrich-tokens.ts
+```
+
+### 📊 System Architecture
+
+```
+Real-time Data Flow:
+├── Shyft gRPC → Monitors → Database → Dashboard
+├── BC trades → Non-graduated prices
+├── AMM trades → Graduated prices + new tokens
+└── Account updates → Graduation detection
+
+Recovery Flow:
+├── Stale BC tokens → GraphQL recovery
+└── Stale graduated tokens → DexScreener API
+```
