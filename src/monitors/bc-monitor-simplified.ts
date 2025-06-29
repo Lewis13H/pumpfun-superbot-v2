@@ -173,34 +173,22 @@ class SimplifiedBondingCurveMonitor {
 
       this.stream = await this.client.subscribe();
       
-      // Wait for connection confirmation
-      const connected = await new Promise<boolean>((resolve) => {
-        const timeout = setTimeout(() => resolve(false), 10000);
-        
-        this.stream.on('data', (data: any) => {
-          clearTimeout(timeout);
-          resolve(true);
-        });
-        
-        this.stream.on('error', (error: Error) => {
-          clearTimeout(timeout);
-          this.formatter.logError('Stream error', error);
-          resolve(false);
-        });
+      // Set up event handlers
+      this.stream.on('error', (error: Error) => {
+        this.formatter.logError('Stream error', error);
       });
-      
-      if (!connected) {
-        throw new Error('Connection timeout');
-      }
-      
-      this.formatter.logSuccess('Connected to gRPC stream');
-      
-      // Write subscription request
-      this.stream.write(request);
       
       this.stream.on('data', (data: any) => {
         this.handleTransaction(data);
       });
+      
+      // Write subscription request
+      this.stream.write(request);
+      
+      // Give it a moment to connect
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      this.formatter.logSuccess('Connected to gRPC stream');
       
     } catch (error) {
       this.formatter.logError('Failed to start monitoring', error);
@@ -216,11 +204,11 @@ class SimplifiedBondingCurveMonitor {
       if (!transaction) return;
       
       const logs = transaction.meta?.logMessages || [];
-      const graduationDetected = detectGraduationFromLogs(logs);
+      const graduationInfo = detectGraduationFromLogs(logs);
       
-      if (graduationDetected) {
+      if (graduationInfo.isGraduation) {
         this.stats.graduations++;
-        this.formatter.logSuccess(`🎓 GRADUATION DETECTED! ${graduationDetected.mint}`);
+        this.formatter.logSuccess(`🎓 GRADUATION DETECTED! ${graduationInfo.mintAddress || 'Unknown'}`);
       }
       
       const accountKeys = transaction.transaction?.message?.accountKeys || [];

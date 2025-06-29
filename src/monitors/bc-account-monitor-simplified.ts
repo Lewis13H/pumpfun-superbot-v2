@@ -103,34 +103,22 @@ class SimplifiedBCAccountMonitor {
 
       this.stream = await this.client.subscribe();
       
-      // Wait for connection confirmation
-      const connected = await new Promise<boolean>((resolve) => {
-        const timeout = setTimeout(() => resolve(false), 10000);
-        
-        this.stream.on('data', (data: any) => {
-          clearTimeout(timeout);
-          resolve(true);
-        });
-        
-        this.stream.on('error', (error: Error) => {
-          clearTimeout(timeout);
-          this.formatter.logError('Stream error', error);
-          resolve(false);
-        });
+      // Set up event handlers
+      this.stream.on('error', (error: Error) => {
+        this.formatter.logError('Stream error', error);
       });
-      
-      if (!connected) {
-        throw new Error('Connection timeout');
-      }
-      
-      this.formatter.logSuccess('Connected to gRPC stream');
-      
-      // Write subscription request
-      this.stream.write(request);
       
       this.stream.on('data', (data: any) => {
         this.handleAccount(data);
       });
+      
+      // Write subscription request
+      this.stream.write(request);
+      
+      // Give it a moment to connect
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      this.formatter.logSuccess('Connected to gRPC stream');
       
     } catch (error) {
       this.formatter.logError('Failed to start monitoring', error);
