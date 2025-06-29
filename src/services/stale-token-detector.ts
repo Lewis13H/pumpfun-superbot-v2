@@ -4,7 +4,7 @@
  */
 
 import { db } from '../database';
-import { GraphQLPriceRecovery } from './graphql-price-recovery';
+import { UnifiedGraphQLPriceRecovery } from './unified-graphql-price-recovery';
 import { RecoveryQueue } from './recovery-queue';
 import { 
   StaleToken, 
@@ -20,7 +20,7 @@ export class StaleTokenDetector {
   private static instance: StaleTokenDetector;
   private config: StaleDetectionConfig;
   private recoveryQueue: RecoveryQueue;
-  private priceRecovery: GraphQLPriceRecovery;
+  private priceRecovery: UnifiedGraphQLPriceRecovery;
   private isRunning = false;
   private scanInterval: NodeJS.Timeout | null = null;
   private stats: StaleDetectionStats = {
@@ -50,7 +50,7 @@ export class StaleTokenDetector {
     };
     
     this.recoveryQueue = new RecoveryQueue();
-    this.priceRecovery = GraphQLPriceRecovery.getInstance();
+    this.priceRecovery = UnifiedGraphQLPriceRecovery.getInstance();
   }
   
   static getInstance(config?: Partial<StaleDetectionConfig>): StaleTokenDetector {
@@ -127,18 +127,18 @@ export class StaleTokenDetector {
       if (downtimeMinutes >= this.config.startupRecoveryThresholdMinutes) {
         console.log(chalk.yellow(`⏰ Detected ${downtimeMinutes} minutes of downtime. Starting recovery...`));
         
-        // Get all active tokens sorted by market cap
+        // Get all tokens sorted by market cap (both graduated and non-graduated)
         const tokens = await db.query(`
           SELECT 
             mint_address,
             symbol,
             name,
             latest_market_cap_usd,
-            updated_at
+            updated_at,
+            graduated_to_amm
           FROM tokens_unified
           WHERE 
-            graduated_to_amm = false
-            AND latest_market_cap_usd > 1000
+            latest_market_cap_usd > 1000
           ORDER BY latest_market_cap_usd DESC
         `);
         
@@ -194,7 +194,7 @@ export class StaleTokenDetector {
       const startTime = Date.now();
       this.stats.lastScanTime = new Date();
       
-      // Query for potentially stale tokens
+      // Query for potentially stale tokens (both graduated and non-graduated)
       const result = await db.query(`
         SELECT 
           mint_address,
@@ -202,11 +202,11 @@ export class StaleTokenDetector {
           name,
           latest_market_cap_usd,
           updated_at,
+          graduated_to_amm,
           EXTRACT(EPOCH FROM (NOW() - updated_at)) / 60 as minutes_since_update
         FROM tokens_unified
         WHERE 
-          graduated_to_amm = false
-          AND latest_market_cap_usd > 1000
+          latest_market_cap_usd > 1000
           AND updated_at < NOW() - INTERVAL '${this.config.staleThresholdMinutes} minutes'
         ORDER BY latest_market_cap_usd DESC
       `);

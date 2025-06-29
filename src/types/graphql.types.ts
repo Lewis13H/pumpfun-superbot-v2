@@ -52,3 +52,45 @@ export interface GraphQLError {
     [key: string]: any;
   };
 }
+
+// AMM Pool Types
+export interface AmmPoolData {
+  pubkey: string;
+  base_mint: string; // SOL mint
+  quote_mint: string; // Token mint
+  pool_base_token_account: string; // SOL reserves account
+  pool_quote_token_account: string; // Token reserves account
+  lp_supply: string;
+  _updatedAt: string;
+}
+
+export interface TokenAccountData {
+  pubkey: string;
+  amount: string;
+  mint: string;
+  owner: string;
+  _updatedAt: string;
+}
+
+export interface AmmPoolWithReserves extends AmmPoolData {
+  baseReserves?: { amount: string }[];
+  quoteReserves?: { amount: string }[];
+}
+
+export interface GetAmmPoolsResponse {
+  pump_fun_amm_Pool: AmmPoolData[];
+}
+
+export interface GetTokenAccountsResponse {
+  spl_Account: TokenAccountData[];
+}
+
+export interface GetAmmPoolsWithReservesResponse {
+  pools: AmmPoolWithReserves[];
+}
+
+export interface AmmPriceUpdate extends PriceUpdate {
+  poolAddress: string;
+  lpSupply: bigint;
+  source: 'amm';
+}
