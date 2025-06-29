@@ -63,7 +63,7 @@ export class GraphQLMetadataEnricher {
   async batchFetchMetadata(mintAddresses: string[]): Promise<Map<string, TokenMetadata>> {
     const results = new Map<string, TokenMetadata>();
     
-    console.log(chalk.blue(`🔍 Fetching metadata for ${mintAddresses.length} tokens via GraphQL...`));
+    console.log(chalk.blue('🔍 Fetching metadata for ' + mintAddresses.length + ' tokens via GraphQL...'));
     
     // Process in batches
     for (let i = 0; i < mintAddresses.length; i += this.BATCH_SIZE) {
@@ -89,10 +89,10 @@ export class GraphQLMetadataEnricher {
           results.set(mint, data);
         });
         
-        console.log(chalk.green(`✅ Fetched batch ${Math.floor(i / this.BATCH_SIZE) + 1}/${Math.ceil(mintAddresses.length / this.BATCH_SIZE)}`));
+        console.log(chalk.green('✅ Fetched batch ' + (Math.floor(i / this.BATCH_SIZE) + 1) + '/' + Math.ceil(mintAddresses.length / this.BATCH_SIZE)));
         
       } catch (error) {
-        console.error(chalk.red(`Error fetching batch:'), error);
+        console.error(chalk.red('Error fetching batch:'), error);
       }
       
       // Small delay between batches
@@ -111,28 +111,26 @@ export class GraphQLMetadataEnricher {
     const results = new Map<string, TokenMetadata>();
     
     try {
-      const query = `
-        query GetMetaplexMetadata($mints: [String!]) {
-          Metadata(
-            where: { mint: { _in: $mints } }
-          ) {
-            pubkey
-            mint
-            name
-            symbol
-            uri
-            seller_fee_basis_points
-            creators {
-              address
-              share
-              verified
-            }
-            primary_sale_happened
-            is_mutable
-            token_standard
-          }
-        }
-      `;
+      const query = 'query GetMetaplexMetadata($mints: [String!]) {' +
+        ' Metadata(' +
+        '   where: { mint: { _in: $mints } }' +
+        ' ) {' +
+        '   pubkey' +
+        '   mint' +
+        '   name' +
+        '   symbol' +
+        '   uri' +
+        '   seller_fee_basis_points' +
+        '   creators {' +
+        '     address' +
+        '     share' +
+        '     verified' +
+        '   }' +
+        '   primary_sale_happened' +
+        '   is_mutable' +
+        '   token_standard' +
+        ' }' +
+        '}';
       
       const response = await this.graphqlClient.query<{ Metadata: MetadataResult[] }>(
         query,
@@ -167,19 +165,17 @@ export class GraphQLMetadataEnricher {
     const results = new Map<string, TokenMetadata>();
     
     try {
-      const query = `
-        query GetSPLTokens($mints: [String!]) {
-          spl_Token(
-            where: { pubkey: { _in: $mints } }
-          ) {
-            pubkey
-            decimals
-            supply
-            mint_authority
-            freeze_authority
-          }
-        }
-      `;
+      const query = 'query GetSPLTokens($mints: [String!]) {' +
+        ' spl_Token(' +
+        '   where: { pubkey: { _in: $mints } }' +
+        ' ) {' +
+        '   pubkey' +
+        '   decimals' +
+        '   supply' +
+        '   mint_authority' +
+        '   freeze_authority' +
+        ' }' +
+        '}';
       
       const response = await this.graphqlClient.query<{ 
         spl_Token: Array<{
@@ -198,7 +194,7 @@ export class GraphQLMetadataEnricher {
           
           results.set(token.pubkey, {
             mintAddress: token.pubkey,
-            name: `Token ${shortAddress}`,
+            name: 'Token ' + shortAddress,
             symbol: shortAddress.toUpperCase(),
             decimals: token.decimals,
             supply: token.supply
@@ -229,19 +225,19 @@ export class GraphQLMetadataEnricher {
     for (const [mintAddress, data] of metadata.entries()) {
       try {
         if (data.name && data.symbol) {
-          await unifiedDBService['pool'].query(`
-            UPDATE tokens_unified
-            SET 
-              name = COALESCE(name, $1),
-              symbol = COALESCE(symbol, $2),
-              uri = COALESCE(uri, $3),
-              metadata_source = 'graphql',
-              metadata_updated_at = NOW(),
-              creators = COALESCE(creators, $4::jsonb),
-              decimals = COALESCE(decimals, $5),
-              supply = COALESCE(supply, $6)
-            WHERE mint_address = $7
-          `, [
+          await unifiedDBService['pool'].query(
+            'UPDATE tokens_unified ' +
+            'SET ' +
+            '  name = COALESCE(name, $1), ' +
+            '  symbol = COALESCE(symbol, $2), ' +
+            '  uri = COALESCE(uri, $3), ' +
+            '  metadata_source = \'graphql\', ' +
+            '  metadata_updated_at = NOW(), ' +
+            '  creators = COALESCE(creators, $4::jsonb), ' +
+            '  decimals = COALESCE(decimals, $5), ' +
+            '  supply = COALESCE(supply, $6) ' +
+            'WHERE mint_address = $7',
+            [
             data.name,
             data.symbol,
             data.uri || null,
@@ -256,7 +252,7 @@ export class GraphQLMetadataEnricher {
           failed++;
         }
       } catch (error) {
-        console.error(chalk.red(`Failed to update ${mintAddress}:`), error);
+        console.error(chalk.red('Failed to update ' + mintAddress + ':'), error);
         failed++;
       }
     }
@@ -272,24 +268,24 @@ export class GraphQLMetadataEnricher {
    * Get all tokens needing enrichment
    */
   async getTokensNeedingEnrichment(limit: number = 1000): Promise<string[]> {
-    const result = await unifiedDBService['pool'].query(`
-      SELECT mint_address
-      FROM tokens_unified
-      WHERE 
-        first_market_cap_usd >= 8888
-        AND (
-          symbol IS NULL OR 
-          name IS NULL OR 
-          symbol = 'Unknown' OR 
-          name = 'Unknown' OR
-          metadata_source IS NULL OR
-          metadata_source != 'graphql'
-        )
-      ORDER BY 
-        graduated_to_amm DESC,
-        first_market_cap_usd DESC
-      LIMIT $1
-    `, [limit]);
+    const result = await unifiedDBService['pool'].query(
+      'SELECT mint_address ' +
+      'FROM tokens_unified ' +
+      'WHERE ' +
+      '  first_market_cap_usd >= 8888 ' +
+      '  AND ( ' +
+      '    symbol IS NULL OR ' +
+      '    name IS NULL OR ' +
+      '    symbol = \'Unknown\' OR ' +
+      '    name = \'Unknown\' OR ' +
+      '    metadata_source IS NULL OR ' +
+      '    metadata_source != \'graphql\' ' +
+      '  ) ' +
+      'ORDER BY ' +
+      '  graduated_to_amm DESC, ' +
+      '  first_market_cap_usd DESC ' +
+      'LIMIT $1',
+      [limit]);
     
     return result.rows.map(row => row.mint_address);
   }
