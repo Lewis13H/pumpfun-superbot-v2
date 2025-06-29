@@ -5,6 +5,7 @@
 
 import { ShyftGraphQLClient } from './graphql-client';
 import { SolPriceService } from './sol-price';
+import { AmmPoolPriceRecovery } from './amm-pool-price-recovery';
 import { db } from '../database';
 import {
   BondingCurveData,
@@ -40,11 +41,13 @@ export class UnifiedGraphQLPriceRecovery {
   private static instance: UnifiedGraphQLPriceRecovery;
   private client: ShyftGraphQLClient;
   private solPriceService: SolPriceService;
+  private ammPoolRecovery: AmmPoolPriceRecovery;
   private cache: Map<string, { data: PriceUpdate; timestamp: number }> = new Map();
 
   private constructor() {
     this.client = ShyftGraphQLClient.getInstance();
     this.solPriceService = SolPriceService.getInstance();
+    this.ammPoolRecovery = AmmPoolPriceRecovery.getInstance();
   }
 
   static getInstance(): UnifiedGraphQLPriceRecovery {
@@ -123,7 +126,23 @@ export class UnifiedGraphQLPriceRecovery {
     if (graduatedMints.length > 0) {
       const ammResult = await this.recoverAmmPoolPrices(graduatedMints, currentSolPrice);
       successful.push(...ammResult.successful);
-      failed.push(...ammResult.failed);
+      
+      // For failed AMM recoveries, try pool state fallback
+      if (ammResult.failed.length > 0) {
+        console.log(chalk.yellow(`⚠️ ${ammResult.failed.length} tokens failed GraphQL recovery, trying pool state fallback...`));
+        
+        const failedMints = ammResult.failed.map(f => f.mintAddress);
+        const poolStateResult = await this.ammPoolRecovery.recoverPricesFromPoolStates(failedMints);
+        
+        // Add successful pool state recoveries
+        successful.push(...poolStateResult.successful);
+        
+        // Only keep the tokens that failed both methods as failed
+        failed.push(...poolStateResult.failed);
+      } else {
+        failed.push(...ammResult.failed);
+      }
+      
       graphqlQueries += ammResult.graphqlQueries;
     }
 
