@@ -8,6 +8,7 @@
     "bc-monitor": "tsx src/monitors/bc-monitor.ts",
     "bc-monitor-quick-fix": "tsx src/monitors/bc-monitor-quick-fixes.ts",
     "bc-monitor-watch": "tsx src/monitors/bc-monitor-quick-fixes.ts 2>&1 | grep -A 50 'Monitor Statistics' | grep -E 'Parse rate:|Save rate:|Events parsed:|Success:|Event sizes:|Discovered tokens:|Tokens saved:|Detection rate:'",
+    "bc-account-monitor": "tsx src/monitors/bc-account-monitor.ts",
     "amm-monitor": "tsx src/monitors/amm-monitor.ts",
     "amm-account-monitor": "tsx src/monitors/amm-account-monitor.ts",
     "test-amm-monitor": "tsx src/tests/test-amm-monitor.ts",
