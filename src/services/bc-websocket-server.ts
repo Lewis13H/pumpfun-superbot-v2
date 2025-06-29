@@ -1,6 +1,8 @@
-import { WebSocketServer, WebSocket } from 'ws';
+import WebSocket = require('ws');
 import { Server } from 'http';
 import { EventEmitter } from 'events';
+
+const WSServer = WebSocket.Server;
 
 export interface BroadcastMessage {
   type: 'trade' | 'graduation' | 'new_token' | 'stats' | 'error';
@@ -9,9 +11,9 @@ export interface BroadcastMessage {
 }
 
 export class BCWebSocketServer extends EventEmitter {
-  private wss: WebSocketServer | null = null;
+  private wss: WSServer | null = null;
   private clients: Set<WebSocket> = new Set();
-  private pingInterval: NodeJS.Timer | null = null;
+  private pingInterval: NodeJS.Timeout | null = null;
 
   constructor() {
     super();
@@ -21,18 +23,26 @@ export class BCWebSocketServer extends EventEmitter {
    * Initialize WebSocket server on existing HTTP server
    */
   initialize(server: Server): void {
-    this.wss = new WebSocketServer({ server, path: '/ws' });
+    this.wss = new WSServer({ 
+      server, 
+      path: '/ws',
+      perMessageDeflate: false // Disable compression to fix RSV1 errors
+    });
 
     this.wss.on('connection', (ws: WebSocket) => {
       console.log('New WebSocket client connected');
       this.clients.add(ws);
 
-      // Send initial connection message
-      this.sendToClient(ws, {
-        type: 'connected',
-        data: { message: 'Connected to BC Monitor WebSocket' },
-        timestamp: new Date()
-      });
+      // Send initial connection message after a short delay
+      setTimeout(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          this.sendToClient(ws, {
+            type: 'connected',
+            data: { message: 'Connected to BC Monitor WebSocket' },
+            timestamp: new Date()
+          });
+        }
+      }, 100);
 
       // Handle client messages
       ws.on('message', (message: string) => {

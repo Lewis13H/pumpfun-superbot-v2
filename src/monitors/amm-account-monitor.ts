@@ -13,6 +13,7 @@ import { suppressParserWarnings } from '../utils/suppress-parser-warnings';
 import { AmmPoolStateService } from '../services/amm-pool-state-service';
 import { formatCurrency } from '../utils/formatters';
 import { decodePoolAccount, poolAccountToPlain } from '../utils/amm-pool-decoder';
+import { unifiedWebSocketServer, PoolStateEvent } from '../services/unified-websocket-server-stub';
 
 // Program ID
 const PUMP_AMM_PROGRAM_ID = new PublicKey('pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA');
@@ -191,6 +192,20 @@ async function main() {
   
   // Initialize pool state service
   poolStateService = new AmmPoolStateService();
+  
+  // Broadcast stats periodically
+  setInterval(() => {
+    unifiedWebSocketServer.broadcastStats({
+      source: 'amm_account',
+      transactions: 0, // Not applicable for account monitor
+      trades: 0,
+      errors: stats.decodeErrors,
+      uniqueTokens: stats.poolsTracked.size,
+      uptime: Math.floor((Date.now() - stats.startTime) / 1000),
+      accountUpdates: stats.accountUpdates,
+      decodedPools: stats.decodedPools
+    }, 'amm_account');
+  }, 5000); // Every 5 seconds
   
   // Create gRPC client
   const grpcEndpoint = process.env.SHYFT_GRPC_ENDPOINT;

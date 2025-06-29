@@ -24,6 +24,7 @@ import { TransactionFormatter } from '../utils/transaction-formatter';
 import { bnLayoutFormatter } from '../utils/bn-layout-formatter';
 import { suppressParserWarnings } from '../utils/suppress-parser-warnings';
 import { AmmPoolStateService } from '../services/amm-pool-state-service';
+import { unifiedWebSocketServer, TradeEvent } from '../services/unified-websocket-server-stub';
 
 // Program ID
 const PUMP_AMM_PROGRAM_ID = new PublicKey('pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA');
@@ -215,6 +216,21 @@ async function processAmmTransaction(data: any): Promise<void> {
     if (recentTrades.length > MAX_RECENT_TRADES) {
       recentTrades.pop();
     }
+    
+    // Broadcast trade via WebSocket
+    const tradeEvent: TradeEvent = {
+      signature,
+      mintAddress: swapEvent.mint,
+      tradeType: swapEvent.type.toLowerCase() as 'buy' | 'sell',
+      userAddress: swapEvent.user,
+      solAmount,
+      tokenAmount,
+      priceUsd,
+      marketCapUsd: priceUsd * 1e9,
+      program: 'amm_pool'
+    };
+    
+    unifiedWebSocketServer.broadcastTrade(tradeEvent, 'amm');
     
     // Process in database
     await dbService.processTrade({
@@ -506,6 +522,24 @@ async function main() {
     ping: undefined,
     commitment: CommitmentLevel.CONFIRMED,
   };
+  
+  // Initialize WebSocket server if not already initialized
+  // Note: The API server will initialize it, but we broadcast stats
+  setInterval(() => {
+    // Broadcast stats periodically
+    unifiedWebSocketServer.broadcastStats({
+      source: 'amm',
+      transactions: stats.transactions,
+      trades: stats.trades,
+      buys: stats.buys,
+      sells: stats.sells,
+      errors: stats.errors,
+      uniqueTokens: stats.uniqueTokens.size,
+      totalVolumeUsd: stats.totalVolumeUsd,
+      uptime: Math.floor((new Date().getTime() - stats.startTime.getTime()) / 1000),
+      lastSlot: stats.lastSlot
+    }, 'amm');
+  }, 5000); // Every 5 seconds
   
   // Start monitoring
   await subscribeCommand(client, req);

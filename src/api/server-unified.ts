@@ -5,7 +5,10 @@ import path from 'path';
 import { Pool } from 'pg';
 import { createServer } from 'http';
 import { bcWebSocketServer } from '../services/bc-websocket-server';
+// import { unifiedWebSocketServer } from '../services/unified-websocket-server-fixed';
+const WebSocket = require('ws');
 import bcMonitorEndpoints from './bc-monitor-endpoints';
+import ammEndpoints from './amm-endpoints';
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;
@@ -16,6 +19,40 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+// Initialize WebSocket servers BEFORE middleware
+bcWebSocketServer.initialize(server); // Keep BC WebSocket for backward compatibility
+
+// UNIFIED WEBSOCKET DISABLED - Dashboard improvements on hold (see docs/dashboard-improvement-plan.md)
+// The unified WebSocket was causing connection issues and has been temporarily disabled
+// to allow core system enhancements to continue uninterrupted.
+console.log('⚠️  Unified WebSocket server DISABLED - Dashboard improvements on hold');
+
+// Create a mock unifiedWebSocketServer for monitors that expect it
+(global as any).unifiedWebSocketServer = {
+  broadcast: (message: any) => {
+    // No-op - WebSocket disabled
+  },
+  broadcastTrade: (trade: any, source: string = 'bc') => {
+    // No-op - WebSocket disabled
+  },
+  broadcastGraduation: (graduation: any) => {
+    // No-op - WebSocket disabled
+  },
+  broadcastNewToken: (token: any, source: string = 'bc') => {
+    // No-op - WebSocket disabled
+  },
+  broadcastPoolStateChange: (poolState: any) => {
+    // No-op - WebSocket disabled
+  },
+  broadcastStats: (stats: any, source: string) => {
+    // No-op - WebSocket disabled
+  },
+  getClientCount: () => 0
+};
+
+// Stub for monitors that import from the module
+const unifiedWss = { close: () => {} };
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -25,6 +62,9 @@ app.use(express.static(path.join(__dirname, '../../dashboard')));
 
 // BC Monitor API endpoints
 app.use('/api/bc-monitor', bcMonitorEndpoints);
+
+// AMM API endpoints
+app.use('/api/amm', ammEndpoints);
 
 // API endpoint for tokens - unified schema
 app.get('/api/tokens', async (_req, res) => {
@@ -296,30 +336,23 @@ app.get('/api/tokens/gainers', async (_req, res) => {
   }
 });
 
-// Initialize WebSocket server
-bcWebSocketServer.initialize(server);
-
 // Start server
 server.listen(PORT, () => {
   const dashboardUrl = `http://localhost:${PORT}`;
   console.log(`🚀 API server (unified) running on ${dashboardUrl}`);
   console.log(`📊 Dashboard available at ${dashboardUrl}`);
-  console.log(`🔌 WebSocket server available at ws://localhost:${PORT}/ws`);
+  console.log(`🔌 BC WebSocket available at ws://localhost:${PORT}/ws`);
+  console.log(`🔌 Unified WebSocket available at ws://localhost:${PORT}/ws-unified`);
   
-  // Auto-open dashboard in browser
-  import('open').then(open => {
-    open.default(dashboardUrl).catch(() => {
-      console.log('Could not open browser automatically');
-    });
-  }).catch(() => {
-    console.log('Please open your browser to:', dashboardUrl);
-  });
+  // Log dashboard URL - user can manually open
+  console.log('Please open your browser to:', dashboardUrl);
 });
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\nShutting down server...');
   bcWebSocketServer.shutdown();
+  unifiedWss.close();
   await pool.end();
   process.exit(0);
 });
