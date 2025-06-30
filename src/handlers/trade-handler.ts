@@ -176,7 +176,7 @@ export class TradeHandler {
       graduatedToAmm: event.type === EventType.AMM_TRADE,
       priceSource: event.type === EventType.BC_TRADE ? 'bonding_curve' : 'amm',
       lastPriceUpdate: now,
-      firstSeenSlot: event.slot,
+      firstSeenSlot: Number(event.slot),
       createdAt: now
     };
     

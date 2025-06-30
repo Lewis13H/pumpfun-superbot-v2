@@ -146,7 +146,14 @@ export class Logger {
     console.log(output);
 
     if (entry.data && Object.keys(entry.data).length > 0) {
-      console.log(chalk.gray(JSON.stringify(entry.data, null, 2)));
+      // Custom replacer to handle BigInt serialization
+      const replacer = (key: string, value: any) => {
+        if (typeof value === 'bigint') {
+          return value.toString();
+        }
+        return value;
+      };
+      console.log(chalk.gray(JSON.stringify(entry.data, replacer, 2)));
     }
 
     if (entry.error && entry.error.stack) {
