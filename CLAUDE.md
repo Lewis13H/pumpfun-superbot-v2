@@ -9,14 +9,9 @@ Real-time Solana token monitor for pump.fun bonding curves and pump.swap AMM poo
 ## Development Commands
 
 ```bash
-# Complete Production Setup
-# Start all monitors manually or create your own startup script
-
-# Refactored Architecture (NEW - Recommended)
+# Refactored Architecture (Recommended)
 npm run start-refactored      # Run all 4 refactored monitors with DI
 npm run start-wrapped         # Run refactored BC + wrapped AMM monitors (RECOMMENDED)
-npm run server-refactored     # API server for refactored system
-# Create your own test scripts as needed
 
 # Individual Monitors
 npm run bc-monitor          # Bonding curve trade monitor (>95% parse rate)
@@ -24,23 +19,17 @@ npm run bc-account-monitor  # Bonding curve account monitor (detects graduations
 npm run amm-monitor         # AMM pool trade monitor for graduated tokens
 npm run amm-account-monitor # AMM account state monitor for pool reserves
 
-# Price Recovery Services
-tsx scripts/start-dexscreener-recovery.ts  # DexScreener recovery for stale graduated tokens
+# Price Recovery & Enrichment
 npm run sol-price-updater     # SOL price updater (runs automatically with monitors)
-
-# Legacy/Deprecated Monitors
-npm run unified-v2         # DEPRECATED - has AMM detection issues
-npm run bc-monitor         # Original BC monitor (lower parse rate)
-
-# Database Operations
-# Use psql or create your own database query scripts
+npm run startup-recovery      # Run stale token detection and recovery
 
 # Dashboard & API
-npm run dashboard          # Web dashboard (http://localhost:3001)
+npm run dashboard            # Web dashboard (http://localhost:3001)
 
-# Testing & Debugging
-# Create your own test scripts as needed
-psql $DATABASE_URL -c "SELECT COUNT(*) FROM tokens_unified"  # Check database
+# Testing
+npm run test                 # Run all tests
+npm run test:integration     # Integration tests only
+npm run test:coverage        # Test coverage report
 ```
 
 ## Architecture After Refactoring
@@ -48,7 +37,7 @@ psql $DATABASE_URL -c "SELECT COUNT(*) FROM tokens_unified"  # Check database
 ### Directory Structure
 ```
 src/
-├── core/                           # Foundation layer (NEW)
+├── core/                           # Foundation layer
 │   ├── container.ts               # Dependency injection container
 │   ├── container-factory.ts       # DI container setup
 │   ├── event-bus.ts              # Event-driven communication
@@ -59,64 +48,67 @@ src/
 │   ├── bc-monitor.ts               # Bonding curve trade monitor (refactored with DI)
 │   ├── bc-account-monitor.ts       # BC account state monitor (refactored with DI)
 │   ├── amm-monitor.ts              # AMM pool trade monitor (wrapped legacy with DI)
-│   ├── amm-account-monitor.ts      # AMM account state monitor (wrapped legacy with DI)
-│   └── unified-monitor-v2.ts       # Main production monitor (DEPRECATED - has issues)
-├── services/
+│   └── amm-account-monitor.ts      # AMM account state monitor (wrapped legacy with DI)
+├── services/                        # 15 essential services
 │   ├── sol-price.ts                # Binance API integration
 │   ├── sol-price-updater.ts        # Automatic price updates
 │   ├── bc-price-calculator.ts      # BC-specific price calculations
-│   ├── bc-progress-tracker.ts      # Bonding curve progress tracking
-│   ├── bc-monitor-stats.ts         # Enhanced statistics tracking
-│   ├── bc-websocket-server.ts      # Legacy BC WebSocket server
-│   ├── unified-websocket-server.ts  # Unified WebSocket for all monitors
-│   ├── auto-enricher.ts            # Legacy token metadata enrichment
+│   ├── bc-monitor-stats-aggregator.ts # Statistics aggregation
 │   ├── enhanced-auto-enricher.ts   # Enhanced enricher with GraphQL + API fallbacks
 │   ├── graphql-metadata-enricher.ts # GraphQL bulk metadata queries (50 tokens/query)
 │   ├── shyft-metadata-service.ts   # Shyft REST API for metadata
 │   ├── helius.ts                   # Helius DAS API client
 │   ├── amm-pool-state-service.ts   # AMM pool state tracking and caching
 │   ├── graphql-client.ts           # Shyft GraphQL client with retry logic
-│   ├── graphql-price-recovery.ts   # BC-only price recovery (deprecated)
 │   ├── unified-graphql-price-recovery.ts # Unified BC/AMM price recovery
-│   ├── amm-pool-price-recovery.ts  # Pool state-based price recovery
 │   ├── stale-token-detector.ts     # Automatic stale token detection/recovery
-│   ├── recovery-queue.ts           # Priority queue for token recovery
 │   ├── dexscreener-price-service.ts    # DexScreener API client
-│   └── dexscreener-price-recovery.ts   # Stale graduated token recovery
+│   ├── dexscreener-price-recovery.ts   # Stale graduated token recovery
+│   └── price-calculator.ts         # General price calculations
 ├── api/
 │   ├── server-unified.ts           # Main API server
+│   ├── server-refactored.ts        # Refactored API server
 │   ├── bc-monitor-endpoints.ts     # BC monitor specific endpoints
 │   └── amm-endpoints.ts            # AMM analytics endpoints
 ├── database/
-│   └── unified-db-service-v2.ts    # High-performance DB service
+│   └── unified-db-service.ts       # High-performance DB service
 ├── parsers/
-│   ├── unified-parser.ts           # Main parser for both programs
-│   ├── bc-event-parser.ts          # Bonding curve event parser (225 bytes)
-│   ├── bc-event-parser-v2.ts       # Improved parser (225 & 113 bytes)
-│   └── amm-swap-parser.ts          # Reference AMM parser
+│   ├── unified-event-parser.ts     # Main parser for both programs
+│   ├── strategies/
+│   │   ├── base-strategy.ts        # Base parsing strategy
+│   │   ├── bc-trade-strategy.ts    # BC trade parsing
+│   │   └── amm-trade-strategy.ts   # AMM trade parsing
+│   └── bc-event-parser.ts          # Legacy BC parser
 ├── handlers/
-│   ├── trade-handler.ts            # Unified trade handler (NEW)
-│   ├── graduation-handler.ts       # Graduation event handler (NEW)
-│   ├── bc-db-handler.ts            # BC database integration
-│   └── bc-db-handler-v2.ts         # Improved with retry logic
-├── repositories/                    # Data access layer (NEW)
+│   ├── trade-handler.ts            # Unified trade handler
+│   └── graduation-handler.ts       # Graduation event handler
+├── repositories/                    # Data access layer
 │   ├── base-repository.ts          # Base repository pattern
 │   ├── token-repository.ts         # Token data access
 │   └── trade-repository.ts         # Trade data access
 ├── stream/
 │   └── client.ts                   # Singleton gRPC client
-├── utils/
+├── utils/                          # 9 essential utilities
 │   ├── constants.ts                # Shared constants
-│   ├── price-calculator.ts         # Price calculations
-│   ├── formatters.ts               # Display formatters
-│   ├── monitor-formatter.ts        # Standardized terminal output formatter
-│   ├── transaction-formatter.ts    # gRPC transaction formatting (from Shyft)
+│   ├── amm-pool-decoder.ts         # AMM pool decoding
+│   ├── amm-price-calculator.ts     # AMM price calculations
+│   ├── bn-layout-formatter.ts      # BN layout formatting
 │   ├── event-parser.ts             # Event parsing utilities (from Shyft)
+│   ├── pump-addresses.ts           # Address derivation utilities
+│   ├── suppress-parser-warnings.ts # Suppress ComputeBudget warnings
 │   ├── swapTransactionParser.ts    # AMM swap parsing (from Shyft)
-│   └── suppress-parser-warnings.ts # Suppress ComputeBudget warnings
-└── tests/
-    ├── verify-amm-trades.ts        # Capture AMM trades for verification
-    └── verify-amm-session-1.ts     # Verify pool reserve monitoring
+│   └── transaction-formatter.ts    # gRPC transaction formatting (from Shyft)
+├── scripts/                        # Utility scripts
+│   ├── sol-price-updater.ts       # SOL price update script
+│   └── startup-recovery.ts         # Startup recovery script
+├── tests/                          # Test suite
+│   └── integration/                # Integration tests
+│       ├── container.test.ts       # DI container tests
+│       ├── monitor-integration.test.ts # Monitor integration tests
+│       ├── system-e2e.test.ts      # End-to-end tests
+│       └── websocket-integration.test.ts # WebSocket tests
+├── start-refactored-monitors.ts    # Start all refactored monitors
+└── start-wrapped-monitors.ts       # Start BC + wrapped AMM monitors
 ```
 
 ### Core Data Flow
@@ -461,18 +453,12 @@ CREATE INDEX idx_amm_pool_states_pool ON amm_pool_states(pool_address, created_a
 
 ## Testing & Debugging
 
-1. **Quick 5-minute test**: `./scripts/quick-test-bc-monitor.sh`
-2. **Comprehensive 1-hour test**: `./scripts/test-bc-monitor.sh`
-3. **Watch parse/save rates**: `npm run bc-monitor-watch` or `./scripts/monitor-improvements.sh -w`
-4. **Custom threshold testing**: `BC_SAVE_THRESHOLD=1000 npm run bc-monitor-quick-fix`
-5. **Debug parse errors**: `DEBUG_PARSE_ERRORS=true npm run bc-monitor-quick-fix`
-6. **Verify AMM trades**: `npm run verify-amm-trades` - Captures 5 recent trades with Solscan links
-7. **Test DexScreener recovery**: `tsx scripts/test-dexscreener-recovery.ts`
-8. **Test AMM token creation**: `tsx scripts/quick-test-amm-creation.ts`
-9. **Check recent trades**: View dashboard or query database
-10. **Debug AMM issues**: Use `npm run debug-amm` to see pool structure
-11. **Database verification**: `psql $DATABASE_URL < scripts/validate-bc-monitor-data.sql`
-12. **Suppress parser warnings**: `suppressParserWarnings()` utility filters ComputeBudget warnings
+1. **Integration Tests**: `npm run test:integration` - Test DI container, monitors, and WebSocket
+2. **Custom threshold testing**: `BC_SAVE_THRESHOLD=1000 npm run bc-monitor`
+3. **Debug parse errors**: `DEBUG_PARSE_ERRORS=true npm run bc-monitor`
+4. **Check recent trades**: View dashboard at http://localhost:3001
+5. **Database verification**: `psql $DATABASE_URL -c "SELECT * FROM trades_unified ORDER BY block_time DESC LIMIT 10"`
+6. **Suppress parser warnings**: `suppressParserWarnings()` utility filters ComputeBudget warnings
 
 ## Performance Optimization
 
@@ -505,17 +491,17 @@ The bonding curve monitor (`bc-monitor.ts`) was developed in 5 phases:
 
 ### Running the Monitors
 ```bash
-# Complete 4-monitor setup
-npm run bc-monitor-quick-fix  # BC trades
-npm run bc-account-monitor    # BC graduations
-npm run amm-monitor           # AMM trades
-npm run amm-account-monitor   # AMM pool states
+# Recommended: Run all refactored monitors
+npm run start-wrapped       # BC monitors + wrapped AMM monitors
+
+# Or run individually
+npm run bc-monitor          # BC trades
+npm run bc-account-monitor  # BC graduations  
+npm run amm-monitor         # AMM trades
+npm run amm-account-monitor # AMM pool states
 
 # With custom settings
-BC_SAVE_THRESHOLD=5000 SAVE_ALL_TOKENS=false npm run bc-monitor-quick-fix
-
-# Using helper script
-./scripts/monitor-improvements.sh -t 5000 -d  # $5k threshold with debug
+BC_SAVE_THRESHOLD=5000 SAVE_ALL_TOKENS=false npm run bc-monitor
 ```
 
 ## Price Recovery & Stale Token Handling
@@ -772,15 +758,13 @@ npm run sol-price-updater
 ### 🚀 Quick Start
 
 ```bash
-# Run everything with one command
-./scripts/run-complete-monitoring.sh
+# Run the recommended setup
+npm run start-wrapped     # Starts all 4 monitors with DI
+npm run dashboard         # In another terminal, starts API & dashboard
 
-# This starts:
-# - 4 monitors (BC trade, BC account, AMM trade, AMM account)
-# - SOL price updater
-# - API server & dashboard
-# - DexScreener recovery service
-# - Auto enricher service (GraphQL-based metadata)
+# Optional services
+npm run sol-price-updater # SOL price updates (automatic with monitors)
+npm run startup-recovery  # Stale token recovery
 ```
 
 ### 🎯 Token Metadata Enrichment
@@ -804,15 +788,6 @@ The system automatically enriches all tokens above $8,888 market cap with compre
 - Checks every 30 seconds for new tokens
 - Immediate enrichment when tokens cross $8,888
 - Immediate enrichment for all new AMM tokens
-
-**Manual Batch Enrichment**:
-```bash
-# Enrich all existing tokens using GraphQL (recommended - 50x faster)
-tsx scripts/batch-enrich-graphql.ts
-
-# Alternative: Use REST APIs (slower but more thorough)
-tsx scripts/batch-enrich-tokens.ts
-```
 
 ### 📊 System Architecture
 
