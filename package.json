@@ -26,7 +26,15 @@
     "enrich-tokens-unified": "tsx src/examples-unified/enrich-tokens.ts",
     "query-trades": "tsx src/examples-unified/query-trades.ts",
     "startup-recovery": "tsx src/scripts/startup-recovery.ts",
-    "test-stale-detection": "tsx src/tests/test-stale-detection.ts"
+    "test-stale-detection": "tsx src/tests/test-stale-detection.ts",
+    "test": "jest",
+    "test:integration": "jest src/tests/integration",
+    "test:unit": "jest src/tests/unit",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:run-all": "tsx src/tests/run-integration-tests.ts",
+    "start-refactored": "tsx src/start-refactored-monitors.ts",
+    "server-refactored": "tsx src/api/server-refactored.ts"
   },
   "name": "pumpfun-superbot-v2",
   "version": "1.0.0",
@@ -62,8 +70,13 @@
     "@types/bs58": "^4.0.4",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.12",
     "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.5",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
     "tsx": "^4.20.3",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "ws": "^8.16.0"
   }
 }
