@@ -73,7 +73,7 @@ export class EventBus {
 
     const toRemove: EventSubscription[] = [];
     
-    for (const subscription of subscriptions) {
+    for (const subscription of Array.from(subscriptions)) {
       try {
         subscription.handler(data);
         
@@ -101,7 +101,7 @@ export class EventBus {
     const toRemove: EventSubscription[] = [];
     const promises: Promise<void>[] = [];
     
-    for (const subscription of subscriptions) {
+    for (const subscription of Array.from(subscriptions)) {
       promises.push(
         Promise.resolve(subscription.handler(data))
           .then(() => {
@@ -168,6 +168,13 @@ export class EventBus {
     this.events.clear();
     this.asyncQueue = [];
   }
+  
+  /**
+   * Remove all listeners (alias for clear)
+   */
+  removeAllListeners(): void {
+    this.clear();
+  }
 
   /**
    * Get listener count for an event
@@ -189,11 +196,14 @@ export const EVENTS = {
   // Trade events
   BC_TRADE: 'bc:trade',
   AMM_TRADE: 'amm:trade',
+  TRADE_PROCESSED: 'trade:processed',
   
   // Token events
   TOKEN_DISCOVERED: 'token:discovered',
   TOKEN_GRADUATED: 'token:graduated',
   TOKEN_THRESHOLD_CROSSED: 'token:threshold_crossed',
+  BONDING_CURVE_CREATED: 'bonding_curve:created',
+  GRADUATION_PROCESSED: 'graduation:processed',
   
   // Pool events
   POOL_CREATED: 'pool:created',

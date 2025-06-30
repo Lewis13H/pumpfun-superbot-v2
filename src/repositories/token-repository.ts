@@ -79,9 +79,20 @@ export class TokenRepository extends BaseRepository<Token> {
    * Save or update token
    */
   async save(token: Token): Promise<Token> {
-    const columns = Object.keys(token).map(key => 
-      key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)
-    );
+    // Map currentPrice* fields to latest_price* in database
+    const fieldMapping: { [key: string]: string } = {
+      currentPriceSol: 'latest_price_sol',
+      currentPriceUsd: 'latest_price_usd',
+      currentMarketCapUsd: 'latest_market_cap_usd'
+    };
+    
+    const columns = Object.keys(token).map(key => {
+      // Use mapping if exists, otherwise convert camelCase to snake_case
+      if (fieldMapping[key]) {
+        return fieldMapping[key];
+      }
+      return key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+    });
     
     const values = Object.values(token);
     const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
@@ -143,7 +154,7 @@ export class TokenRepository extends BaseRepository<Token> {
       UPDATE tokens_unified SET
         current_price_sol = $2,
         current_price_usd = $3,
-        current_market_cap_usd = $4,
+        first_market_cap_usd = $4,
         price_source = $5,
         last_price_update = NOW(),
         updated_at = NOW()
@@ -204,6 +215,44 @@ export class TokenRepository extends BaseRepository<Token> {
   }
 
   /**
+   * Update token with arbitrary fields
+   */
+  async update(mintAddress: string, updates: Partial<Token>): Promise<boolean> {
+    if (Object.keys(updates).length === 0) return false;
+    
+    // Map currentPrice* fields to latest_price* in database
+    const fieldMapping: { [key: string]: string } = {
+      currentPriceSol: 'latest_price_sol',
+      currentPriceUsd: 'latest_price_usd',
+      currentMarketCapUsd: 'latest_market_cap_usd',
+      graduatedToAmm: 'graduated_to_amm',
+      graduationAt: 'graduation_at',
+      graduationSlot: 'graduation_slot',
+      priceSource: 'price_source'
+    };
+    
+    const updateFields: string[] = [];
+    const values: any[] = [mintAddress];
+    let paramIndex = 2;
+    
+    for (const [key, value] of Object.entries(updates)) {
+      const dbField = fieldMapping[key] || key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+      updateFields.push(`${dbField} = $${paramIndex++}`);
+      values.push(value);
+    }
+    
+    const query = `
+      UPDATE tokens_unified SET
+        ${updateFields.join(', ')},
+        updated_at = NOW()
+      WHERE mint_address = $1
+    `;
+    
+    const result = await this.pool.query(query, values);
+    return (result.rowCount || 0) > 0;
+  }
+
+  /**
    * Find tokens by filter
    */
   async findByFilter(filter: TokenFilter): Promise<Token[]> {
@@ -217,7 +266,7 @@ export class TokenRepository extends BaseRepository<Token> {
     }
 
     if (filter.marketCapUsdGte !== undefined) {
-      query += ` AND current_market_cap_usd >= $${paramIndex++}`;
+      query += ` AND first_market_cap_usd >= $${paramIndex++}`;
       params.push(filter.marketCapUsdGte);
     }
 
@@ -237,7 +286,7 @@ export class TokenRepository extends BaseRepository<Token> {
       )`;
     }
 
-    query += ' ORDER BY current_market_cap_usd DESC NULLS LAST';
+    query += ' ORDER BY first_market_cap_usd DESC NULLS LAST';
 
     if (filter.limit) {
       query += ` LIMIT $${paramIndex++}`;
@@ -325,7 +374,7 @@ export class TokenRepository extends BaseRepository<Token> {
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE graduated_to_amm = true) as graduated,
         COUNT(*) FILTER (WHERE name IS NOT NULL AND symbol IS NOT NULL) as with_metadata,
-        COUNT(*) FILTER (WHERE current_market_cap_usd >= 8888) as above_threshold
+        COUNT(*) FILTER (WHERE first_market_cap_usd >= 8888) as above_threshold
       FROM tokens_unified
     `;
 

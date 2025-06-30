@@ -21,6 +21,7 @@ export interface Trade {
   volumeUsd?: number;
   virtualSolReserves?: bigint;
   virtualTokenReserves?: bigint;
+  bondingCurveKey?: string;
   bondingCurveProgress?: number;
   slot: bigint;
   blockTime: Date;
@@ -62,8 +63,8 @@ export class TradeRepository extends BaseRepository<Trade> {
         signature, mint_address, program, trade_type, user_address,
         sol_amount, token_amount, price_sol, price_usd, market_cap_usd,
         volume_usd, virtual_sol_reserves, virtual_token_reserves,
-        bonding_curve_progress, slot, block_time
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        bonding_curve_key, bonding_curve_progress, slot, block_time
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       ON CONFLICT (signature) DO NOTHING
       RETURNING *
     `;
@@ -82,6 +83,7 @@ export class TradeRepository extends BaseRepository<Trade> {
       trade.volumeUsd,
       trade.virtualSolReserves?.toString(),
       trade.virtualTokenReserves?.toString(),
+      trade.bondingCurveKey,
       trade.bondingCurveProgress,
       trade.slot.toString(),
       trade.blockTime
@@ -119,13 +121,14 @@ export class TradeRepository extends BaseRepository<Trade> {
         trade.volumeUsd,
         trade.virtualSolReserves?.toString(),
         trade.virtualTokenReserves?.toString(),
+        trade.bondingCurveKey,
         trade.bondingCurveProgress,
         trade.slot.toString(),
         trade.blockTime
       );
 
       // Create placeholders
-      for (let i = 0; i < 16; i++) {
+      for (let i = 0; i < 17; i++) {
         tradePlaceholders.push(`$${paramIndex++}`);
       }
       
@@ -137,7 +140,7 @@ export class TradeRepository extends BaseRepository<Trade> {
         signature, mint_address, program, trade_type, user_address,
         sol_amount, token_amount, price_sol, price_usd, market_cap_usd,
         volume_usd, virtual_sol_reserves, virtual_token_reserves,
-        bonding_curve_progress, slot, block_time
+        bonding_curve_key, bonding_curve_progress, slot, block_time
       ) VALUES ${placeholders.join(', ')}
       ON CONFLICT (signature) DO NOTHING
     `;

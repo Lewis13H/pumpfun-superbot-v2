@@ -40,9 +40,15 @@ describe('WebSocket Integration Tests', () => {
     // Close client if connected
     if (wsClient && wsClient.readyState === WebSocket.OPEN) {
       wsClient.close();
+      await new Promise(resolve => setTimeout(resolve, 50));
     }
     
-    // Shutdown server
+    // Clear all event listeners
+    eventBus.removeAllListeners();
+  });
+  
+  afterAll(async () => {
+    // Shutdown server after all tests
     await wsServer.shutdown();
     
     // Close HTTP server
@@ -75,32 +81,39 @@ describe('WebSocket Integration Tests', () => {
 
     it('should handle multiple clients', async () => {
       const clients: WebSocket[] = [];
-      const messages: any[] = [];
+      const messagePromises: Promise<any>[] = [];
       
       // Connect 5 clients
       for (let i = 0; i < 5; i++) {
         const client = new WebSocket(`ws://localhost:${port}/ws`);
         clients.push(client);
         
+        // Create promise for welcome message
+        const messagePromise = new Promise<any>((resolve) => {
+          client.once('message', (data) => {
+            resolve(JSON.parse(data.toString()));
+          });
+        });
+        messagePromises.push(messagePromise);
+        
         await new Promise<void>((resolve) => {
           client.on('open', () => resolve());
         });
-        
-        client.on('message', (data) => {
-          messages.push(JSON.parse(data.toString()));
-        });
       }
+      
+      // Wait for all welcome messages
+      const messages = await Promise.all(messagePromises);
       
       // All should be connected
       expect(clients.every(c => c.readyState === WebSocket.OPEN)).toBe(true);
       
       // All should have received welcome messages
-      await new Promise(resolve => setTimeout(resolve, 100));
       const welcomeMessages = messages.filter(m => m.type === 'connected');
       expect(welcomeMessages).toHaveLength(5);
       
       // Clean up
       clients.forEach(c => c.close());
+      await new Promise(resolve => setTimeout(resolve, 100));
     });
 
     it('should track client disconnections', async () => {
@@ -117,7 +130,7 @@ describe('WebSocket Integration Tests', () => {
       });
       
       // Get client ID from welcome message
-      let clientId: string;
+      let clientId: string | undefined;
       await new Promise<void>((resolve) => {
         wsClient.on('message', (data) => {
           const message = JSON.parse(data.toString());
@@ -128,6 +141,8 @@ describe('WebSocket Integration Tests', () => {
         });
       });
       
+      expect(clientId).toBeDefined();
+      
       // Disconnect
       wsClient.close();
       
@@ -135,7 +150,7 @@ describe('WebSocket Integration Tests', () => {
       await new Promise(resolve => setTimeout(resolve, 100));
       
       expect(disconnectEvents).toHaveLength(1);
-      expect(disconnectEvents[0].clientId).toBe(clientId);
+      expect(disconnectEvents[0].clientId).toBe(clientId!);
     });
   });
 
@@ -281,7 +296,9 @@ describe('WebSocket Integration Tests', () => {
       
       wsClient.on('message', (data) => {
         const message = JSON.parse(data.toString());
-        if (message.type !== 'connected' && message.type !== 'subscribed') {
+        if (message.type !== 'connected' && 
+            message.type !== 'subscribed' && 
+            message.type !== 'unsubscribed') {
           messages.push(message);
         }
       });

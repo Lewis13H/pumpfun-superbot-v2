@@ -5,7 +5,6 @@
  */
 
 import { db } from '../database';
-import { SolPriceService } from '../services/sol-price';
 import { EnhancedAutoEnricher } from '../services/enhanced-auto-enricher';
 
 export interface UnifiedTokenData {
@@ -135,17 +134,17 @@ export class UnifiedDbServiceV2 {
       if (exists.rows.length === 0) {
         // Create new AMM token entry
         console.log(`📝 Creating new AMM token: ${trade.mintAddress}`);
-        await this.processToken({
+        await this.processTokenDiscovery({
           mintAddress: trade.mintAddress,
-          symbol: null, // Will be enriched later
-          name: null,
-          uri: null,
+          symbol: undefined, // Will be enriched later
+          name: undefined,
+          uri: undefined,
           firstProgram: 'amm_pool',
           firstSeenSlot: trade.slot,
           firstPriceSol: trade.priceSol,
           firstPriceUsd: trade.priceUsd,
           firstMarketCapUsd: trade.marketCapUsd,
-          tokenCreatedAt: null
+          tokenCreatedAt: undefined
         });
         
         // Mark as graduated since it's already on AMM
@@ -281,7 +280,7 @@ export class UnifiedDbServiceV2 {
   /**
    * Determine if we should take a price snapshot
    */
-  private shouldSnapshot(mintAddress: string, marketCapUsd: number): boolean {
+  private shouldSnapshot(_mintAddress: string, marketCapUsd: number): boolean {
     // Always snapshot if over certain thresholds
     if (marketCapUsd > 100000) return true;
     if (marketCapUsd > 50000) return Math.random() < 0.5;

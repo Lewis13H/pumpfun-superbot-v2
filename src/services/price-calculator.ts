@@ -48,20 +48,25 @@ export class PriceCalculator {
       };
     }
 
-    // Price = SOL reserves / Token reserves
-    const priceInSol = Number(reserves.solReserves) / Number(reserves.tokenReserves);
-    const priceInLamports = priceInSol * Number(LAMPORTS_PER_SOL);
+    // Convert reserves to numbers with proper decimal handling
+    const solReserves = Number(reserves.solReserves) / Number(LAMPORTS_PER_SOL); // Convert lamports to SOL
+    const tokenReserves = Number(reserves.tokenReserves) / Math.pow(10, this.TOKEN_DECIMALS); // Apply token decimals
     
-    // Adjust for decimals
-    const adjustedPriceInSol = priceInSol * Math.pow(10, this.TOKEN_DECIMALS);
-    const priceInUsd = adjustedPriceInSol * solPriceUsd;
+    // Calculate price per token in SOL
+    const priceInSol = solReserves / tokenReserves;
     
-    // Market cap = price * total supply
+    // Calculate price in USD
+    const priceInUsd = priceInSol * solPriceUsd;
+    
+    // Calculate market cap (price * total supply)
     const marketCapUsd = priceInUsd * this.TOTAL_SUPPLY;
+    
+    // Price in lamports (for legacy compatibility)
+    const priceInLamports = priceInSol * Number(LAMPORTS_PER_SOL);
 
     return {
-      priceInSol: adjustedPriceInSol,
-      priceInLamports: priceInLamports * Math.pow(10, this.TOKEN_DECIMALS),
+      priceInSol,
+      priceInLamports,
       priceInUsd,
       marketCapUsd
     };
@@ -206,17 +211,21 @@ export class PriceCalculator {
       };
     }
 
-    const priceInSol = Number(solAmount) / Number(tokenAmount);
-    const priceInLamports = priceInSol * Number(LAMPORTS_PER_SOL);
+    // Convert amounts to proper units
+    const solInSol = Number(solAmount) / Number(LAMPORTS_PER_SOL);
+    const tokensWithDecimals = Number(tokenAmount) / Math.pow(10, this.TOKEN_DECIMALS);
     
-    // Adjust for decimals
-    const adjustedPriceInSol = priceInSol * Math.pow(10, this.TOKEN_DECIMALS);
-    const priceInUsd = adjustedPriceInSol * solPriceUsd;
+    // Calculate price per token in SOL
+    const priceInSol = solInSol / tokensWithDecimals;
+    
+    // Calculate price in USD and market cap
+    const priceInUsd = priceInSol * solPriceUsd;
     const marketCapUsd = priceInUsd * this.TOTAL_SUPPLY;
+    const priceInLamports = priceInSol * Number(LAMPORTS_PER_SOL);
 
     return {
-      priceInSol: adjustedPriceInSol,
-      priceInLamports: priceInLamports * Math.pow(10, this.TOKEN_DECIMALS),
+      priceInSol,
+      priceInLamports,
       priceInUsd,
       marketCapUsd
     };

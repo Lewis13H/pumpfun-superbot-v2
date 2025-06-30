@@ -1,4 +1,4 @@
-import { CommitmentLevel, SubscribeRequest, SubscribeRequestPing } from '@triton-one/yellowstone-grpc';
+import { CommitmentLevel, SubscribeRequest } from '@triton-one/yellowstone-grpc';
 import chalk from 'chalk';
 import { Container, TOKENS } from './container';
 import { EventBus, EVENTS } from './event-bus';
@@ -23,8 +23,8 @@ export abstract class BaseMonitor {
   protected options: MonitorOptions;
   protected stats: MonitorStats;
   protected container: Container;
-  protected eventBus: EventBus;
-  protected config: ConfigService;
+  protected eventBus!: EventBus;
+  protected config!: ConfigService;
   protected logger: Logger;
   
   protected streamClient: any; // Will be injected
@@ -89,8 +89,10 @@ export abstract class BaseMonitor {
         timestamp: new Date()
       });
       
-      // Start monitoring
-      await this.startMonitoring();
+      // Start monitoring in background
+      this.startMonitoring().catch(error => {
+        this.logger.error('Fatal monitoring error', error);
+      });
     } catch (error) {
       this.logger.error('Failed to start monitor', error as Error);
       throw error;
@@ -103,7 +105,7 @@ export abstract class BaseMonitor {
   protected async initializeSolPrice(): Promise<void> {
     try {
       await this.solPriceService.initialize();
-      this.currentSolPrice = await this.solPriceService.getCurrentPrice();
+      this.currentSolPrice = await this.solPriceService.getPrice();
       
       const updateInterval = this.config.get('services').solPriceUpdateInterval;
       
@@ -115,7 +117,7 @@ export abstract class BaseMonitor {
       // Also poll for updates
       this.priceUpdateInterval = setInterval(async () => {
         try {
-          const price = await this.solPriceService.getCurrentPrice();
+          const price = await this.solPriceService.getPrice();
           if (price !== this.currentSolPrice) {
             this.currentSolPrice = price;
             this.eventBus.emit(EVENTS.SOL_PRICE_UPDATED, price);
@@ -157,13 +159,24 @@ export abstract class BaseMonitor {
     
     try {
       const request = this.buildSubscribeRequest();
-      const stream = await this.streamClient.subscribe(request);
+      const stream = await this.streamClient.getClient().subscribe();
       
-      this.logger.info('Connected to gRPC stream');
-      this.reconnectAttempts = 0;
+      // Send the subscription request
+      await new Promise<void>((resolve, reject) => {
+        stream.write(request, (err: any) => {
+          if (err === null || err === undefined) {
+            this.logger.info('Connected to gRPC stream');
+            this.reconnectAttempts = 0;
+            resolve();
+          } else {
+            reject(err);
+          }
+        });
+      });
       
-      for await (const data of stream) {
-        if (this.isShuttingDown) break;
+      // Process stream data
+      stream.on('data', async (data: any) => {
+        if (this.isShuttingDown) return;
         
         try {
           await this.processStreamData(data);
@@ -174,7 +187,13 @@ export abstract class BaseMonitor {
             this.logger.error('Error processing transaction', error as Error);
           }
         }
-      }
+      });
+      
+      // Handle stream end
+      await new Promise((resolve) => {
+        stream.on('end', resolve);
+        stream.on('error', resolve);
+      });
     } catch (error) {
       this.stats.errors++;
       this.stats.reconnections++;
@@ -205,14 +224,20 @@ export abstract class BaseMonitor {
     const request: SubscribeRequest = {
       commitment: CommitmentLevel.CONFIRMED,
       accountsDataSlice: [],
-      ping: undefined as unknown as SubscribeRequestPing
-    };
-
-    // Subscribe to program accounts
-    request.accounts = {
-      account: [],
-      owner: [this.options.programId],
-      filters: []
+      accounts: {
+        client: {
+          account: [],
+          owner: [this.options.programId],
+          filters: []
+        }
+      },
+      slots: {},
+      transactions: {},
+      transactionsStatus: {},
+      blocks: {},
+      blocksMeta: {},
+      entry: {},
+      ping: undefined
     };
 
     return request;

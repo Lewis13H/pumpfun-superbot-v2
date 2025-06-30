@@ -122,6 +122,7 @@ export const TOKENS = {
   SolPriceService: 'SolPriceService' as ServiceToken<any>,
   EventBus: 'EventBus' as ServiceToken<any>,
   ConfigService: 'ConfigService' as ServiceToken<any>,
+  Logger: 'Logger' as ServiceToken<any>,
   
   // Parsers
   EventParser: 'EventParser' as ServiceToken<any>,
@@ -137,6 +138,9 @@ export const TOKENS = {
   TokenRepository: 'TokenRepository' as ServiceToken<any>,
   TradeRepository: 'TradeRepository' as ServiceToken<any>,
   PoolRepository: 'PoolRepository' as ServiceToken<any>,
+  
+  // Pool State Service
+  PoolStateService: 'PoolStateService' as ServiceToken<any>,
   
   // WebSocket
   WebSocketServer: 'WebSocketServer' as ServiceToken<any>,

@@ -30,7 +30,7 @@ export class EnhancedAutoEnricher {
   private enrichmentInterval: NodeJS.Timeout | null = null;
   private readonly BATCH_SIZE = 20; // Process more tokens at once
   private readonly CHECK_INTERVAL = 30000; // Check every 30 seconds
-  private readonly MAX_RETRIES = 3;
+  // private readonly MAX_RETRIES = 3;
   private readonly MARKET_CAP_THRESHOLD = 8888; // Enrich all tokens above $8,888
   
   // Track statistics

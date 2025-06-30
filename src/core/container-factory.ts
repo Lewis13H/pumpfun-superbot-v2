@@ -37,7 +37,6 @@ export async function createContainer(): Promise<Container> {
   // Register price recovery services
   container.registerSingleton(TOKENS.PriceRecovery, async () => {
     const config = await container.resolve(TOKENS.ConfigService);
-    const eventBus = await container.resolve(TOKENS.EventBus);
     
     // Return appropriate recovery service based on config
     if (config.get('services').recoveryInterval > 0) {
@@ -114,9 +113,16 @@ export async function createContainer(): Promise<Container> {
     });
   });
   
-  container.registerTransient(TOKENS.GraduationHandler, () => {
-    // TODO: Implement graduation handler
-    throw new Error('GraduationHandler not implemented yet');
+  container.registerSingleton(TOKENS.GraduationHandler, async () => {
+    const { GraduationHandler } = await import('../handlers/graduation-handler');
+    const eventBus = await container.resolve(TOKENS.EventBus);
+    const tokenRepo = await container.resolve(TOKENS.TokenRepository);
+    const dbService = await container.resolve(TOKENS.DatabaseService);
+    
+    const handler = new GraduationHandler(eventBus, tokenRepo, dbService);
+    await handler.initialize();
+    
+    return handler;
   });
   
   container.registerSingleton(TOKENS.PoolRepository, async () => {
@@ -124,9 +130,14 @@ export async function createContainer(): Promise<Container> {
     throw new Error('PoolRepository not implemented yet');
   });
   
+  // Register pool state service
+  container.registerSingleton(TOKENS.PoolStateService, async () => {
+    const { AMMPoolStateService } = await import('../services/amm-pool-state-service');
+    return AMMPoolStateService.getInstance();
+  });
+  
   // Initialize critical services
   const config = await container.resolve(TOKENS.ConfigService);
-  const eventBus = await container.resolve(TOKENS.EventBus);
   
   // Log configuration in development
   if (config.isDevelopment()) {
@@ -203,7 +214,7 @@ export async function createTestContainer(): Promise<Container> {
   // Mock SOL price service
   container.registerSingleton(TOKENS.SolPriceService, () => ({
     initialize: async () => {},
-    getCurrentPrice: async () => 180
+    getPrice: async () => 180
   }));
   
   return container;

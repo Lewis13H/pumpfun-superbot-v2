@@ -46,7 +46,10 @@ export class BCTradeStrategy implements ParseStrategy {
       return hasTradeLog && validSize;
     }
 
-    return hasTradeLog;
+    // Also check if we can extract data from logs
+    const hasLogData = context.logs.some(log => log.includes('Program data:'));
+    
+    return hasTradeLog || hasLogData;
   }
 
   parse(context: ParseContext): BCTradeEvent | null {
@@ -59,7 +62,13 @@ export class BCTradeStrategy implements ParseStrategy {
       const mintAddress = this.extractMintAddress(context.logs, context.accounts);
       if (!mintAddress) return null;
 
-      // Parse event data
+      // First, try to extract event data from logs (pump.fun stores data in logs)
+      const eventDataFromLogs = this.extractEventDataFromLogs(context.logs);
+      if (eventDataFromLogs) {
+        return this.parseEventData(context, mintAddress, tradeType, eventDataFromLogs);
+      }
+
+      // Then try instruction data if available
       if (context.data && context.data.length >= 113) {
         return this.parseEventData(context, mintAddress, tradeType);
       }
@@ -79,6 +88,24 @@ export class BCTradeStrategy implements ParseStrategy {
       }
       if (SELL_SIGNATURES.some(sig => log.includes(sig))) {
         return TradeType.SELL;
+      }
+    }
+    return null;
+  }
+
+  private extractEventDataFromLogs(logs: string[]): Buffer | null {
+    for (const log of logs) {
+      if (log.includes('Program data:')) {
+        const match = log.match(/Program data: (.+)/);
+        if (match?.[1]) {
+          try {
+            const buffer = Buffer.from(match[1], 'base64');
+            logger.debug('Extracted event data from logs', { size: buffer.length });
+            return buffer;
+          } catch (error) {
+            logger.debug('Failed to decode program data', { error });
+          }
+        }
       }
     }
     return null;
@@ -136,10 +163,11 @@ export class BCTradeStrategy implements ParseStrategy {
 
   private parseEventData(
     context: ParseContext, 
-    mintAddress: string, 
-    tradeType: TradeType
+    _mintAddress: string, 
+    tradeType: TradeType,
+    dataOverride?: Buffer
   ): BCTradeEvent | null {
-    const data = context.data!;
+    const data = dataOverride || context.data!;
     
     try {
       let offset = 0;
@@ -167,16 +195,27 @@ export class BCTradeStrategy implements ParseStrategy {
       const bondingCurveKey = bs58.encode(data.subarray(offset, offset + 32));
       offset += 32;
 
-      // Read virtual reserves (only in 225-byte events)
+      // Read virtual reserves based on event size
       let vSolInBondingCurve = 0n;
       let vTokenInBondingCurve = 0n;
 
-      if (data.length >= 225) {
-        // Skip to reserves section
-        offset = 113; // Start of additional data
-        vSolInBondingCurve = this.readUInt64LE(data, offset);
-        offset += 8;
-        vTokenInBondingCurve = this.readUInt64LE(data, offset);
+      if (data.length === 225) {
+        // 225-byte format: reserves at offsets 97 and 105
+        vSolInBondingCurve = this.readUInt64LE(data, 97);
+        vTokenInBondingCurve = this.readUInt64LE(data, 105);
+      } else if (data.length === 113) {
+        // 113-byte format: reserves at offsets 73 and 81
+        vSolInBondingCurve = this.readUInt64LE(data, 73);
+        vTokenInBondingCurve = this.readUInt64LE(data, 81);
+      }
+      
+      // Debug log
+      if (vSolInBondingCurve > 0n || vTokenInBondingCurve > 0n) {
+        logger.debug('Parsed reserves', {
+          dataSize: data.length,
+          solReserves: vSolInBondingCurve.toString(),
+          tokenReserves: vTokenInBondingCurve.toString()
+        });
       }
 
       return {

@@ -30,9 +30,9 @@ export class WebSocketServer {
   private processingQueue = false;
 
   constructor(
-    private httpServer: HTTPServer,
+    httpServer: HTTPServer,
     private eventBus: EventBus,
-    private config: ConfigService
+    config: ConfigService
   ) {
     this.logger = new Logger({ context: 'WebSocketServer' });
     
@@ -52,7 +52,7 @@ export class WebSocketServer {
    * Setup WebSocket server handlers
    */
   private setupWebSocketServer(): void {
-    this.wss.on('connection', (ws: WebSocket, request) => {
+    this.wss.on('connection', (ws: WebSocket) => {
       const clientId = this.generateClientId();
       const client: WebSocketClient = {
         id: clientId,
@@ -267,7 +267,7 @@ export class WebSocketServer {
       
       for (const message of messages) {
         // Serialize with BigInt support
-        const data = JSON.stringify(message, (key, value) => {
+        const data = JSON.stringify(message, (_, value) => {
           if (typeof value === 'bigint') {
             return value.toString();
           }
@@ -293,7 +293,7 @@ export class WebSocketServer {
    * Send message to specific client
    */
   private sendToClient(client: WebSocketClient, message: WebSocketMessage): void {
-    const data = JSON.stringify(message, (key, value) => {
+    const data = JSON.stringify(message, (_, value) => {
       if (typeof value === 'bigint') {
         return value.toString();
       }

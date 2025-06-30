@@ -16,6 +16,8 @@ import { ammPriceCalculator } from '../utils/amm-price-calculator';
 import { ammPriceTracker } from './amm-price-tracker';
 
 export class AmmPoolStateService {
+  private static instance: AmmPoolStateService | null = null;
+  
   // In-memory cache for fast lookups
   private poolStates: Map<string, AmmPoolState> = new Map(); // Key: mint address
   private poolAddressToMint: Map<string, string> = new Map(); // Pool address -> mint address
@@ -24,9 +26,16 @@ export class AmmPoolStateService {
   private pendingUpdates: PoolStateUpdate[] = [];
   private updateTimer: NodeJS.Timeout | null = null;
   
-  constructor() {
+  private constructor() {
     // Load existing pool states from database on startup
     this.loadExistingPools();
+  }
+  
+  static getInstance(): AmmPoolStateService {
+    if (!this.instance) {
+      this.instance = new AmmPoolStateService();
+    }
+    return this.instance;
   }
   
   /**

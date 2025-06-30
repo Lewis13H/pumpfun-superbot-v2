@@ -34,7 +34,9 @@
     "test:watch": "jest --watch",
     "test:run-all": "tsx src/tests/run-integration-tests.ts",
     "start-refactored": "tsx src/start-refactored-monitors.ts",
-    "server-refactored": "tsx src/api/server-refactored.ts"
+    "server-refactored": "tsx src/api/server-refactored.ts",
+    "test-bc-refactored": "tsx scripts/test-bc-monitor-refactored.ts",
+    "debug-bc-parser": "tsx scripts/debug-bc-parser.ts"
   },
   "name": "pumpfun-superbot-v2",
   "version": "1.0.0",

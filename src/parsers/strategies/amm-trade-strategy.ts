@@ -3,7 +3,7 @@
  * Handles pump.swap AMM trades
  */
 
-import bs58 from 'bs58';
+// import bs58 from 'bs58';
 import { ParseStrategy, ParseContext, AMMTradeEvent, EventType, TradeType } from '../types';
 import { AMM_PROGRAM } from '../../utils/constants';
 import { Logger } from '../../core/logger';

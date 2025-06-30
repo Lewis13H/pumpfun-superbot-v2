@@ -10,7 +10,7 @@ import { createServer } from 'http';
 import { EventBus, EVENTS } from '../../core/event-bus';
 import { Container, TOKENS } from '../../core/container';
 import { WebSocket } from 'ws';
-import * as express from 'express';
+import express from 'express';
 
 // Mock blockchain stream
 class MockBlockchainStream {
@@ -157,8 +157,8 @@ describe('System End-to-End Tests', () => {
     (container as any).services.set(TOKENS.TradeRepository.toString(), mockTradeRepo);
 
     // Create Express app
-    app = express.default ? express.default() : (express as any)();
-    app.use((express.default || express).json());
+    app = express();
+    app.use(express.json());
 
     // Add API routes
     app.get('/api/health', (_req, res) => {

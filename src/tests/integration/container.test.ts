@@ -18,10 +18,15 @@ describe('Container Integration Tests', () => {
     it('should register and resolve services', async () => {
       // Register a simple service
       const testService = { name: 'test' };
-      container.register(ServiceToken.for('TestService'), async () => testService);
+      const testToken = 'TestService' as ServiceToken<typeof testService>;
+      container.register({
+        token: testToken,
+        factory: async () => testService,
+        singleton: true
+      });
 
       // Resolve the service
-      const resolved = await container.resolve(ServiceToken.for('TestService'));
+      const resolved = await container.resolve(testToken);
       expect(resolved).toBe(testService);
     });
 
@@ -34,11 +39,16 @@ describe('Container Integration Tests', () => {
         }
       }
 
-      container.register(ServiceToken.for('TestService'), async () => new TestService());
+      const testToken = 'TestService' as ServiceToken<TestService>;
+      container.register({
+        token: testToken,
+        factory: async () => new TestService(),
+        singleton: true
+      });
 
       // Resolve multiple times
-      const instance1 = await container.resolve(ServiceToken.for('TestService'));
-      const instance2 = await container.resolve(ServiceToken.for('TestService'));
+      const instance1 = await container.resolve(testToken);
+      const instance2 = await container.resolve(testToken);
 
       expect(constructorCalls).toBe(1);
       expect(instance1).toBe(instance2);
@@ -46,36 +56,53 @@ describe('Container Integration Tests', () => {
 
     it('should resolve services with dependencies', async () => {
       // Register EventBus
-      container.register(TOKENS.EventBus, async () => new EventBus());
+      container.register({
+        token: TOKENS.EventBus,
+        factory: async () => new EventBus(),
+        singleton: true
+      });
 
       // Register a service that depends on EventBus
       class TestService {
         constructor(public eventBus: EventBus) {}
       }
 
-      container.register(ServiceToken.for('TestService'), async () => {
-        const eventBus = await container.resolve(TOKENS.EventBus);
-        return new TestService(eventBus);
+      const testToken = 'TestService' as ServiceToken<TestService>;
+      container.register({
+        token: testToken,
+        factory: async () => {
+          const eventBus = await container.resolve(TOKENS.EventBus);
+          return new TestService(eventBus);
+        },
+        singleton: true
       });
 
       // Resolve the service
-      const testService = await container.resolve(ServiceToken.for('TestService')) as TestService;
+      const testService = await container.resolve(testToken) as TestService;
       expect(testService.eventBus).toBeInstanceOf(EventBus);
     });
 
     it('should detect circular dependencies', async () => {
       // Create circular dependency: A -> B -> A
-      const tokenA = ServiceToken.for('ServiceA');
-      const tokenB = ServiceToken.for('ServiceB');
+      const tokenA = 'ServiceA' as ServiceToken<{name: string}>;
+      const tokenB = 'ServiceB' as ServiceToken<{name: string}>;
 
-      container.register(tokenA, async () => {
-        await container.resolve(tokenB);
-        return { name: 'A' };
+      container.register({
+        token: tokenA,
+        factory: async () => {
+          await container.resolve(tokenB);
+          return { name: 'A' };
+        },
+        singleton: true
       });
 
-      container.register(tokenB, async () => {
-        await container.resolve(tokenA);
-        return { name: 'B' };
+      container.register({
+        token: tokenB,
+        factory: async () => {
+          await container.resolve(tokenA);
+          return { name: 'B' };
+        },
+        singleton: true
       });
 
       // Should throw error when resolving
@@ -90,9 +117,21 @@ describe('Container Integration Tests', () => {
         const container = new Container();
         
         // Register core services
-        container.register(TOKENS.EventBus, async () => new EventBus());
-        container.register(TOKENS.ConfigService, async () => new ConfigService());
-        container.register(TOKENS.Logger, async () => new Logger({ context: 'Test' }));
+        container.register({
+          token: TOKENS.EventBus,
+          factory: async () => new EventBus(),
+          singleton: true
+        });
+        container.register({
+          token: TOKENS.ConfigService,
+          factory: async () => new ConfigService(),
+          singleton: true
+        });
+        container.register({
+          token: TOKENS.Logger,
+          factory: async () => new Logger({ context: 'Test' }),
+          singleton: true
+        });
         
         return container;
       };
@@ -112,16 +151,21 @@ describe('Container Integration Tests', () => {
 
   describe('Error Handling', () => {
     it('should throw error for unregistered services', async () => {
-      const unknownToken = ServiceToken.for('UnknownService');
-      await expect(container.resolve(unknownToken)).rejects.toThrow('Service UnknownService not registered');
+      const unknownToken = 'UnknownService' as ServiceToken<any>;
+      await expect(container.resolve(unknownToken)).rejects.toThrow('Service not registered: UnknownService');
     });
 
     it('should handle factory errors gracefully', async () => {
-      container.register(ServiceToken.for('ErrorService'), async () => {
-        throw new Error('Factory error');
+      const errorToken = 'ErrorService' as ServiceToken<any>;
+      container.register({
+        token: errorToken,
+        factory: async () => {
+          throw new Error('Factory error');
+        },
+        singleton: true
       });
 
-      await expect(container.resolve(ServiceToken.for('ErrorService')))
+      await expect(container.resolve(errorToken))
         .rejects.toThrow('Factory error');
     });
   });
@@ -138,12 +182,12 @@ describe('Container Integration Tests', () => {
       }
 
       // Register as transient
-      const token = ServiceToken.for('TransientService');
+      const token = 'TransientService' as ServiceToken<TransientService>;
       container.registerTransient(token, async () => new TransientService());
 
       // Each resolution should create a new instance
-      const instance1 = await container.resolve(token) as TransientService;
-      const instance2 = await container.resolve(token) as TransientService;
+      const instance1 = await container.resolve(token);
+      const instance2 = await container.resolve(token);
 
       expect(instance1.id).toBe(1);
       expect(instance2.id).toBe(2);

@@ -12,7 +12,12 @@ Real-time Solana token monitor for pump.fun bonding curves and pump.swap AMM poo
 # Complete Production Setup (run all monitors + recovery)
 ./scripts/run-complete-monitoring.sh    # Runs all 4 monitors + SOL price + DexScreener recovery
 
-# Individual Monitors
+# Refactored Architecture (NEW - Recommended)
+npm run start-refactored      # Run all 4 refactored monitors with DI
+npm run server-refactored     # API server for refactored system
+tsx scripts/test-graduation-handler.ts  # Test graduation handler
+
+# Individual Monitors (Legacy)
 npm run bc-monitor-quick-fix  # Bonding curve trade monitor (>95% parse rate)
 npm run bc-account-monitor    # Bonding curve account monitor (detects graduations)
 npm run amm-monitor           # AMM pool trade monitor for graduated tokens
@@ -57,7 +62,18 @@ psql $DATABASE_URL -c "SELECT COUNT(*) FROM tokens_unified"  # Check database
 ### Directory Structure
 ```
 src/
+├── core/                           # Foundation layer (NEW)
+│   ├── container.ts               # Dependency injection container
+│   ├── container-factory.ts       # DI container setup
+│   ├── event-bus.ts              # Event-driven communication
+│   ├── config.ts                 # Centralized configuration
+│   ├── logger.ts                 # Structured logging
+│   └── base-monitor.ts           # Base monitor abstraction
 ├── monitors/
+│   ├── bc-monitor-refactored.ts    # Refactored BC trade monitor (NEW)
+│   ├── bc-account-monitor-refactored.ts # Refactored BC account monitor (NEW)
+│   ├── amm-monitor-refactored.ts   # Refactored AMM monitor (NEW)
+│   ├── amm-account-monitor-refactored.ts # Refactored AMM account monitor (NEW)
 │   ├── unified-monitor-v2.ts       # Main production monitor (DEPRECATED - has issues)
 │   ├── bc-monitor.ts               # Bonding curve focused monitor
 │   ├── bc-monitor-quick-fixes.ts   # Improved BC monitor (handles 225 & 113 byte events)
@@ -101,8 +117,14 @@ src/
 │   ├── bc-event-parser-v2.ts       # Improved parser (225 & 113 bytes)
 │   └── amm-swap-parser.ts          # Reference AMM parser
 ├── handlers/
+│   ├── trade-handler.ts            # Unified trade handler (NEW)
+│   ├── graduation-handler.ts       # Graduation event handler (NEW)
 │   ├── bc-db-handler.ts            # BC database integration
 │   └── bc-db-handler-v2.ts         # Improved with retry logic
+├── repositories/                    # Data access layer (NEW)
+│   ├── base-repository.ts          # Base repository pattern
+│   ├── token-repository.ts         # Token data access
+│   └── trade-repository.ts         # Trade data access
 ├── stream/
 │   └── client.ts                   # Singleton gRPC client
 ├── utils/
@@ -127,6 +149,35 @@ src/
 5. **Dashboard** → Display and track tokens
 
 ### Key Implementation Details
+
+#### Refactored Architecture (NEW - December 2024)
+The system has been refactored to use clean architecture principles:
+- **Dependency Injection**: All services managed by DI container
+- **Event-Driven**: Components communicate via EventBus
+- **Repository Pattern**: Clean data access layer
+- **Base Abstractions**: Common monitor functionality in BaseMonitor
+- **No Singletons**: All services are injected, not imported
+
+To use the refactored monitors:
+```bash
+npm run start-refactored  # Runs all 4 refactored monitors
+```
+
+#### Graduation Handler (`graduation-handler.ts`)
+Manages bonding curve to AMM graduation tracking:
+- Listens to `TRADE_PROCESSED` events to build BC → mint mappings
+- Detects `TOKEN_GRADUATED` events from BC account monitor
+- Updates token graduation status in database
+- Maintains in-memory cache of bonding curve mappings
+- Stores mappings in `bonding_curve_mappings` table
+- **Important**: Requires `bonding_curve_key` column in trades table
+
+Event Flow:
+1. BC Monitor extracts `bondingCurveKey` from trade events
+2. Trade Handler emits `TRADE_PROCESSED` with BC key
+3. Graduation Handler builds BC → mint mapping
+4. BC Account Monitor detects graduation (complete = true)
+5. Graduation Handler updates token as graduated
 
 #### Unified Monitor V2 (`unified-monitor-v2.ts`)
 **DEPRECATED** - This monitor has issues with AMM trade detection. Use separate monitors instead:
@@ -352,6 +403,7 @@ CREATE TABLE trades_unified (
     volume_usd DECIMAL(20, 4),
     virtual_sol_reserves BIGINT,
     virtual_token_reserves BIGINT,
+    bonding_curve_key VARCHAR(64),  -- NEW: BC address for graduation tracking
     bonding_curve_progress DECIMAL(5, 2),
     slot BIGINT NOT NULL,
     block_time TIMESTAMPTZ NOT NULL,
@@ -361,6 +413,18 @@ CREATE TABLE trades_unified (
 -- Indexes for performance
 CREATE INDEX idx_trades_unified_user ON trades_unified(user_address);
 CREATE INDEX idx_trades_unified_mint_time ON trades_unified(mint_address, block_time DESC);
+CREATE INDEX idx_trades_unified_bonding_curve_key ON trades_unified(bonding_curve_key) WHERE bonding_curve_key IS NOT NULL;
+
+-- Bonding Curve Mappings (NEW: For graduation tracking)
+CREATE TABLE bonding_curve_mappings (
+    bonding_curve_key VARCHAR(64) PRIMARY KEY,
+    mint_address VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(mint_address)
+);
+
+CREATE INDEX idx_bc_mappings_mint ON bonding_curve_mappings(mint_address);
 
 -- AMM Pool State Tracking (AMM Session 1)
 CREATE TABLE amm_pool_states (

@@ -2,7 +2,7 @@
  * Integration tests for monitor system
  */
 
-import { createContainer } from '../../core/container-factory';
+// import { createContainer } from '../../core/container-factory';
 import { BCMonitorRefactored } from '../../monitors/bc-monitor-refactored';
 import { AMMMonitorRefactored } from '../../monitors/amm-monitor-refactored';
 import { EventBus, EVENTS } from '../../core/event-bus';
@@ -119,7 +119,7 @@ describe('Monitor System Integration', () => {
     // Register services
     container.registerSingleton(TOKENS.EventParser, async () => new UnifiedEventParser({}));
     container.registerSingleton(TOKENS.SolPriceService, async () => ({
-      getCurrentPrice: jest.fn().mockResolvedValue(180)
+      getPrice: jest.fn().mockResolvedValue(180)
     }));
     
     // Create trade handler with mocked services

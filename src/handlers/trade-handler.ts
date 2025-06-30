@@ -80,8 +80,9 @@ export class TradeHandler {
         blockTime: new Date(event.blockTime || Date.now())
       };
       
-      // Add bonding curve progress if applicable
-      if (event.type === EventType.BC_TRADE) {
+      // Add bonding curve specific fields if applicable
+      if (event.type === EventType.BC_TRADE && 'bondingCurveKey' in event) {
+        trade.bondingCurveKey = event.bondingCurveKey;
         trade.bondingCurveProgress = this.priceCalculator.calculateBondingCurveProgress(
           event.virtualSolReserves
         );
@@ -93,11 +94,14 @@ export class TradeHandler {
       // Check if we need to discover/update token
       const token = await this.handleTokenDiscovery(event, priceInfo, solPriceUsd);
       
-      // Emit trade event
+      // Emit trade events
       this.eventBus.emit(
         event.type === EventType.BC_TRADE ? EVENTS.BC_TRADE : EVENTS.AMM_TRADE,
         { trade, token }
       );
+      
+      // Emit TRADE_PROCESSED for graduation handler
+      this.eventBus.emit(EVENTS.TRADE_PROCESSED, trade);
       
       return { saved: true, token };
     } catch (error) {

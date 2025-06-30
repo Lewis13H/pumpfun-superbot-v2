@@ -6,7 +6,7 @@
 
 import chalk from 'chalk';
 import { ShyftGraphQLClient } from './graphql-client';
-import { unifiedDBService } from '../database/unified-db-service';
+import { UnifiedDbServiceV2 } from '../database/unified-db-service';
 
 interface TokenMetadata {
   mintAddress: string;
@@ -45,9 +45,17 @@ export class GraphQLMetadataEnricher {
   private static instance: GraphQLMetadataEnricher;
   private graphqlClient: ShyftGraphQLClient;
   private readonly BATCH_SIZE = 50; // GraphQL can handle larger batches
+  private _dbService?: UnifiedDbServiceV2;
   
   private constructor() {
     this.graphqlClient = ShyftGraphQLClient.getInstance();
+  }
+  
+  private get dbService(): UnifiedDbServiceV2 {
+    if (!this._dbService) {
+      this._dbService = UnifiedDbServiceV2.getInstance();
+    }
+    return this._dbService;
   }
   
   static getInstance(): GraphQLMetadataEnricher {
@@ -225,7 +233,7 @@ export class GraphQLMetadataEnricher {
     for (const [mintAddress, data] of metadata.entries()) {
       try {
         if (data.name && data.symbol) {
-          await unifiedDBService['pool'].query(
+          await this.dbService['pool'].query(
             'UPDATE tokens_unified ' +
             'SET ' +
             '  name = COALESCE(name, $1), ' +
@@ -268,7 +276,7 @@ export class GraphQLMetadataEnricher {
    * Get all tokens needing enrichment
    */
   async getTokensNeedingEnrichment(limit: number = 1000): Promise<string[]> {
-    const result = await unifiedDBService['pool'].query(
+    const result = await this.dbService['pool'].query(
       'SELECT mint_address ' +
       'FROM tokens_unified ' +
       'WHERE ' +
@@ -287,7 +295,7 @@ export class GraphQLMetadataEnricher {
       'LIMIT $1',
       [limit]);
     
-    return result.rows.map(row => row.mint_address);
+    return result.rows.map((row: any) => row.mint_address);
   }
 }
 

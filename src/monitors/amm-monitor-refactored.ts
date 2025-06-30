@@ -35,7 +35,7 @@ export class AMMMonitorRefactored extends BaseMonitor {
       {
         programId: AMM_PROGRAM,
         monitorName: 'AMM Pool Monitor',
-        color: chalk.magenta
+        color: chalk.magenta as any
       },
       container
     );
@@ -142,7 +142,7 @@ export class AMMMonitorRefactored extends BaseMonitor {
       }
       
       // Process the trade
-      const result = await this.tradeHandler.processTrade(event, this.currentSolPrice);
+      await this.tradeHandler.processTrade(event, this.currentSolPrice);
       
       // Log significant swaps
       if (volumeUsd > 5000) {

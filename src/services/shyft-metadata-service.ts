@@ -6,7 +6,7 @@
 
 import axios from 'axios';
 import chalk from 'chalk';
-import { db } from '../database';
+// import { db } from '../database';
 
 interface ShyftTokenMetadata {
   address: string;
