@@ -27,8 +27,8 @@ import {
   GET_AMM_POOLS,
   GET_AMM_POOL_RESERVES,
 } from '../graphql/queries/amm-pool.queries';
-import { calculateBondingCurveProgress, calculateTokenPrice } from './bc-price-calculator';
-import { calculateAmmTokenPrice, parseReserves, isValidAmmPool } from './amm-graphql-price-calculator';
+import { PriceCalculator } from './price-calculator';
+// import { calculateAmmTokenPrice, parseReserves, isValidAmmPool } from './amm-graphql-price-calculator';
 import { GRAPHQL_CONFIG } from '../config/graphql.config';
 import { deriveBondingCurveAddresses } from '../utils/pump-addresses';
 import chalk from 'chalk';
@@ -416,13 +416,14 @@ export class UnifiedGraphQLPriceRecovery {
     const virtualSolReserves = BigInt(data.virtualSolReserves);
     const virtualTokenReserves = BigInt(data.virtualTokenReserves);
 
-    const priceResult = calculateTokenPrice(
+    const calculator = new PriceCalculator();
+    const priceResult = calculator.calculateBondingCurvePrice(
       virtualSolReserves,
       virtualTokenReserves,
       solPriceUsd
     );
 
-    const progress = calculateBondingCurveProgress(virtualSolReserves);
+    const progress = calculator.calculateBondingCurveProgress(virtualSolReserves);
 
     return {
       mintAddress,

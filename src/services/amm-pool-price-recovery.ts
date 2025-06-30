@@ -5,7 +5,7 @@
 
 import { db } from '../database';
 import { SolPriceService } from './sol-price';
-import { calculateAmmTokenPrice } from './amm-graphql-price-calculator';
+import { PriceCalculator } from './price-calculator';
 import chalk from 'chalk';
 
 interface PoolStateData {
@@ -74,9 +74,11 @@ export class AmmPoolPriceRecovery {
         }
         
         // Calculate price from reserves
-        const priceResult = calculateAmmTokenPrice(
+        const calculator = new PriceCalculator();
+        const priceResult = calculator.calculateAMMPrice(
           poolState.virtualSolReserves,
           poolState.virtualTokenReserves,
+          true, // isBaseSOL
           solPrice
         );
         
