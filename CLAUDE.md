@@ -11,11 +11,15 @@ Real-time Solana token monitor for pump.fun bonding curves and pump.swap AMM poo
 ```bash
 # Complete Production Setup (run all monitors + recovery)
 ./scripts/run-complete-monitoring.sh    # Runs all 4 monitors + SOL price + DexScreener recovery
+./scripts/run-wrapped-monitoring.sh     # RECOMMENDED: Uses wrapped AMM monitors instead
 
 # Refactored Architecture (NEW - Recommended)
 npm run start-refactored      # Run all 4 refactored monitors with DI
+npm run start-wrapped         # Run refactored BC + wrapped AMM monitors (RECOMMENDED)
 npm run server-refactored     # API server for refactored system
 tsx scripts/test-graduation-handler.ts  # Test graduation handler
+tsx scripts/test-wrapped-monitors.ts    # Test wrapped AMM monitor integration
+tsx scripts/verify-amm-trades.ts       # Capture AMM trades for Solscan verification
 
 # Individual Monitors (Legacy)
 npm run bc-monitor-quick-fix  # Bonding curve trade monitor (>95% parse rate)
@@ -72,8 +76,10 @@ src/
 ├── monitors/
 │   ├── bc-monitor-refactored.ts    # Refactored BC trade monitor (NEW)
 │   ├── bc-account-monitor-refactored.ts # Refactored BC account monitor (NEW)
-│   ├── amm-monitor-refactored.ts   # Refactored AMM monitor (NEW)
-│   ├── amm-account-monitor-refactored.ts # Refactored AMM account monitor (NEW)
+│   ├── amm-monitor-refactored.ts   # Refactored AMM monitor (NEW - has gRPC issues)
+│   ├── amm-account-monitor-refactored.ts # Refactored AMM account monitor (NEW - has gRPC issues)
+│   ├── amm-monitor-wrapper.ts      # Wrapper for legacy AMM monitor with DI (RECOMMENDED)
+│   ├── amm-account-monitor-wrapper.ts # Wrapper for AMM account monitor with DI (RECOMMENDED)
 │   ├── unified-monitor-v2.ts       # Main production monitor (DEPRECATED - has issues)
 │   ├── bc-monitor.ts               # Bonding curve focused monitor
 │   ├── bc-monitor-quick-fixes.ts   # Improved BC monitor (handles 225 & 113 byte events)
@@ -160,8 +166,29 @@ The system has been refactored to use clean architecture principles:
 
 To use the refactored monitors:
 ```bash
-npm run start-refactored  # Runs all 4 refactored monitors
+npm run start-refactored  # Runs all 4 refactored monitors (AMM monitors have gRPC issues)
+npm run start-wrapped     # RECOMMENDED: Refactored BC + wrapped AMM monitors
 ```
+
+#### Wrapped AMM Monitors (NEW - December 2024)
+Due to gRPC subscription issues with refactored AMM monitors, wrapper classes were created:
+- **AMM Monitor Wrapper** (`amm-monitor-wrapper.ts`):
+  - Wraps the proven legacy AMM trade monitor
+  - Extends BaseMonitor for DI integration
+  - Emits events: `AMM_TRADE`, `POOL_STATE_UPDATED`, `TRADE_PROCESSED`
+  - Preserves all parsing logic while adding event-driven architecture
+- **AMM Account Monitor Wrapper** (`amm-account-monitor-wrapper.ts`):
+  - Wraps the legacy AMM account monitor
+  - Tracks pool states and reserve updates
+  - Emits events: `POOL_CREATED`, `POOL_STATE_UPDATED`
+  - Integrates with pool state service
+
+Benefits:
+- Uses proven parsing logic from legacy monitors
+- Full integration with DI container and EventBus
+- Works seamlessly with graduation handler
+- All trades emit proper events for other components
+- Verified accurate against Solscan.io
 
 #### Graduation Handler (`graduation-handler.ts`)
 Manages bonding curve to AMM graduation tracking:
@@ -349,6 +376,20 @@ data.transaction.transaction.meta                            // Contains logs
     - Lower threshold for AMM tokens ($1,000 vs $8,888)
     - Automatically marks as graduated
     - Enables price tracking for all traded tokens
+
+11. **Refactored AMM Account Monitor gRPC Issues (FIXED)**
+    - The refactored AMM account monitor had gRPC subscription format issues
+    - Solution: Created wrapper classes for legacy AMM monitors
+    - `amm-monitor-wrapper.ts` - Wraps proven AMM trade monitor
+    - `amm-account-monitor-wrapper.ts` - Wraps AMM account monitor
+    - Both integrate with DI container and emit events through EventBus
+
+12. **AMM Trade Verification (VERIFIED)**
+    - Tested buy/sell detection against Solscan.io
+    - All trade types correctly identified
+    - SOL and token amounts accurate
+    - Prices calculated correctly
+    - Market cap calculations verified
 
 5. **Rate limits**
    - Shyft: 50 subscriptions/60s per token

@@ -132,8 +132,8 @@ export async function createContainer(): Promise<Container> {
   
   // Register pool state service
   container.registerSingleton(TOKENS.PoolStateService, async () => {
-    const { AMMPoolStateService } = await import('../services/amm-pool-state-service');
-    return AMMPoolStateService.getInstance();
+    const { AmmPoolStateService } = await import('../services/amm-pool-state-service');
+    return AmmPoolStateService.getInstance();
   });
   
   // Initialize critical services
