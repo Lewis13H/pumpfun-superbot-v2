@@ -11,6 +11,7 @@ import { AMMMonitorRefactored } from './monitors/amm-monitor-refactored';
 import { EventBus, EVENTS } from './core/event-bus';
 import { Logger, LogLevel } from './core/logger';
 import { ConfigService } from './core/config';
+import { TOKENS } from './core/container';
 
 // Set log level based on environment
 Logger.setGlobalLevel(
@@ -41,6 +42,13 @@ async function startMonitors() {
     // Setup global event listeners
     setupGlobalEventListeners(eventBus, logger);
     
+    // Pre-resolve shared services to avoid circular dependency issues
+    logger.info('Pre-resolving shared services...');
+    const streamClient = await container.resolve(TOKENS.StreamClient);
+    const dbService = await container.resolve(TOKENS.DatabaseService);
+    const solPriceService = await container.resolve(TOKENS.SolPriceService);
+    logger.info('Shared services resolved');
+    
     // Create monitors
     logger.info('Creating monitors...');
     const monitors = [
@@ -48,9 +56,11 @@ async function startMonitors() {
       new AMMMonitorRefactored(container)
     ];
     
-    // Start all monitors
+    // Start all monitors sequentially to avoid dependency resolution conflicts
     logger.info('Starting all monitors...');
-    await Promise.all(monitors.map(monitor => monitor.start()));
+    for (const monitor of monitors) {
+      await monitor.start();
+    }
     
     logger.info('All monitors started successfully! 🚀');
     
