@@ -48,38 +48,79 @@ export async function createContainer(): Promise<Container> {
     return UnifiedGraphQLPriceRecovery.getInstance();
   });
   
-  // Register parsers (will be implemented in next phase)
-  container.registerTransient(TOKENS.EventParser, () => {
-    throw new Error('EventParser not implemented yet');
+  // Register parsers
+  container.registerTransient(TOKENS.EventParser, async () => {
+    const { UnifiedEventParser } = await import('../parsers/unified-event-parser');
+    const eventBus = await container.resolve(TOKENS.EventBus);
+    const config = await container.resolve(TOKENS.ConfigService);
+    
+    return new UnifiedEventParser({
+      eventBus,
+      logErrors: config.get('monitors').debugParseErrors
+    });
   });
   
-  // Register calculators (will be implemented in next phase)
-  container.registerSingleton(TOKENS.PriceCalculator, () => {
-    throw new Error('PriceCalculator not implemented yet');
+  // Register calculators
+  container.registerSingleton(TOKENS.PriceCalculator, async () => {
+    const { PriceCalculator } = await import('../services/price-calculator');
+    return new PriceCalculator();
   });
   
-  // Register handlers (will be implemented in next phase)
-  container.registerTransient(TOKENS.TradeHandler, () => {
-    throw new Error('TradeHandler not implemented yet');
-  });
-  
-  container.registerTransient(TOKENS.GraduationHandler, () => {
-    throw new Error('GraduationHandler not implemented yet');
-  });
-  
-  // Register repositories (will be implemented in next phase)
+  // Register repositories
   container.registerSingleton(TOKENS.TokenRepository, async () => {
-    const db = await container.resolve(TOKENS.DatabaseService);
-    throw new Error('TokenRepository not implemented yet');
+    const { TokenRepository } = await import('../repositories/token-repository');
+    const { Pool } = await import('pg');
+    const eventBus = await container.resolve(TOKENS.EventBus);
+    const config = await container.resolve(TOKENS.ConfigService);
+    
+    const pool = new Pool({
+      connectionString: config.get('database').url,
+      max: config.get('database').poolSize,
+      idleTimeoutMillis: config.get('database').idleTimeout
+    });
+    
+    return new TokenRepository(pool, eventBus);
   });
   
   container.registerSingleton(TOKENS.TradeRepository, async () => {
-    const db = await container.resolve(TOKENS.DatabaseService);
-    throw new Error('TradeRepository not implemented yet');
+    const { TradeRepository } = await import('../repositories/trade-repository');
+    const { Pool } = await import('pg');
+    const config = await container.resolve(TOKENS.ConfigService);
+    
+    const pool = new Pool({
+      connectionString: config.get('database').url,
+      max: config.get('database').poolSize,
+      idleTimeoutMillis: config.get('database').idleTimeout
+    });
+    
+    return new TradeRepository(pool);
+  });
+  
+  // Register handlers
+  container.registerTransient(TOKENS.TradeHandler, async () => {
+    const { TradeHandler } = await import('../handlers/trade-handler');
+    const tokenRepo = await container.resolve(TOKENS.TokenRepository);
+    const tradeRepo = await container.resolve(TOKENS.TradeRepository);
+    const priceCalculator = await container.resolve(TOKENS.PriceCalculator);
+    const eventBus = await container.resolve(TOKENS.EventBus);
+    const config = await container.resolve(TOKENS.ConfigService);
+    
+    return new TradeHandler({
+      tokenRepo,
+      tradeRepo,
+      priceCalculator,
+      eventBus,
+      config
+    });
+  });
+  
+  container.registerTransient(TOKENS.GraduationHandler, () => {
+    // TODO: Implement graduation handler
+    throw new Error('GraduationHandler not implemented yet');
   });
   
   container.registerSingleton(TOKENS.PoolRepository, async () => {
-    const db = await container.resolve(TOKENS.DatabaseService);
+    // TODO: Implement pool repository
     throw new Error('PoolRepository not implemented yet');
   });
   
