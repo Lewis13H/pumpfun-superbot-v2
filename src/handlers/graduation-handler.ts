@@ -170,27 +170,25 @@ export class GraduationHandler {
    */
   private async storeBondingCurveMapping(bondingCurve: string, mintAddress: string): Promise<void> {
     try {
-      // First check if this mint already has a mapping
-      const existing = await this.tokenRepo.queryOne<any>(`
-        SELECT bonding_curve_key FROM bonding_curve_mappings 
-        WHERE mint_address = $1
-      `, [mintAddress]);
-      
-      if (!existing) {
-        // Only insert if mint doesn't already have a mapping
-        await this.tokenRepo.query(`
-          INSERT INTO bonding_curve_mappings (bonding_curve_key, mint_address)
-          VALUES ($1, $2)
-          ON CONFLICT (bonding_curve_key) DO UPDATE
-          SET mint_address = $2, updated_at = NOW()
-        `, [bondingCurve, mintAddress]);
-      }
+      // Try to insert or update, handling both unique constraints
+      await this.tokenRepo.query(`
+        INSERT INTO bonding_curve_mappings (bonding_curve_key, mint_address)
+        VALUES ($1, $2)
+        ON CONFLICT (bonding_curve_key) DO UPDATE
+        SET mint_address = EXCLUDED.mint_address, 
+            updated_at = NOW()
+        WHERE bonding_curve_mappings.mint_address != EXCLUDED.mint_address
+      `, [bondingCurve, mintAddress]);
     } catch (error) {
       // Table might not exist yet, create it
       if (error.message?.includes('does not exist')) {
         await this.createMappingTable();
         // Retry the insert
         await this.storeBondingCurveMapping(bondingCurve, mintAddress);
+      } else if (error.message?.includes('duplicate key value violates unique constraint')) {
+        // This is expected if the mint already has a mapping or the BC already has a different mint
+        // Just ignore it silently
+        return;
       } else {
         this.logger.error('Failed to store bonding curve mapping', error as Error);
       }
