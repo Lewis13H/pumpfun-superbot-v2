@@ -43,9 +43,11 @@ export class GraduationHandler {
       // Load existing mappings from database
       await this.loadExistingMappings();
       
-      this.logger.info('Graduation handler initialized', {
-        cachedMappings: this.bondingCurveCache.size
-      });
+      if (process.env.DISABLE_MONITOR_STATS !== 'true') {
+        this.logger.info('Graduation handler initialized', {
+          cachedMappings: this.bondingCurveCache.size
+        });
+      }
       
       this.initialized = true;
     } catch (error) {
@@ -101,9 +103,11 @@ export class GraduationHandler {
         }
       }
 
-      this.logger.info('Loaded bonding curve mappings', {
-        mappings: this.bondingCurveCache.size
-      });
+      if (process.env.DISABLE_MONITOR_STATS !== 'true') {
+        this.logger.info('Loaded bonding curve mappings', {
+          mappings: this.bondingCurveCache.size
+        });
+      }
     } catch (error) {
       this.logger.error('Failed to load existing mappings', error as Error);
     }

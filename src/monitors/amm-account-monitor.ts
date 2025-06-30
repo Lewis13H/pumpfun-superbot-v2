@@ -406,11 +406,14 @@ export class AMMAccountMonitor extends BaseMonitor {
           );
         }
         
-        this.logger.info('Pool state updated', {
-          mint: poolData.quoteMint,
-          pool: accountPubkey,
-          lpSupply: poolData.lpSupply.toLocaleString()
-        });
+        // Only log if not in quiet mode
+        if (process.env.DISABLE_MONITOR_STATS !== 'true') {
+          this.logger.info('Pool state updated', {
+            mint: poolData.quoteMint,
+            pool: accountPubkey,
+            lpSupply: poolData.lpSupply.toLocaleString()
+          });
+        }
         
       } catch (decodeError) {
         this.ammStats.decodeErrors++;

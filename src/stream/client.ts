@@ -33,7 +33,9 @@ export class StreamClient {
       'grpc.http2.max_pings_without_data': 2,   // Allow 2 pings without data
     };
     
-    console.log('🔧 Initializing gRPC client with keepalive settings');
+    if (process.env.DISABLE_MONITOR_STATS !== 'true') {
+      console.log('🔧 Initializing gRPC client with keepalive settings');
+    }
     this.client = new Client(formattedEndpoint, token, channelOptions);
   }
 

@@ -24,7 +24,9 @@ export class ShyftGraphQLClient {
       timeout: GRAPHQL_CONFIG.timeout,
     });
     
-    console.log(chalk.green('✅ GraphQL client initialized'));
+    if (process.env.DISABLE_MONITOR_STATS !== 'true') {
+      console.log(chalk.green('✅ GraphQL client initialized'));
+    }
   }
   
   static getInstance(): ShyftGraphQLClient {

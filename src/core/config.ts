@@ -220,7 +220,9 @@ export class ConfigService {
       masked.database.url = url.toString();
     }
     
-    console.log('Configuration loaded:', JSON.stringify(masked, null, 2));
+    if (process.env.DISABLE_MONITOR_STATS !== 'true') {
+      console.log('Configuration loaded:', JSON.stringify(masked, null, 2));
+    }
   }
 }
 

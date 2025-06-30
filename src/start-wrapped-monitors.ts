@@ -15,8 +15,11 @@ import { Logger, LogLevel } from './core/logger';
 import { ConfigService } from './core/config';
 import { TOKENS } from './core/container';
 
-// Set log level to INFO for cleaner output
-Logger.setGlobalLevel(LogLevel.INFO);
+// Set log level to ERROR for minimal output
+Logger.setGlobalLevel(LogLevel.ERROR);
+
+// Disable monitor stats display
+process.env.DISABLE_MONITOR_STATS = 'true';
 
 // Statistics tracking
 interface SystemStats {

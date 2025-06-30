@@ -320,14 +320,17 @@ export class AMMMonitor extends BaseMonitor {
       
       // Log significant trades
       if (volumeUsd > 100) {
-        this.logger.info('AMM trade', {
-          type: swapEvent.type,
-          mint: swapEvent.mint.slice(0, 8) + '...',
-          solAmount: solAmount.toFixed(4),
-          tokenAmount,
-          priceUsd: priceUsd.toFixed(8),
-          volumeUsd
-        });
+        // Only log if not in quiet mode
+        if (process.env.DISABLE_MONITOR_STATS !== 'true') {
+          this.logger.info('AMM trade', {
+            type: swapEvent.type,
+            mint: swapEvent.mint.slice(0, 8) + '...',
+            solAmount: solAmount.toFixed(4),
+            tokenAmount,
+            priceUsd: priceUsd.toFixed(8),
+            volumeUsd
+          });
+        }
       }
       
     } catch (error) {

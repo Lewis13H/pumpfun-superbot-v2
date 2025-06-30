@@ -68,7 +68,9 @@ export abstract class BaseMonitor {
    * Start the monitor
    */
   async start(): Promise<void> {
-    this.logger.info(`Starting ${this.options.monitorName}...`);
+    if (process.env.DISABLE_MONITOR_STATS !== 'true') {
+      this.logger.info(`Starting ${this.options.monitorName}...`);
+    }
     
     try {
       // Initialize services
@@ -127,7 +129,9 @@ export abstract class BaseMonitor {
         }
       }, updateInterval);
       
-      this.logger.info(`SOL price initialized: $${this.currentSolPrice.toFixed(2)}`);
+      if (process.env.DISABLE_MONITOR_STATS !== 'true') {
+        this.logger.info(`SOL price initialized: $${this.currentSolPrice.toFixed(2)}`);
+      }
     } catch (error) {
       this.logger.error('Failed to initialize SOL price', error as Error);
     }
@@ -137,6 +141,11 @@ export abstract class BaseMonitor {
    * Start display interval
    */
   protected startDisplayInterval(): void {
+    // Skip display if disabled
+    if (process.env.DISABLE_MONITOR_STATS === 'true') {
+      return;
+    }
+    
     const interval = this.config.get('monitors').displayInterval;
     
     this.displayInterval = setInterval(() => {
