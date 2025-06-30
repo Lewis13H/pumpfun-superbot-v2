@@ -26,7 +26,7 @@
     "enrich-tokens-unified": "tsx src/examples-unified/enrich-tokens.ts",
     "query-trades": "tsx src/examples-unified/query-trades.ts",
     "startup-recovery": "tsx src/scripts/startup-recovery.ts",
-    "test-stale-detection": "tsx src/tests/test-stale-detection.ts",
+    "test-stale-detection": "tsx src/tests/test-stale-detection.ts"
   },
   "name": "pumpfun-superbot-v2",
   "version": "1.0.0",
