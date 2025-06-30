@@ -22,7 +22,7 @@ import { TOKENS } from '../core/container';
  */
 async function createApp() {
   const app = express();
-  const logger = new Logger({ context: 'API', color: chalk.blue });
+  const logger = new Logger({ context: 'API' });
   
   // Create container
   const container = await createContainer();
@@ -41,7 +41,7 @@ async function createApp() {
   // API Routes
   
   // Health check
-  app.get('/api/health', (req, res) => {
+  app.get('/api/health', (_req, res) => {
     res.json({
       status: 'ok',
       timestamp: new Date(),
@@ -72,7 +72,8 @@ async function createApp() {
     try {
       const token = await tokenRepo.findByMintAddress(req.params.mintAddress);
       if (!token) {
-        return res.status(404).json({ error: 'Token not found' });
+        res.status(404).json({ error: 'Token not found' });
+        return;
       }
       res.json(token);
     } catch (error) {
@@ -122,7 +123,7 @@ async function createApp() {
   });
   
   // Statistics endpoints
-  app.get('/api/stats/overview', async (req, res) => {
+  app.get('/api/stats/overview', async (_req, res) => {
     try {
       const tokenStats = await tokenRepo.getStatistics();
       const topTraders = await tradeRepo.getTopTraders(10);
@@ -160,15 +161,15 @@ async function createApp() {
   app.use(express.static(path.join(__dirname, '../../public')));
   
   // Dashboard routes
-  app.get('/', (req, res) => {
+  app.get('/', (_req, res) => {
     res.sendFile(path.join(__dirname, '../../public/index.html'));
   });
   
-  app.get('/bc-monitor', (req, res) => {
+  app.get('/bc-monitor', (_req, res) => {
     res.sendFile(path.join(__dirname, '../../public/bc-monitor.html'));
   });
   
-  app.get('/amm-dashboard', (req, res) => {
+  app.get('/amm-dashboard', (_req, res) => {
     res.sendFile(path.join(__dirname, '../../public/amm-dashboard.html'));
   });
   
@@ -179,7 +180,7 @@ async function createApp() {
  * Start the server
  */
 async function startServer() {
-  const { app, container, config, eventBus, logger } = await createApp();
+  const { app, config, eventBus, logger } = await createApp();
   
   // Create HTTP server
   const httpServer = createServer(app);

@@ -266,7 +266,13 @@ export class WebSocketServer {
       const messages = this.messageQueue.splice(0, 100); // Process in batches
       
       for (const message of messages) {
-        const data = JSON.stringify(message);
+        // Serialize with BigInt support
+        const data = JSON.stringify(message, (key, value) => {
+          if (typeof value === 'bigint') {
+            return value.toString();
+          }
+          return value;
+        });
         
         for (const client of this.clients.values()) {
           // Check if client is subscribed to this event
@@ -287,7 +293,13 @@ export class WebSocketServer {
    * Send message to specific client
    */
   private sendToClient(client: WebSocketClient, message: WebSocketMessage): void {
-    this.sendRaw(client, JSON.stringify(message));
+    const data = JSON.stringify(message, (key, value) => {
+      if (typeof value === 'bigint') {
+        return value.toString();
+      }
+      return value;
+    });
+    this.sendRaw(client, data);
   }
 
   /**
