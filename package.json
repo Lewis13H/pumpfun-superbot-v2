@@ -27,7 +27,7 @@
     "test:run-all": "tsx src/tests/run-integration-tests.ts",
     "start-refactored": "tsx src/start-refactored-monitors.ts",
     "start-wrapped": "tsx src/start-wrapped-monitors.ts",
-    "server-refactored": "tsx src/api/server-refactored.ts",
+    "server-refactored": "tsx src/api/server-refactored.ts"
   },
   "name": "pumpfun-superbot-v2",
   "version": "1.0.0",

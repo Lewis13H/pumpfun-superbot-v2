@@ -13,7 +13,7 @@ import {
 import { db } from '../database';
 import chalk from 'chalk';
 import { ammPriceCalculator } from '../utils/amm-price-calculator';
-import { ammPriceTracker } from './amm-price-tracker';
+// import { ammPriceTracker } from './amm-price-tracker';
 
 export class AmmPoolStateService {
   private static instance: AmmPoolStateService | null = null;
@@ -201,11 +201,11 @@ export class AmmPoolStateService {
       metrics.liquidityUsd = priceCalc.liquidityUsd;
       
       // Track price history
-      await ammPriceTracker.trackPrice(
-        reserves.mintAddress,
-        reserves,
-        reserves.lastUpdateSlot
-      );
+      // await ammPriceTracker.trackPrice(
+      //   reserves.mintAddress,
+      //   reserves,
+      //   reserves.lastUpdateSlot
+      // );
       
     } catch (error) {
       console.error(chalk.red(`Error calculating metrics for ${reserves.mintAddress}:`), error);

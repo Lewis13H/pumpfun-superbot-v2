@@ -5,8 +5,6 @@
 
 import { ShyftGraphQLClient } from './graphql-client';
 import { SolPriceService } from './sol-price';
-import { AmmPoolPriceRecovery } from './amm-pool-price-recovery';
-import { ShyftAmmPriceRecovery } from './shyft-amm-price-recovery';
 import { db } from '../database';
 import {
   BondingCurveData,
@@ -42,15 +40,15 @@ export class UnifiedGraphQLPriceRecovery {
   private static instance: UnifiedGraphQLPriceRecovery;
   private client: ShyftGraphQLClient;
   private solPriceService: SolPriceService;
-  private ammPoolRecovery: AmmPoolPriceRecovery;
-  private shyftAmmRecovery: ShyftAmmPriceRecovery;
+  // private ammPoolRecovery: AmmPoolPriceRecovery;
+  // private shyftAmmRecovery: ShyftAmmPriceRecovery;
   private cache: Map<string, { data: PriceUpdate; timestamp: number }> = new Map();
 
   private constructor() {
     this.client = ShyftGraphQLClient.getInstance();
     this.solPriceService = SolPriceService.getInstance();
-    this.ammPoolRecovery = AmmPoolPriceRecovery.getInstance();
-    this.shyftAmmRecovery = ShyftAmmPriceRecovery.getInstance();
+    // this.ammPoolRecovery = AmmPoolPriceRecovery.getInstance();
+    // this.shyftAmmRecovery = ShyftAmmPriceRecovery.getInstance();
   }
 
   static getInstance(): UnifiedGraphQLPriceRecovery {

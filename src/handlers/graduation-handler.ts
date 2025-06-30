@@ -171,6 +171,7 @@ export class GraduationHandler {
         VALUES ($1, $2)
         ON CONFLICT (bonding_curve_key) DO UPDATE
         SET mint_address = $2, updated_at = NOW()
+        WHERE bonding_curve_mappings.mint_address != $2
       `, [bondingCurve, mintAddress]);
     } catch (error) {
       // Table might not exist yet, create it
