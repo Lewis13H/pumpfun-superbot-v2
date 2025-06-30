@@ -7,12 +7,12 @@
 import 'dotenv/config';
 import chalk from 'chalk';
 import { createContainer } from '../src/core/container-factory';
-import { BCAccountMonitorRefactored } from '../src/monitors/bc-account-monitor-refactored';
+import { BCAccountMonitor } from '../src/monitors/bc-account-monitor';
 
 async function main() {
   try {
     const container = await createContainer();
-    const monitor = new BCAccountMonitorRefactored(container);
+    const monitor = new BCAccountMonitor(container);
     
     // Override processStreamData to log everything
     const originalProcess = monitor.processStreamData.bind(monitor);

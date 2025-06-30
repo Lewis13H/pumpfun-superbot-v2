@@ -8,7 +8,7 @@ import 'dotenv/config';
 import chalk from 'chalk';
 import { createContainer } from '../src/core/container-factory';
 import { UnifiedEventParser } from '../src/parsers/unified-event-parser';
-import { BCMonitorRefactored } from '../src/monitors/bc-monitor-refactored';
+import { BCMonitor } from '../src/monitors/bc-monitor';
 import { Logger, LogLevel } from '../src/core/logger';
 
 // Enable debug logging
@@ -22,7 +22,7 @@ async function main() {
     let captured = false;
 
     // Override processStreamData to capture raw data
-    const monitor = new BCMonitorRefactored(container);
+    const monitor = new BCMonitor(container);
     const originalProcess = monitor.processStreamData.bind(monitor);
     
     monitor.processStreamData = async function(data: any) {

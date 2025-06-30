@@ -96,11 +96,11 @@ async function testWrappedMonitors() {
     
     // 4. Create wrapped monitors
     logger.info('\n4. Creating wrapped monitors...');
-    const { AMMMonitorWrapper } = await import('../src/monitors/amm-monitor-wrapper');
-    const { AMMAccountMonitorWrapper } = await import('../src/monitors/amm-account-monitor-wrapper');
+    const { AMMMonitor } = await import('../src/monitors/amm-monitor');
+    const { AMMAccountMonitor } = await import('../src/monitors/amm-account-monitor');
     
-    const ammMonitor = new AMMMonitorWrapper(container);
-    const ammAccountMonitor = new AMMAccountMonitorWrapper(container);
+    const ammMonitor = new AMMMonitor(container);
+    const ammAccountMonitor = new AMMAccountMonitor(container);
     
     // 5. Start monitors for 30 seconds
     logger.info('5. Starting monitors (30 second test)...');

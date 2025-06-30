@@ -65,11 +65,11 @@ async function verifyAMMTrades() {
     });
     
     // Create and start wrapped monitors
-    const { AMMMonitorWrapper } = await import('../src/monitors/amm-monitor-wrapper');
-    const { AMMAccountMonitorWrapper } = await import('../src/monitors/amm-account-monitor-wrapper');
+    const { AMMMonitor } = await import('../src/monitors/amm-monitor');
+    const { AMMAccountMonitor } = await import('../src/monitors/amm-account-monitor');
     
-    const ammMonitor = new AMMMonitorWrapper(container);
-    const ammAccountMonitor = new AMMAccountMonitorWrapper(container);
+    const ammMonitor = new AMMMonitor(container);
+    const ammAccountMonitor = new AMMAccountMonitor(container);
     
     logger.info('Starting monitors...\n');
     await ammMonitor.start();

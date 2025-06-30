@@ -7,7 +7,7 @@
 import 'dotenv/config';
 import chalk from 'chalk';
 import { createContainer } from '../src/core/container-factory';
-import { BCAccountMonitorRefactored } from '../src/monitors/bc-account-monitor-refactored';
+import { BCAccountMonitor } from '../src/monitors/bc-account-monitor';
 import { Logger, LogLevel } from '../src/core/logger';
 import { EVENTS } from '../src/core/event-bus';
 
@@ -48,7 +48,7 @@ async function main() {
       }
     });
     
-    const monitor = new BCAccountMonitorRefactored(container);
+    const monitor = new BCAccountMonitor(container);
     await monitor.start();
     
     console.log(chalk.green('\n✅ Account monitor started!'));

@@ -7,7 +7,7 @@ import chalk from 'chalk';
 import { createContainer } from '../src/core/container-factory';
 import { TOKENS } from '../src/core/container';
 import { EVENTS } from '../src/core/event-bus';
-import { AMMAccountMonitorRefactored } from '../src/monitors/amm-account-monitor-refactored';
+import { AMMAccountMonitor } from '../src/monitors/amm-account-monitor';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -51,7 +51,7 @@ async function quickTest() {
     
     // 4. Create monitor
     console.log(chalk.yellow('\n4. Creating AMM Account Monitor...'));
-    const monitor = new AMMAccountMonitorRefactored(container);
+    const monitor = new AMMAccountMonitor(container);
     console.log(chalk.green('  ✓ Monitor created'));
     
     // 5. Setup event listeners

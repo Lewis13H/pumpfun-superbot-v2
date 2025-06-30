@@ -8,7 +8,7 @@ import chalk from 'chalk';
 import { createContainer } from '../src/core/container-factory';
 import { Container, TOKENS } from '../src/core/container';
 import { EventBus, EVENTS } from '../src/core/event-bus';
-import { AMMAccountMonitorRefactored } from '../src/monitors/amm-account-monitor-refactored';
+import { AMMAccountMonitor } from '../src/monitors/amm-account-monitor';
 import { db } from '../src/database';
 import dotenv from 'dotenv';
 
@@ -139,7 +139,7 @@ function setupEventListeners(eventBus: EventBus): void {
  */
 async function runTest(): Promise<void> {
   let container: Container | null = null;
-  let monitor: AMMAccountMonitorRefactored | null = null;
+  let monitor: AMMAccountMonitor | null = null;
   let statsInterval: NodeJS.Timeout | null = null;
   let dbCheckInterval: NodeJS.Timeout | null = null;
   
@@ -177,7 +177,7 @@ async function runTest(): Promise<void> {
     
     // Create and start the monitor
     console.log(chalk.gray('\nCreating AMM account monitor...'));
-    monitor = new AMMAccountMonitorRefactored(container);
+    monitor = new AMMAccountMonitor(container);
     
     console.log(chalk.gray('Starting monitor...'));
     await monitor.start();

@@ -7,7 +7,7 @@
 import 'dotenv/config';
 import chalk from 'chalk';
 import { createContainer } from '../src/core/container-factory';
-import { BCMonitorRefactored } from '../src/monitors/bc-monitor-refactored';
+import { BCMonitor } from '../src/monitors/bc-monitor';
 import { Logger, LogLevel } from '../src/core/logger';
 import { EVENTS } from '../src/core/event-bus';
 
@@ -38,7 +38,7 @@ async function main() {
       setTimeout(() => process.exit(0), 1000);
     });
 
-    const monitor = new BCMonitorRefactored(container);
+    const monitor = new BCMonitor(container);
     await monitor.start();
     
   } catch (error) {

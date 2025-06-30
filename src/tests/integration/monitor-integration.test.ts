@@ -3,8 +3,8 @@
  */
 
 // import { createContainer } from '../../core/container-factory';
-import { BCMonitorRefactored } from '../../monitors/bc-monitor-refactored';
-import { AMMMonitorRefactored } from '../../monitors/amm-monitor-refactored';
+import { BCMonitor } from '../../monitors/bc-monitor';
+import { AMMMonitor } from '../../monitors/amm-monitor';
 import { EventBus, EVENTS } from '../../core/event-bus';
 import { Container, TOKENS } from '../../core/container';
 import { UnifiedEventParser } from '../../parsers/unified-event-parser';
@@ -78,8 +78,8 @@ const mockAMMTradeData = {
 describe('Monitor System Integration', () => {
   let container: Container;
   let eventBus: EventBus;
-  let bcMonitor: BCMonitorRefactored;
-  let ammMonitor: AMMMonitorRefactored;
+  let bcMonitor: BCMonitor;
+  let ammMonitor: AMMMonitor;
   let tradeHandler: TradeHandler;
   let tokenRepo: TokenRepository;
   let tradeRepo: TradeRepository;
@@ -133,8 +133,8 @@ describe('Monitor System Integration', () => {
     container.registerSingleton(TOKENS.TradeHandler, async () => tradeHandler);
     
     // Create monitors
-    bcMonitor = new BCMonitorRefactored(container);
-    ammMonitor = new AMMMonitorRefactored(container);
+    bcMonitor = new BCMonitor(container);
+    ammMonitor = new AMMMonitor(container);
   });
 
   describe('BC Monitor Integration', () => {

@@ -6,10 +6,10 @@
 import 'dotenv/config';
 import chalk from 'chalk';
 import { createContainer } from './core/container-factory';
-import { BCMonitorRefactored } from './monitors/bc-monitor-refactored';
-import { BCAccountMonitorRefactored } from './monitors/bc-account-monitor-refactored';
-import { AMMMonitorRefactored } from './monitors/amm-monitor-refactored';
-import { AMMAccountMonitorRefactored } from './monitors/amm-account-monitor-refactored';
+import { BCMonitor } from './monitors/bc-monitor';
+import { BCAccountMonitor } from './monitors/bc-account-monitor';
+import { AMMMonitor } from './monitors/amm-monitor';
+import { AMMAccountMonitor } from './monitors/amm-account-monitor';
 import { EventBus, EVENTS } from './core/event-bus';
 import { Logger, LogLevel } from './core/logger';
 import { ConfigService } from './core/config';
@@ -54,10 +54,10 @@ async function startMonitors() {
     // Create monitors
     logger.info('Creating monitors...');
     const monitors = [
-      new BCMonitorRefactored(container),           // BC transaction monitor
-      new BCAccountMonitorRefactored(container),    // BC account monitor (graduations)
-      new AMMMonitorRefactored(container),          // AMM transaction monitor  
-      new AMMAccountMonitorRefactored(container)    // AMM account monitor (pool states)
+      new BCMonitor(container),           // BC transaction monitor
+      new BCAccountMonitor(container),    // BC account monitor (graduations)
+      new AMMMonitor(container),          // AMM transaction monitor  
+      new AMMAccountMonitor(container)    // AMM account monitor (pool states)
     ];
     
     // Start all monitors sequentially to avoid dependency resolution conflicts

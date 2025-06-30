@@ -1,23 +1,20 @@
-#!/usr/bin/env node
 /**
- * AMM Account State Monitor V2
- * Enhanced version that monitors both pool accounts and their token vault accounts
- * to track real-time reserves
+ * AMM Account Monitor Wrapper
+ * Wraps the legacy AMM account monitor to work with the refactored architecture
  */
 
-import 'dotenv/config';
 import { PublicKey } from '@solana/web3.js';
-import Client, { CommitmentLevel, SubscribeRequest } from '@triton-one/yellowstone-grpc';
+import { CommitmentLevel, SubscribeRequest } from '@triton-one/yellowstone-grpc';
 import chalk from 'chalk';
 import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
-import { suppressParserWarnings } from '../utils/suppress-parser-warnings';
-import { AmmPoolStateService } from '../services/amm-pool-state-service';
-import { formatCurrency } from '../utils/formatters';
+import { BaseMonitor } from '../core/base-monitor';
+import { Container, TOKENS } from '../core/container';
+import { EVENTS } from '../core/event-bus';
 import { decodePoolAccount, poolAccountToPlain } from '../utils/amm-pool-decoder';
-import { unifiedWebSocketServer, PoolStateEvent } from '../services/unified-websocket-server';
+import { AmmPoolStateService } from '../services/amm-pool-state-service';
 import * as borsh from '@coral-xyz/borsh';
 
-// Program IDs
+// Constants
 const PUMP_AMM_PROGRAM_ID = new PublicKey('pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA');
 const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 
@@ -36,456 +33,441 @@ const TOKEN_ACCOUNT_LAYOUT = borsh.struct([
   borsh.publicKey('closeAuthority'),
 ]);
 
-// Services
-let poolStateService: AmmPoolStateService;
-let streamClient: Client;
-
-// Track token accounts we're monitoring
-const tokenAccountToPool = new Map<string, {
-  poolAddress: string;
-  mintAddress: string;
-  isBase: boolean; // true for SOL vault, false for token vault
-}>();
-
-// Track pools we've seen
-const knownPools = new Map<string, {
-  baseMint: string;
-  quoteMint: string;
-  baseVault: string;
-  quoteVault: string;
-}>();
-
-// Statistics
-let stats = {
-  accountUpdates: 0,
-  poolsTracked: new Set<string>(),
-  tokenAccountsTracked: new Set<string>(),
-  decodedPools: 0,
-  decodedTokenAccounts: 0,
-  decodeErrors: 0,
-  reserveUpdates: 0,
-  startTime: Date.now(),
-};
-
-/**
- * Convert base64 to base58
- */
-function convertBase64ToBase58(base64String: string): string {
-  const buffer = Buffer.from(base64String, 'base64');
-  return bs58.encode(buffer);
+interface AMMAccountMonitorStats {
+  accountUpdates: number;
+  poolsTracked: Set<string>;
+  tokenAccountsTracked: Set<string>;
+  decodedPools: number;
+  decodedTokenAccounts: number;
+  decodeErrors: number;
+  reserveUpdates: number;
 }
 
-/**
- * Decode token account data
- */
-function decodeTokenAccount(data: Buffer): { mint: string; owner: string; amount: bigint } | null {
-  try {
-    // SPL Token accounts have a specific layout
-    if (data.length < 165) return null;
-    
-    const decoded = TOKEN_ACCOUNT_LAYOUT.decode(data);
-    
-    return {
-      mint: decoded.mint.toBase58(),
-      owner: decoded.owner.toBase58(),
-      amount: decoded.amount,
-    };
-  } catch (error) {
-    return null;
-  }
-}
+export class AMMAccountMonitor extends BaseMonitor {
+  private ammStats: AMMAccountMonitorStats;
+  private poolStateService!: AmmPoolStateService;
+  
+  // Track relationships
+  private tokenAccountToPool = new Map<string, {
+    poolAddress: string;
+    mintAddress: string;
+    isBase: boolean;
+  }>();
+  
+  private knownPools = new Map<string, {
+    baseMint: string;
+    quoteMint: string;
+    baseVault: string;
+    quoteVault: string;
+  }>();
 
-/**
- * Subscribe to token accounts for a pool
- */
-async function subscribeToTokenAccounts(poolAddress: string, baseVault: string, quoteVault: string, baseMint: string, quoteMint: string) {
-  // Track the relationship
-  tokenAccountToPool.set(baseVault, {
-    poolAddress,
-    mintAddress: quoteMint, // The token mint (not SOL)
-    isBase: true,
-  });
-  
-  tokenAccountToPool.set(quoteVault, {
-    poolAddress,
-    mintAddress: quoteMint,
-    isBase: false,
-  });
-  
-  knownPools.set(poolAddress, {
-    baseMint,
-    quoteMint,
-    baseVault,
-    quoteVault,
-  });
-  
-  console.log(chalk.blue(`📌 Subscribing to vault accounts for pool ${poolAddress.slice(0, 8)}...`));
-  console.log(chalk.gray(`  Base vault (SOL): ${baseVault}`));
-  console.log(chalk.gray(`  Quote vault (Token): ${quoteVault}`));
-  
-  // Create a new subscription for these specific token accounts
-  const tokenAccountReq: SubscribeRequest = {
-    slots: {},
-    accounts: {
-      [`vault_${poolAddress}`]: {
-        account: [baseVault, quoteVault],
-        filters: [],
-        owner: [], // Token accounts are owned by pool, not token program
+  constructor(container: Container) {
+    super(
+      {
+        programId: PUMP_AMM_PROGRAM_ID.toBase58(),
+        monitorName: 'AMM Account Monitor',
+        color: chalk.magenta as any
       },
-    },
-    transactions: {},
-    transactionsStatus: {},
-    entry: {},
-    blocks: {},
-    blocksMeta: {},
-    accountsDataSlice: [],
-    ping: undefined,
-    commitment: CommitmentLevel.PROCESSED,
-  };
-  
-  // Add to existing subscription
-  const stream = streamClient.subscribe();
-  
-  stream.on("data", async (data) => {
-    if (data?.account) {
-      await processTokenAccountUpdate(data);
+      container
+    );
+
+    // Initialize stats
+    this.ammStats = {
+      accountUpdates: 0,
+      poolsTracked: new Set<string>(),
+      tokenAccountsTracked: new Set<string>(),
+      decodedPools: 0,
+      decodedTokenAccounts: 0,
+      decodeErrors: 0,
+      reserveUpdates: 0
+    };
+  }
+
+  /**
+   * Initialize services
+   */
+  protected async initializeServices(): Promise<void> {
+    await super.initializeServices();
+    
+    // Get pool state service
+    this.poolStateService = await this.container.resolve(TOKENS.PoolStateService);
+    
+    // Setup event listeners
+    this.setupEventListeners();
+  }
+
+  /**
+   * Setup event listeners
+   */
+  private setupEventListeners(): void {
+    // Listen for pool creations from AMM trade monitor
+    this.eventBus.on(EVENTS.POOL_CREATED, (data) => {
+      this.logger.info('New pool detected', {
+        pool: data.poolAddress,
+        mint: data.mintAddress
+      });
+    });
+  }
+
+  /**
+   * Build subscribe request for AMM accounts
+   */
+  protected buildSubscribeRequest(): SubscribeRequest {
+    return {
+      slots: {},
+      accounts: {
+        pumpswap_amm: {
+          account: [],
+          filters: [],
+          owner: [PUMP_AMM_PROGRAM_ID.toBase58()],
+        },
+      },
+      transactions: {},
+      transactionsStatus: {},
+      entry: {},
+      blocks: {},
+      blocksMeta: {},
+      accountsDataSlice: [],
+      ping: undefined,
+      commitment: CommitmentLevel.PROCESSED,
+    };
+  }
+
+  /**
+   * Convert base64 to base58
+   */
+  private convertBase64ToBase58(base64String: string): string {
+    const buffer = Buffer.from(base64String, 'base64');
+    return bs58.encode(buffer);
+  }
+
+  /**
+   * Decode token account data
+   */
+  private decodeTokenAccount(data: Buffer): { mint: string; owner: string; amount: bigint } | null {
+    try {
+      if (data.length < 165) return null;
+      
+      const decoded = TOKEN_ACCOUNT_LAYOUT.decode(data);
+      
+      return {
+        mint: decoded.mint.toBase58(),
+        owner: decoded.owner.toBase58(),
+        amount: decoded.amount,
+      };
+    } catch (error) {
+      return null;
     }
-  });
-  
-  // Send subscription
-  await new Promise<void>((resolve, reject) => {
-    stream.write(tokenAccountReq, (err: any) => {
-      if (err === null || err === undefined) {
-        stats.tokenAccountsTracked.add(baseVault);
-        stats.tokenAccountsTracked.add(quoteVault);
-        resolve();
-      } else {
-        console.error(chalk.red(`Failed to subscribe to token accounts: ${err}`));
-        reject(err);
+  }
+
+  /**
+   * Subscribe to token accounts for a pool
+   */
+  private async subscribeToTokenAccounts(
+    poolAddress: string, 
+    baseVault: string, 
+    quoteVault: string, 
+    baseMint: string, 
+    quoteMint: string
+  ): Promise<void> {
+    // Track the relationship
+    this.tokenAccountToPool.set(baseVault, {
+      poolAddress,
+      mintAddress: quoteMint,
+      isBase: true,
+    });
+    
+    this.tokenAccountToPool.set(quoteVault, {
+      poolAddress,
+      mintAddress: quoteMint,
+      isBase: false,
+    });
+    
+    this.knownPools.set(poolAddress, {
+      baseMint,
+      quoteMint,
+      baseVault,
+      quoteVault,
+    });
+    
+    this.logger.info('Subscribing to vault accounts', {
+      pool: poolAddress.slice(0, 8) + '...',
+      baseVault: baseVault.slice(0, 8) + '...',
+      quoteVault: quoteVault.slice(0, 8) + '...'
+    });
+    
+    // Create a new subscription for these specific token accounts
+    const tokenAccountReq: SubscribeRequest = {
+      slots: {},
+      accounts: {
+        [`vault_${poolAddress}`]: {
+          account: [baseVault, quoteVault],
+          filters: [],
+          owner: [],
+        },
+      },
+      transactions: {},
+      transactionsStatus: {},
+      entry: {},
+      blocks: {},
+      blocksMeta: {},
+      accountsDataSlice: [],
+      ping: undefined,
+      commitment: CommitmentLevel.PROCESSED,
+    };
+    
+    // Add to existing subscription
+    const stream = await this.streamClient.getClient().subscribe();
+    
+    stream.on("data", async (data) => {
+      if (data?.account) {
+        await this.processTokenAccountUpdate(data);
       }
     });
-  });
-}
-
-/**
- * Process token account update
- */
-async function processTokenAccountUpdate(data: any): Promise<void> {
-  try {
-    if (!data.account || !data.account.account) return;
     
-    const accountInfo = data.account.account;
-    const accountPubkey = convertBase64ToBase58(accountInfo.pubkey);
-    
-    // Check if this is a token account we're tracking
-    const poolInfo = tokenAccountToPool.get(accountPubkey);
-    if (!poolInfo) return;
-    
-    // Decode token account
-    const accountData = Buffer.from(accountInfo.data, 'base64');
-    const tokenAccount = decodeTokenAccount(accountData);
-    
-    if (!tokenAccount) {
-      console.error(chalk.red(`Failed to decode token account ${accountPubkey}`));
-      return;
-    }
-    
-    stats.decodedTokenAccounts++;
-    
-    // Get pool info
-    const pool = knownPools.get(poolInfo.poolAddress);
-    if (!pool) return;
-    
-    // Determine if we have both reserves
-    const otherVault = poolInfo.isBase ? pool.quoteVault : pool.baseVault;
-    const otherInfo = tokenAccountToPool.get(otherVault);
-    
-    // Log the update
-    console.log(chalk.cyan(`💰 Token account updated: ${accountPubkey.slice(0, 8)}...`));
-    console.log(chalk.gray(`  Pool: ${poolInfo.poolAddress.slice(0, 8)}...`));
-    console.log(chalk.gray(`  Type: ${poolInfo.isBase ? 'Base (SOL)' : 'Quote (Token)'}`));
-    console.log(chalk.gray(`  Amount: ${tokenAccount.amount.toString()}`));
-    console.log(chalk.gray(`  Mint: ${tokenAccount.mint}`));
-    
-    // Update reserves in pool state service
-    if (poolInfo.isBase) {
-      // This is the SOL vault
-      await poolStateService.updatePoolReserves(
-        poolInfo.mintAddress,
-        Number(tokenAccount.amount), // SOL reserves
-        0, // Will be updated when token vault updates
-        data.slot || 0
-      );
-    } else {
-      // This is the token vault - get the SOL reserves too
-      const poolState = poolStateService.getPoolState(poolInfo.mintAddress);
-      if (poolState && poolState.reserves.virtualSolReserves > 0) {
-        await poolStateService.updatePoolReserves(
-          poolInfo.mintAddress,
-          poolState.reserves.virtualSolReserves, // Keep existing SOL reserves
-          Number(tokenAccount.amount), // New token reserves
-          data.slot || 0
-        );
-        
-        stats.reserveUpdates++;
-        
-        // Log successful reserve update
-        console.log(chalk.green(`✅ Pool reserves updated for ${poolInfo.mintAddress.slice(0, 8)}...`));
-        console.log(chalk.gray(`  SOL: ${(poolState.reserves.virtualSolReserves / 1e9).toFixed(4)}`));
-        console.log(chalk.gray(`  Tokens: ${(Number(tokenAccount.amount) / 1e6).toLocaleString()}`));
-      }
-    }
-    
-  } catch (error) {
-    console.error(chalk.red('Error processing token account update:'), error);
+    // Send subscription
+    await new Promise<void>((resolve, reject) => {
+      stream.write(tokenAccountReq, (err: any) => {
+        if (err === null || err === undefined) {
+          this.ammStats.tokenAccountsTracked.add(baseVault);
+          this.ammStats.tokenAccountsTracked.add(quoteVault);
+          resolve();
+        } else {
+          this.logger.error('Failed to subscribe to token accounts', err);
+          reject(err);
+        }
+      });
+    });
   }
-}
 
-/**
- * Process pool account update
- */
-async function processAccountUpdate(data: any): Promise<void> {
-  try {
-    stats.accountUpdates++;
-    
-    if (!data.account || !data.account.account) return;
-    
-    const accountInfo = data.account.account;
-    const accountPubkey = convertBase64ToBase58(accountInfo.pubkey);
-    const owner = accountInfo.owner ? convertBase64ToBase58(accountInfo.owner) : '';
-    
-    // Only process AMM pool accounts
-    if (owner !== PUMP_AMM_PROGRAM_ID.toBase58()) return;
-    
-    // Decode account data
-    const accountData = Buffer.from(accountInfo.data, 'base64');
-    
+  /**
+   * Process token account update
+   */
+  private async processTokenAccountUpdate(data: any): Promise<void> {
     try {
-      // Decode pool account using custom decoder
-      const decodedPool = decodePoolAccount(accountData);
+      if (!data.account || !data.account.account) return;
       
-      if (!decodedPool) {
-        stats.decodeErrors++;
+      const accountInfo = data.account.account;
+      const accountPubkey = this.convertBase64ToBase58(accountInfo.pubkey);
+      
+      // Check if this is a token account we're tracking
+      const poolInfo = this.tokenAccountToPool.get(accountPubkey);
+      if (!poolInfo) return;
+      
+      // Decode token account
+      const accountData = Buffer.from(accountInfo.data, 'base64');
+      const tokenAccount = this.decodeTokenAccount(accountData);
+      
+      if (!tokenAccount) {
+        this.logger.error('Failed to decode token account', {
+          account: accountPubkey
+        });
         return;
       }
       
-      stats.decodedPools++;
-      stats.poolsTracked.add(accountPubkey);
+      this.ammStats.decodedTokenAccounts++;
       
-      // Convert to plain object with string addresses
-      const plainPool = poolAccountToPlain(decodedPool);
+      // Get pool info
+      const pool = this.knownPools.get(poolInfo.poolAddress);
+      if (!pool) return;
       
-      // Extract pool data
-      const poolData = {
-        poolAddress: accountPubkey,
-        poolBump: plainPool.poolBump,
-        index: plainPool.index,
-        creator: plainPool.creator,
-        baseMint: plainPool.baseMint,
-        quoteMint: plainPool.quoteMint,
-        lpMint: plainPool.lpMint,
-        poolBaseTokenAccount: plainPool.poolBaseTokenAccount,
-        poolQuoteTokenAccount: plainPool.poolQuoteTokenAccount,
-        lpSupply: Number(plainPool.lpSupply),
-        coinCreator: plainPool.coinCreator,
-        slot: data.slot || 0,
-      };
+      // Log the update
+      this.logger.debug('Token account updated', {
+        account: accountPubkey.slice(0, 8) + '...',
+        pool: poolInfo.poolAddress.slice(0, 8) + '...',
+        type: poolInfo.isBase ? 'Base (SOL)' : 'Quote (Token)',
+        amount: tokenAccount.amount.toString(),
+        mint: tokenAccount.mint
+      });
       
-      // Store pool state
-      await poolStateService.updatePoolState(poolData);
-      
-      // Subscribe to token accounts if we haven't already
-      if (!tokenAccountToPool.has(poolData.poolBaseTokenAccount)) {
-        await subscribeToTokenAccounts(
-          accountPubkey,
-          poolData.poolBaseTokenAccount,
-          poolData.poolQuoteTokenAccount,
-          poolData.baseMint,
-          poolData.quoteMint
+      // Update reserves in pool state service
+      if (poolInfo.isBase) {
+        // This is the SOL vault
+        await this.poolStateService.updatePoolReserves(
+          poolInfo.mintAddress,
+          Number(tokenAccount.amount),
+          0,
+          data.slot || 0
         );
-      }
-      
-      // Log pool update
-      console.log(chalk.green(`✓ Pool state updated: ${poolData.quoteMint}`));
-      console.log(chalk.gray(`  Pool: ${accountPubkey}`));
-      console.log(chalk.gray(`  LP Supply: ${poolData.lpSupply.toLocaleString()}`));
-      
-    } catch (decodeError) {
-      stats.decodeErrors++;
-      if (process.env.DEBUG_PARSE_ERRORS === 'true') {
-        console.error(chalk.yellow(`Failed to decode account ${accountPubkey}:`), decodeError);
-      }
-    }
-    
-  } catch (error) {
-    console.error(chalk.red('Error processing account update:'), error);
-  }
-}
-
-/**
- * Display statistics
- */
-function displayStats() {
-  const elapsed = (Date.now() - stats.startTime) / 1000;
-  const rate = stats.accountUpdates / elapsed;
-  
-  console.log(chalk.cyan.bold('\n📊 Account Monitor Statistics'));
-  console.log(chalk.gray('─'.repeat(50)));
-  console.log(chalk.white(`Account Updates: ${stats.accountUpdates.toLocaleString()}`));
-  console.log(chalk.white(`Pools Tracked: ${stats.poolsTracked.size}`));
-  console.log(chalk.white(`Token Accounts Tracked: ${stats.tokenAccountsTracked.size}`));
-  console.log(chalk.white(`Decoded Pools: ${stats.decodedPools.toLocaleString()}`));
-  console.log(chalk.white(`Decoded Token Accounts: ${stats.decodedTokenAccounts.toLocaleString()}`));
-  console.log(chalk.white(`Reserve Updates: ${stats.reserveUpdates.toLocaleString()}`));
-  console.log(chalk.white(`Decode Errors: ${stats.decodeErrors.toLocaleString()}`));
-  console.log(chalk.white(`Updates/sec: ${rate.toFixed(2)}`));
-  console.log(chalk.white(`Runtime: ${elapsed.toFixed(0)}s`));
-  console.log(chalk.gray('─'.repeat(50)));
-}
-
-/**
- * Handle stream
- */
-async function handleStream(client: Client, args: SubscribeRequest) {
-  streamClient = client;
-  
-  // Stats display interval
-  const statsInterval = setInterval(displayStats, 30000); // Every 30 seconds
-  
-  const stream = await client.subscribe();
-
-  // Create error/end handler
-  const streamClosed = new Promise<void>((resolve, reject) => {
-    stream.on("error", (error) => {
-      console.error(chalk.red("Stream error:"), error);
-      clearInterval(statsInterval);
-      reject(error);
-      stream.end();
-    });
-    stream.on("end", () => {
-      clearInterval(statsInterval);
-      resolve();
-    });
-    stream.on("close", () => {
-      clearInterval(statsInterval);
-      resolve();
-    });
-  });
-
-  // Handle data
-  stream.on("data", async (data) => {
-    if (data?.account) {
-      // Check if it's a pool account or token account
-      const accountInfo = data.account.account;
-      if (accountInfo) {
-        const accountPubkey = convertBase64ToBase58(accountInfo.pubkey);
-        
-        if (tokenAccountToPool.has(accountPubkey)) {
-          await processTokenAccountUpdate(data);
-        } else {
-          await processAccountUpdate(data);
+      } else {
+        // This is the token vault - get the SOL reserves too
+        const poolState = this.poolStateService.getPoolState(poolInfo.mintAddress);
+        if (poolState && poolState.reserves.virtualSolReserves > 0) {
+          await this.poolStateService.updatePoolReserves(
+            poolInfo.mintAddress,
+            poolState.reserves.virtualSolReserves,
+            Number(tokenAccount.amount),
+            data.slot || 0
+          );
+          
+          this.ammStats.reserveUpdates++;
+          
+          // Emit pool state update event
+          this.eventBus.emit(EVENTS.POOL_STATE_UPDATED, {
+            poolAddress: poolInfo.poolAddress,
+            mintAddress: poolInfo.mintAddress,
+            baseReserves: poolState.reserves.virtualSolReserves,
+            quoteReserves: Number(tokenAccount.amount),
+            slot: data.slot || 0
+          });
+          
+          this.logger.info('Pool reserves updated', {
+            mint: poolInfo.mintAddress.slice(0, 8) + '...',
+            sol: (poolState.reserves.virtualSolReserves / 1e9).toFixed(4),
+            tokens: (Number(tokenAccount.amount) / 1e6).toLocaleString()
+          });
         }
       }
+      
+    } catch (error) {
+      this.logger.error('Error processing token account update', error as Error);
     }
-  });
+  }
 
-  // Send subscribe request
-  await new Promise<void>((resolve, reject) => {
-    stream.write(args, (err: any) => {
-      if (err === null || err === undefined) {
-        resolve();
-      } else {
-        reject(err);
+  /**
+   * Process stream data
+   */
+  async processStreamData(data: any): Promise<void> {
+    try {
+      this.ammStats.accountUpdates++;
+      
+      if (!data.account || !data.account.account) return;
+      
+      const accountInfo = data.account.account;
+      const accountPubkey = this.convertBase64ToBase58(accountInfo.pubkey);
+      
+      // Check if it's a token account we're tracking
+      if (this.tokenAccountToPool.has(accountPubkey)) {
+        await this.processTokenAccountUpdate(data);
+        return;
       }
+      
+      // Otherwise, check if it's a pool account
+      const owner = accountInfo.owner ? this.convertBase64ToBase58(accountInfo.owner) : '';
+      if (owner !== PUMP_AMM_PROGRAM_ID.toBase58()) return;
+      
+      // Decode account data
+      const accountData = Buffer.from(accountInfo.data, 'base64');
+      
+      try {
+        // Decode pool account
+        const decodedPool = decodePoolAccount(accountData);
+        
+        if (!decodedPool) {
+          this.ammStats.decodeErrors++;
+          return;
+        }
+        
+        this.ammStats.decodedPools++;
+        this.ammStats.poolsTracked.add(accountPubkey);
+        
+        // Convert to plain object
+        const plainPool = poolAccountToPlain(decodedPool);
+        
+        // Extract pool data
+        const poolData = {
+          poolAddress: accountPubkey,
+          poolBump: plainPool.poolBump,
+          index: plainPool.index,
+          creator: plainPool.creator,
+          baseMint: plainPool.baseMint,
+          quoteMint: plainPool.quoteMint,
+          lpMint: plainPool.lpMint,
+          poolBaseTokenAccount: plainPool.poolBaseTokenAccount,
+          poolQuoteTokenAccount: plainPool.poolQuoteTokenAccount,
+          lpSupply: Number(plainPool.lpSupply),
+          coinCreator: plainPool.coinCreator,
+          slot: data.slot || 0,
+        };
+        
+        // Store pool state
+        await this.poolStateService.updatePoolState(poolData);
+        
+        // Emit pool created event if this is a new pool
+        if (!this.knownPools.has(accountPubkey)) {
+          this.eventBus.emit(EVENTS.POOL_CREATED, {
+            poolAddress: accountPubkey,
+            mintAddress: poolData.quoteMint,
+            baseMint: poolData.baseMint,
+            quoteMint: poolData.quoteMint,
+            lpMint: poolData.lpMint,
+            slot: data.slot || 0
+          });
+        }
+        
+        // Subscribe to token accounts if we haven't already
+        if (!this.tokenAccountToPool.has(poolData.poolBaseTokenAccount)) {
+          await this.subscribeToTokenAccounts(
+            accountPubkey,
+            poolData.poolBaseTokenAccount,
+            poolData.poolQuoteTokenAccount,
+            poolData.baseMint,
+            poolData.quoteMint
+          );
+        }
+        
+        this.logger.info('Pool state updated', {
+          mint: poolData.quoteMint,
+          pool: accountPubkey,
+          lpSupply: poolData.lpSupply.toLocaleString()
+        });
+        
+      } catch (decodeError) {
+        this.ammStats.decodeErrors++;
+        if (process.env.DEBUG_PARSE_ERRORS === 'true') {
+          this.logger.error('Failed to decode account', {
+            account: accountPubkey,
+            error: decodeError
+          });
+        }
+      }
+      
+    } catch (error) {
+      this.logger.error('Error processing account update', error as Error);
+    }
+  }
+
+  /**
+   * Display statistics
+   */
+  displayStats(): void {
+    const runtime = Date.now() - this.stats.startTime.getTime();
+    const rate = this.ammStats.accountUpdates / (runtime / 1000);
+
+    this.logger.box('AMM Account Monitor Statistics', {
+      'Runtime': this.formatDuration(runtime),
+      'Account Updates': `${this.formatNumber(this.ammStats.accountUpdates)} (${rate.toFixed(2)}/sec)`,
+      'Pools Tracked': this.ammStats.poolsTracked.size,
+      'Token Accounts': this.ammStats.tokenAccountsTracked.size,
+      'Decoded Pools': this.formatNumber(this.ammStats.decodedPools),
+      'Decoded Token Accounts': this.formatNumber(this.ammStats.decodedTokenAccounts),
+      'Reserve Updates': this.formatNumber(this.ammStats.reserveUpdates),
+      'Decode Errors': this.formatNumber(this.ammStats.decodeErrors),
+      'Errors': this.formatNumber(this.stats.errors),
+      'Reconnects': this.stats.reconnections
     });
-  }).catch((reason) => {
-    console.error(reason);
-    throw reason;
-  });
-
-  await streamClosed;
-}
-
-/**
- * Main function
- */
-async function main() {
-  console.log(chalk.cyan.bold('🔍 AMM Account State Monitor V2'));
-  console.log(chalk.gray('Enhanced monitoring with token vault tracking...\n'));
-  
-  // Suppress parser warnings
-  suppressParserWarnings();
-  
-  // Initialize pool state service
-  poolStateService = new AmmPoolStateService();
-  
-  // Broadcast stats periodically
-  setInterval(() => {
-    unifiedWebSocketServer.broadcastStats({
-      source: 'amm_account',
-      transactions: 0,
-      trades: 0,
-      errors: stats.decodeErrors,
-      uniqueTokens: stats.poolsTracked.size,
-      uptime: Math.floor((Date.now() - stats.startTime) / 1000),
-      accountUpdates: stats.accountUpdates,
-      decodedPools: stats.decodedPools,
-      tokenAccountsTracked: stats.tokenAccountsTracked.size,
-      reserveUpdates: stats.reserveUpdates,
-    }, 'amm_account');
-  }, 5000); // Every 5 seconds
-  
-  // Create gRPC client
-  const grpcEndpoint = process.env.SHYFT_GRPC_ENDPOINT;
-  const grpcToken = process.env.SHYFT_GRPC_TOKEN;
-  
-  if (!grpcEndpoint || !grpcToken) {
-    console.error(chalk.red('Missing SHYFT_GRPC_ENDPOINT or SHYFT_GRPC_TOKEN'));
-    process.exit(1);
   }
-  
-  const client = new Client(grpcEndpoint, grpcToken, undefined);
-  
-  // Create subscription request for AMM pool accounts
-  const req: SubscribeRequest = {
-    slots: {},
-    accounts: {
-      pumpswap_amm: {
-        account: [],
-        filters: [],
-        owner: [PUMP_AMM_PROGRAM_ID.toBase58()], // Subscribe to all accounts owned by AMM program
-      },
-    },
-    transactions: {},
-    transactionsStatus: {},
-    entry: {},
-    blocks: {},
-    blocksMeta: {},
-    accountsDataSlice: [],
-    ping: undefined,
-    commitment: CommitmentLevel.PROCESSED, // Get updates as soon as possible
-  };
-  
-  // Start monitoring
-  console.log(chalk.yellow('Starting enhanced account monitoring...'));
-  console.log(chalk.gray(`AMM Program: ${PUMP_AMM_PROGRAM_ID.toBase58()}`));
-  console.log(chalk.gray(`Token Program: ${TOKEN_PROGRAM_ID.toBase58()}\n`));
-  
-  try {
-    await handleStream(client, req);
-  } catch (error) {
-    console.error(chalk.red('Fatal error:'), error);
-    displayStats();
-    process.exit(1);
+
+  /**
+   * Should log error
+   */
+  shouldLogError(error: any): boolean {
+    const message = error?.message || '';
+    // Don't log decode errors unless debug is enabled
+    if (message.includes('decode') && process.env.DEBUG_PARSE_ERRORS !== 'true') {
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Shutdown handler
+   */
+  async onShutdown(): Promise<void> {
+    this.logger.info('AMM account monitor shutdown complete', {
+      poolsTracked: this.ammStats.poolsTracked.size,
+      tokenAccountsTracked: this.ammStats.tokenAccountsTracked.size,
+      reserveUpdates: this.ammStats.reserveUpdates
+    });
   }
 }
-
-// Handle shutdown gracefully
-process.on('SIGINT', () => {
-  console.log(chalk.yellow('\n\nShutting down...'));
-  displayStats();
-  process.exit(0);
-});
-
-// Run the monitor
-main().catch(console.error);

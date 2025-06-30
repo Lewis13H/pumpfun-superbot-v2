@@ -21,11 +21,11 @@ tsx scripts/test-graduation-handler.ts  # Test graduation handler
 tsx scripts/test-wrapped-monitors.ts    # Test wrapped AMM monitor integration
 tsx scripts/verify-amm-trades.ts       # Capture AMM trades for Solscan verification
 
-# Individual Monitors (Legacy)
-npm run bc-monitor-quick-fix  # Bonding curve trade monitor (>95% parse rate)
-npm run bc-account-monitor    # Bonding curve account monitor (detects graduations)
-npm run amm-monitor           # AMM pool trade monitor for graduated tokens
-npm run amm-account-monitor   # AMM account state monitor for pool reserves
+# Individual Monitors
+npm run bc-monitor          # Bonding curve trade monitor (>95% parse rate)
+npm run bc-account-monitor  # Bonding curve account monitor (detects graduations)
+npm run amm-monitor         # AMM pool trade monitor for graduated tokens
+npm run amm-account-monitor # AMM account state monitor for pool reserves
 
 # Price Recovery Services
 tsx scripts/start-dexscreener-recovery.ts  # DexScreener recovery for stale graduated tokens
@@ -74,19 +74,11 @@ src/
 │   ├── logger.ts                 # Structured logging
 │   └── base-monitor.ts           # Base monitor abstraction
 ├── monitors/
-│   ├── bc-monitor-refactored.ts    # Refactored BC trade monitor (NEW)
-│   ├── bc-account-monitor-refactored.ts # Refactored BC account monitor (NEW)
-│   ├── amm-monitor-refactored.ts   # Refactored AMM monitor (NEW - has gRPC issues)
-│   ├── amm-account-monitor-refactored.ts # Refactored AMM account monitor (NEW - has gRPC issues)
-│   ├── amm-monitor-wrapper.ts      # Wrapper for legacy AMM monitor with DI (RECOMMENDED)
-│   ├── amm-account-monitor-wrapper.ts # Wrapper for AMM account monitor with DI (RECOMMENDED)
+│   ├── bc-monitor.ts               # Bonding curve trade monitor (refactored with DI)
+│   ├── bc-account-monitor.ts       # BC account state monitor (refactored with DI)
+│   ├── amm-monitor.ts              # AMM pool trade monitor (wrapped legacy with DI)
+│   ├── amm-account-monitor.ts      # AMM account state monitor (wrapped legacy with DI)
 │   ├── unified-monitor-v2.ts       # Main production monitor (DEPRECATED - has issues)
-│   ├── bc-monitor.ts               # Bonding curve focused monitor
-│   ├── bc-monitor-quick-fixes.ts   # Improved BC monitor (handles 225 & 113 byte events)
-│   ├── bc-account-monitor.ts       # BC account state monitor (detects graduations)
-│   ├── amm-monitor.ts              # Dedicated AMM monitor following Shyft examples
-│   ├── amm-account-monitor.ts      # AMM account state monitor for pool reserves
-│   ├── bc-monitor-plan.md          # Phased implementation plan
 │   └── debug/
 │       └── debug-amm-pool.ts       # AMM debugging tool
 ├── services/
@@ -170,21 +162,21 @@ npm run start-refactored  # Runs all 4 refactored monitors (AMM monitors have gR
 npm run start-wrapped     # RECOMMENDED: Refactored BC + wrapped AMM monitors
 ```
 
-#### Wrapped AMM Monitors (NEW - December 2024)
-Due to gRPC subscription issues with refactored AMM monitors, wrapper classes were created:
-- **AMM Monitor Wrapper** (`amm-monitor-wrapper.ts`):
-  - Wraps the proven legacy AMM trade monitor
-  - Extends BaseMonitor for DI integration
-  - Emits events: `AMM_TRADE`, `POOL_STATE_UPDATED`, `TRADE_PROCESSED`
-  - Preserves all parsing logic while adding event-driven architecture
-- **AMM Account Monitor Wrapper** (`amm-account-monitor-wrapper.ts`):
-  - Wraps the legacy AMM account monitor
-  - Tracks pool states and reserve updates
-  - Emits events: `POOL_CREATED`, `POOL_STATE_UPDATED`
-  - Integrates with pool state service
+#### Monitor Architecture (December 2024)
+The monitoring system now uses a hybrid approach:
+- **BC Monitors** (`bc-monitor.ts`, `bc-account-monitor.ts`):
+  - Fully refactored with clean architecture
+  - Extend BaseMonitor class
+  - Native DI container integration
+  - Event-driven communication via EventBus
+- **AMM Monitors** (`amm-monitor.ts`, `amm-account-monitor.ts`):
+  - Wrapped legacy monitors due to gRPC issues with full refactoring
+  - Preserve proven parsing logic
+  - Extend BaseMonitor for DI integration
+  - Emit events: `AMM_TRADE`, `POOL_STATE_UPDATED`, `TRADE_PROCESSED`, `POOL_CREATED`
 
 Benefits:
-- Uses proven parsing logic from legacy monitors
+- Consistent architecture across all monitors
 - Full integration with DI container and EventBus
 - Works seamlessly with graduation handler
 - All trades emit proper events for other components
@@ -208,7 +200,7 @@ Event Flow:
 
 #### Unified Monitor V2 (`unified-monitor-v2.ts`)
 **DEPRECATED** - This monitor has issues with AMM trade detection. Use separate monitors instead:
-- `npm run bc-monitor-quick-fix` for bonding curve trades
+- `npm run bc-monitor` for bonding curve trades
 - `npm run bc-account-monitor` for bonding curve graduations
 - `npm run amm-monitor` for AMM pool trades
 - `npm run amm-account-monitor` for AMM pool states
@@ -234,14 +226,15 @@ Monitors AMM pool account states in real-time:
 - Processes trades with `dbService.processTrade()`
 - Suppresses parser warnings with `suppressParserWarnings()`
 
-#### BC Monitor Quick Fix (`bc-monitor-quick-fixes.ts`)
+#### BC Monitor (`bc-monitor.ts`)
 Enhanced bonding curve trade monitor:
+- Fully refactored with clean architecture
 - Handles both 225-byte and 113-byte events
 - Parse rate >95% (up from 82.9%)
 - Configurable thresholds via environment variables
 - Retry logic for database saves
 - Real-time progress tracking to graduation
-- **Note**: Account decoding disabled, use bc-account-monitor for graduations
+- Integrated with DI container and EventBus
 
 #### BC Account Monitor (`bc-account-monitor.ts`)
 Bonding curve account state monitor:

@@ -52,8 +52,8 @@ start_monitor "dashboard" "API Server & Dashboard"
 echo -e "\n${YELLOW}Starting Monitors:${NC}"
 echo "────────────────────────"
 
-# 3. BC Monitor (Quick Fix)
-start_monitor "bc-monitor-quick-fix" "BC Trade Monitor"
+# 3. BC Monitor
+start_monitor "bc-monitor" "BC Trade Monitor"
 
 # 4. BC Account Monitor
 start_monitor "bc-account-monitor" "BC Account Monitor"
@@ -91,7 +91,7 @@ echo "────────────────────────"
 
 check_process "sol-price-updater" "SOL Price Updater"
 check_process "api/server-unified" "API Server"
-check_process "bc-monitor-quick-fix" "BC Monitor"
+check_process "bc-monitor" "BC Monitor"
 check_process "bc-account-monitor" "BC Account Monitor"
 check_process "amm-monitor" "AMM Monitor"
 check_process "amm-account-monitor" "AMM Account Monitor"

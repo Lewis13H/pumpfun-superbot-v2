@@ -7,7 +7,7 @@
 import 'dotenv/config';
 import chalk from 'chalk';
 import { createContainer } from '../src/core/container-factory';
-import { BCMonitorRefactored } from '../src/monitors/bc-monitor-refactored';
+import { BCMonitor } from '../src/monitors/bc-monitor';
 import { Logger, LogLevel } from '../src/core/logger';
 import { EVENTS } from '../src/core/event-bus';
 
@@ -52,7 +52,7 @@ async function main() {
       console.log(chalk.red(`✗ Parse failed: ${data.signature.substring(0, 20)}... - ${data.reason}`));
     });
 
-    const monitor = new BCMonitorRefactored(container);
+    const monitor = new BCMonitor(container);
     await monitor.start();
     
     // Run for 10 seconds then show summary

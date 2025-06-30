@@ -46,8 +46,8 @@ const validationTests: ValidationTest[] = [
     description: 'Verify monitors extend BaseMonitor and implement required methods',
     test: async () => {
       const monitors = [
-        'src/monitors/bc-monitor-refactored.ts',
-        'src/monitors/amm-monitor-refactored.ts'
+        'src/monitors/bc-monitor.ts',
+        'src/monitors/amm-monitor.ts'
       ];
       
       for (const file of monitors) {
@@ -74,8 +74,8 @@ const validationTests: ValidationTest[] = [
     description: 'Verify DI container is used instead of singletons',
     test: async () => {
       const files = [
-        'src/monitors/bc-monitor-refactored.ts',
-        'src/monitors/amm-monitor-refactored.ts',
+        'src/monitors/bc-monitor.ts',
+        'src/monitors/amm-monitor.ts',
         'src/api/server-refactored.ts'
       ];
       
@@ -99,8 +99,8 @@ const validationTests: ValidationTest[] = [
     description: 'Verify EventBus is used for component communication',
     test: async () => {
       const files = [
-        'src/monitors/bc-monitor-refactored.ts',
-        'src/monitors/amm-monitor-refactored.ts',
+        'src/monitors/bc-monitor.ts',
+        'src/monitors/amm-monitor.ts',
         'src/websocket/websocket-server.ts'
       ];
       
@@ -251,7 +251,7 @@ const validationTests: ValidationTest[] = [
     test: async () => {
       // Check that monitors don't directly access database
       const bcMonitor = await fs.readFile(
-        path.join(process.cwd(), 'src/monitors/bc-monitor-refactored.ts'),
+        path.join(process.cwd(), 'src/monitors/bc-monitor.ts'),
         'utf-8'
       );
       

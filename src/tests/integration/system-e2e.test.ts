@@ -3,8 +3,8 @@
  */
 
 import { createContainer } from '../../core/container-factory';
-import { BCMonitorRefactored } from '../../monitors/bc-monitor-refactored';
-import { AMMMonitorRefactored } from '../../monitors/amm-monitor-refactored';
+import { BCMonitor } from '../../monitors/bc-monitor';
+import { AMMMonitor } from '../../monitors/amm-monitor';
 import { WebSocketServer } from '../../websocket/websocket-server';
 import { createServer } from 'http';
 import { EventBus, EVENTS } from '../../core/event-bus';
@@ -107,8 +107,8 @@ class MockBlockchainStream {
 describe('System End-to-End Tests', () => {
   let container: Container;
   let eventBus: EventBus;
-  let bcMonitor: BCMonitorRefactored;
-  let ammMonitor: AMMMonitorRefactored;
+  let bcMonitor: BCMonitor;
+  let ammMonitor: AMMMonitor;
   let httpServer: any;
   let wsServer: WebSocketServer;
   let mockStream: MockBlockchainStream;
@@ -190,8 +190,8 @@ describe('System End-to-End Tests', () => {
     });
 
     // Create monitors
-    bcMonitor = new BCMonitorRefactored(container);
-    ammMonitor = new AMMMonitorRefactored(container);
+    bcMonitor = new BCMonitor(container);
+    ammMonitor = new AMMMonitor(container);
 
     // Create mock blockchain stream
     mockStream = new MockBlockchainStream();

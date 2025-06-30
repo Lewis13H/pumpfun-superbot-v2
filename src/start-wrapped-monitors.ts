@@ -6,10 +6,10 @@
 import 'dotenv/config';
 import chalk from 'chalk';
 import { createContainer } from './core/container-factory';
-import { BCMonitorRefactored } from './monitors/bc-monitor-refactored';
-import { BCAccountMonitorRefactored } from './monitors/bc-account-monitor-refactored';
-import { AMMMonitorWrapper } from './monitors/amm-monitor-wrapper';
-import { AMMAccountMonitorWrapper } from './monitors/amm-account-monitor-wrapper';
+import { BCMonitor } from './monitors/bc-monitor';
+import { BCAccountMonitor } from './monitors/bc-account-monitor';
+import { AMMMonitor } from './monitors/amm-monitor';
+import { AMMAccountMonitor } from './monitors/amm-account-monitor';
 import { EventBus, EVENTS } from './core/event-bus';
 import { Logger, LogLevel } from './core/logger';
 import { ConfigService } from './core/config';
@@ -55,10 +55,10 @@ async function startMonitors() {
     // Create monitors
     logger.info('Creating monitors...');
     const monitors = [
-      new BCMonitorRefactored(container),           // BC transaction monitor (refactored)
-      new BCAccountMonitorRefactored(container),    // BC account monitor (refactored)
-      new AMMMonitorWrapper(container),             // AMM transaction monitor (wrapped legacy)
-      new AMMAccountMonitorWrapper(container)       // AMM account monitor (wrapped legacy)
+      new BCMonitor(container),           // BC transaction monitor (refactored)
+      new BCAccountMonitor(container),    // BC account monitor (refactored)
+      new AMMMonitor(container),          // AMM transaction monitor (wrapped legacy)
+      new AMMAccountMonitor(container)    // AMM account monitor (wrapped legacy)
     ];
     
     // Start all monitors sequentially to avoid dependency resolution conflicts

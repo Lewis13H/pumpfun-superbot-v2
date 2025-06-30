@@ -97,5 +97,5 @@ if [ "$WATCH_MODE" = true ]; then
 else
     echo -e "${GREEN}Starting monitor with full output...${NC}"
     echo
-    npm run bc-monitor-quick-fix
+    npm run bc-monitor
 fi
