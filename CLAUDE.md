@@ -9,17 +9,14 @@ Real-time Solana token monitor for pump.fun bonding curves and pump.swap AMM poo
 ## Development Commands
 
 ```bash
-# Complete Production Setup (run all monitors + recovery)
-./scripts/run-complete-monitoring.sh    # Runs all 4 monitors + SOL price + DexScreener recovery
-./scripts/run-wrapped-monitoring.sh     # RECOMMENDED: Uses wrapped AMM monitors instead
+# Complete Production Setup
+# Start all monitors manually or create your own startup script
 
 # Refactored Architecture (NEW - Recommended)
 npm run start-refactored      # Run all 4 refactored monitors with DI
 npm run start-wrapped         # Run refactored BC + wrapped AMM monitors (RECOMMENDED)
 npm run server-refactored     # API server for refactored system
-tsx scripts/test-graduation-handler.ts  # Test graduation handler
-tsx scripts/test-wrapped-monitors.ts    # Test wrapped AMM monitor integration
-tsx scripts/verify-amm-trades.ts       # Capture AMM trades for Solscan verification
+# Create your own test scripts as needed
 
 # Individual Monitors
 npm run bc-monitor          # Bonding curve trade monitor (>95% parse rate)
@@ -36,8 +33,6 @@ npm run unified-v2         # DEPRECATED - has AMM detection issues
 npm run bc-monitor         # Original BC monitor (lower parse rate)
 
 # Database Operations
-npm run migrate-unified    # Run database migrations
-npm run migrate-amm-pools  # Run AMM pool states migration
 npm run view-tokens-unified # View saved tokens
 npm run enrich-tokens-unified # Fetch metadata from Helius API
 npm run query-trades       # Query recent trades
@@ -46,14 +41,7 @@ npm run query-trades       # Query recent trades
 npm run dashboard          # Web dashboard (http://localhost:3001)
 
 # Testing & Debugging
-tsx scripts/test-bc-monitor-refactored.ts    # Test BC monitor
-tsx scripts/test-bc-account-monitor.ts       # Test BC account monitor
-tsx scripts/test-amm-account-monitor-refactored.ts  # Test AMM account monitor
-tsx scripts/test-graduation-handler.ts       # Test graduation handler
-tsx scripts/verify-amm-trades.ts            # Verify AMM trades against Solscan
-./scripts/test-bc-monitor.sh                 # Comprehensive BC monitor test
-./scripts/test-amm-monitor-live.sh           # Live AMM monitor test
-./scripts/monitor-improvements.sh            # Run monitor with custom settings
+# Create your own test scripts as needed
 psql $DATABASE_URL -c "SELECT COUNT(*) FROM tokens_unified"  # Check database
 ```
 
