@@ -33,9 +33,7 @@ npm run unified-v2         # DEPRECATED - has AMM detection issues
 npm run bc-monitor         # Original BC monitor (lower parse rate)
 
 # Database Operations
-npm run view-tokens-unified # View saved tokens
-npm run enrich-tokens-unified # Fetch metadata from Helius API
-npm run query-trades       # Query recent trades
+# Use psql or create your own database query scripts
 
 # Dashboard & API
 npm run dashboard          # Web dashboard (http://localhost:3001)
