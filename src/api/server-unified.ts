@@ -4,7 +4,7 @@ import cors from 'cors';
 import path from 'path';
 import { Pool } from 'pg';
 import { createServer } from 'http';
-import { bcWebSocketServer } from '../services/bc-websocket-server';
+// import { bcWebSocketServer } from '../services/bc-websocket-server'; // File deleted
 // import { unifiedWebSocketServer } from '../services/unified-websocket-server-fixed';
 const WebSocket = require('ws');
 import bcMonitorEndpoints from './bc-monitor-endpoints';
@@ -20,7 +20,7 @@ const pool = new Pool({
 });
 
 // Initialize WebSocket servers BEFORE middleware
-bcWebSocketServer.initialize(server); // Keep BC WebSocket for backward compatibility
+// bcWebSocketServer.initialize(server); // Keep BC WebSocket for backward compatibility - COMMENTED: File deleted
 
 // UNIFIED WEBSOCKET DISABLED - Dashboard improvements on hold (see docs/dashboard-improvement-plan.md)
 // The unified WebSocket was causing connection issues and has been temporarily disabled
@@ -351,7 +351,7 @@ server.listen(PORT, () => {
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\nShutting down server...');
-  bcWebSocketServer.shutdown();
+  // bcWebSocketServer.shutdown(); // COMMENTED: File deleted
   unifiedWss.close();
   await pool.end();
   process.exit(0);

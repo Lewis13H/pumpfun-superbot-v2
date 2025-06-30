@@ -6,7 +6,7 @@
 
 import chalk from 'chalk';
 import { ShyftGraphQLClient } from './graphql-client';
-import { unifiedDBService } from '../database/unified-db-service-v2';
+import { unifiedDBService } from '../database/unified-db-service';
 
 interface TokenMetadata {
   mintAddress: string;

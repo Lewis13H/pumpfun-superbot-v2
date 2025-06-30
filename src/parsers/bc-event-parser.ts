@@ -1,47 +1,62 @@
 /**
- * Bonding Curve Event Parser - Phase 2
+ * Bonding Curve Event Parser V2 - Improved Version
  * 
- * Extracts trade events from pump.fun transaction logs.
- * Uses simple log parsing to catch all events (more reliable than IDL parsing).
+ * Enhancements:
+ * - Handles both 225-byte and 113-byte event formats
+ * - Better error handling and logging
+ * - More flexible parsing to reduce error rates
  */
 
 import { PublicKey } from '@solana/web3.js';
-import bs58 from 'bs58';
 import { TRADE_EVENT_SIZE } from '../utils/constants';
 
-/**
- * Trade event structure from pump.fun
- */
 export interface BondingCurveTradeEvent {
   mint: string;
-  virtualSolReserves: bigint;
-  virtualTokenReserves: bigint;
   solAmount?: bigint;
   tokenAmount?: bigint;
-  isBuy?: boolean;
   user?: string;
+  timestamp?: number;
+  virtualSolReserves: bigint;
+  virtualTokenReserves: bigint;
+  isBuy?: boolean;
+  eventSize: number;  // Track which format we parsed
 }
 
+// Known event sizes we support
+const SUPPORTED_EVENT_SIZES = [225, 113];
+
 /**
- * Parse a pump.fun trade event from Program data
- * 
- * Event structure (225 bytes as per TRADE_EVENT_SIZE):
- * - Discriminator: 8 bytes
- * - Mint: 32 bytes (offset 8)
- * - SOL amount: 8 bytes (offset 40)
- * - Token amount: 8 bytes (offset 48)
- * - User: 32 bytes (offset 56)
- * - Timestamp: 8 bytes (offset 88)
- * - Virtual SOL reserves: 8 bytes (offset 97)
- * - Virtual token reserves: 8 bytes (offset 105)
- * - Additional data
+ * Parse pump.fun trade event from buffer - supports multiple formats
  */
-export function parsePumpFunTradeEvent(data: Buffer): BondingCurveTradeEvent | null {
-  // Validate event size - using TRADE_EVENT_SIZE from constants
-  if (data.length !== TRADE_EVENT_SIZE) {
+export function parsePumpFunTradeEventV2(data: Buffer): BondingCurveTradeEvent | null {
+  // Check if this is a supported event size
+  if (!SUPPORTED_EVENT_SIZES.includes(data.length)) {
     return null;
   }
   
+  try {
+    // Handle 225-byte format (full event)
+    if (data.length === 225) {
+      return parse225ByteEvent(data);
+    }
+    
+    // Handle 113-byte format (compact event)
+    if (data.length === 113) {
+      return parse113ByteEvent(data);
+    }
+    
+    return null;
+  } catch (error) {
+    // Log but don't throw - return null for unparseable events
+    console.debug('Event parse error:', error.message, 'Size:', data.length);
+    return null;
+  }
+}
+
+/**
+ * Parse 225-byte full trade event
+ */
+function parse225ByteEvent(data: Buffer): BondingCurveTradeEvent | null {
   try {
     // Extract mint address (32 bytes at offset 8)
     const mint = new PublicKey(data.slice(8, 40)).toString();
@@ -53,74 +68,144 @@ export function parsePumpFunTradeEvent(data: Buffer): BondingCurveTradeEvent | n
     // Extract user address (32 bytes at offset 56)
     const user = new PublicKey(data.slice(56, 88)).toString();
     
-    // Extract virtual reserves - updated offsets for 225 byte event
+    // Extract timestamp
+    const timestamp = Number(data.readBigUInt64LE(88));
+    
+    // Extract virtual reserves at correct offsets for 225-byte format
     const virtualSolReserves = data.readBigUInt64LE(97);
     const virtualTokenReserves = data.readBigUInt64LE(105);
     
-    return { 
-      mint, 
-      virtualSolReserves, 
-      virtualTokenReserves,
+    return {
+      mint,
       solAmount,
       tokenAmount,
-      user
+      user,
+      timestamp,
+      virtualSolReserves,
+      virtualTokenReserves,
+      eventSize: 225
     };
-  } catch (error) {
-    // Invalid event data
+  } catch {
     return null;
   }
 }
 
 /**
- * Extract trade events from transaction logs
+ * Parse 113-byte compact trade event
+ * This format has fewer fields but still contains essential data
  */
-export function extractTradeEventsFromLogs(logs: string[]): BondingCurveTradeEvent[] {
+function parse113ByteEvent(data: Buffer): BondingCurveTradeEvent | null {
+  try {
+    // Compact format has different offsets
+    // Based on analysis, 113-byte events have:
+    // - Mint at offset 8 (32 bytes)
+    // - Virtual reserves at offsets 73 and 81 (8 bytes each)
+    
+    const mint = new PublicKey(data.slice(8, 40)).toString();
+    
+    // For 113-byte format, reserves are at different offsets
+    const virtualSolReserves = data.readBigUInt64LE(73);
+    const virtualTokenReserves = data.readBigUInt64LE(81);
+    
+    // Some fields may not be available in compact format
+    return {
+      mint,
+      virtualSolReserves,
+      virtualTokenReserves,
+      eventSize: 113
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract trade events from transaction logs - improved version
+ */
+export function extractTradeEventsFromLogsV2(
+  logs: string[]
+): { events: BondingCurveTradeEvent[], parseStats: { total: number, success: number, failed: number } } {
   const events: BondingCurveTradeEvent[] = [];
+  const parseStats = { total: 0, success: 0, failed: 0 };
   
   for (const log of logs) {
     if (log.includes('Program data:')) {
       const match = log.match(/Program data: (.+)/);
       if (match?.[1]) {
+        parseStats.total++;
+        
         try {
           const eventData = Buffer.from(match[1], 'base64');
+          const event = parsePumpFunTradeEventV2(eventData);
           
-          // Debug: Log event sizes we're seeing
-          if (eventData.length === TRADE_EVENT_SIZE || eventData.length === 113) {
-            const event = parsePumpFunTradeEvent(eventData);
-            
-            if (event) {
-              events.push(event);
-            }
+          if (event) {
+            events.push(event);
+            parseStats.success++;
+          } else {
+            parseStats.failed++;
           }
-        } catch {
-          // Skip invalid data
+        } catch (error) {
+          parseStats.failed++;
+          console.debug('Failed to decode base64 data:', error.message);
         }
       }
     }
   }
   
-  return events;
+  return { events, parseStats };
 }
 
 /**
- * Detect buy/sell from instruction names in logs
+ * Enhanced trade type detection with more patterns
  */
-export function detectTradeTypeFromLogs(logs: string[]): 'buy' | 'sell' | null {
+export function detectTradeTypeFromLogsV2(logs: string[]): 'buy' | 'sell' | null {
+  // Direct instruction patterns
+  const buyPatterns = [
+    'Instruction: Buy',
+    'Program log: Instruction: Buy',
+    'ProcessBuy',
+    'process_buy',
+    'Buy instruction'
+  ];
+  
+  const sellPatterns = [
+    'Instruction: Sell',
+    'Program log: Instruction: Sell',
+    'ProcessSell',
+    'process_sell',
+    'Sell instruction'
+  ];
+  
   for (const log of logs) {
-    // Look for instruction names
-    if (log.includes('Instruction: Buy') || log.includes('Program log: Instruction: Buy')) {
+    const lowerLog = log.toLowerCase();
+    
+    // Check buy patterns
+    if (buyPatterns.some(pattern => log.includes(pattern))) {
       return 'buy';
     }
-    if (log.includes('Instruction: Sell') || log.includes('Program log: Instruction: Sell')) {
+    
+    // Check sell patterns
+    if (sellPatterns.some(pattern => log.includes(pattern))) {
       return 'sell';
     }
     
-    // Alternative patterns
-    if (log.toLowerCase().includes('invoke [2]') && logs.some(l => l.includes('buy'))) {
+    // Check for indirect patterns
+    if (lowerLog.includes('bought') || lowerLog.includes('purchase')) {
       return 'buy';
     }
-    if (log.toLowerCase().includes('invoke [2]') && logs.some(l => l.includes('sell'))) {
+    
+    if (lowerLog.includes('sold') || lowerLog.includes('liquidate')) {
       return 'sell';
+    }
+  }
+  
+  // Fallback: check for swap direction indicators
+  for (let i = 0; i < logs.length - 1; i++) {
+    if (logs[i].includes('Transfer') && logs[i + 1].includes('Transfer')) {
+      // If SOL is transferred TO the program, it's likely a buy
+      if (logs[i].includes('Program 11111111111111111111111111111111')) {
+        return 'buy';
+      }
     }
   }
   
@@ -128,94 +213,47 @@ export function detectTradeTypeFromLogs(logs: string[]): 'buy' | 'sell' | null {
 }
 
 /**
- * Extract mint address from various log patterns
- * This is a fallback if event parsing fails
+ * Validate mint address with better error handling
+ */
+export function isValidMintAddressV2(mint: string): boolean {
+  if (!mint || typeof mint !== 'string') {
+    return false;
+  }
+  
+  // More flexible validation
+  // Allow both 43-44 character base58 strings
+  if (mint.length < 43 || mint.length > 44) {
+    return false;
+  }
+  
+  // Check if it's valid base58
+  try {
+    const decoded = new PublicKey(mint);
+    return decoded.toBase58() === mint;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Extract mint from logs as fallback when event parsing fails
  */
 export function extractMintFromLogs(logs: string[]): string | null {
-  // Pattern 1: Look for mint in token account creation
+  // Common patterns where mint appears in logs
+  const mintPatterns = [
+    /mint[:\s]+([1-9A-HJ-NP-Za-km-z]{43,44})/i,
+    /token[:\s]+([1-9A-HJ-NP-Za-km-z]{43,44})/i,
+    /Token mint[:\s]+([1-9A-HJ-NP-Za-km-z]{43,44})/i,
+    /Creating token[:\s]+([1-9A-HJ-NP-Za-km-z]{43,44})/i
+  ];
+  
   for (const log of logs) {
-    if (log.includes('Create') && log.includes('account')) {
-      // Extract all base58 addresses from the log
-      const addresses = extractBase58Addresses(log);
-      if (addresses.length >= 2) {
-        // Usually the second address is the mint
-        return addresses[1];
+    for (const pattern of mintPatterns) {
+      const match = log.match(pattern);
+      if (match?.[1] && isValidMintAddressV2(match[1])) {
+        return match[1];
       }
     }
-  }
-  
-  // Pattern 2: Look for mint in Program data events
-  const events = extractTradeEventsFromLogs(logs);
-  if (events.length > 0 && events[0].mint) {
-    return events[0].mint;
-  }
-  
-  return null;
-}
-
-/**
- * Extract all base58 addresses from a string
- */
-function extractBase58Addresses(text: string): string[] {
-  const addresses: string[] = [];
-  // Match base58 addresses (44 characters, no 0, O, I, l)
-  const regex = /[1-9A-HJ-NP-Za-km-z]{44}/g;
-  const matches = text.match(regex);
-  
-  if (matches) {
-    for (const match of matches) {
-      try {
-        // Validate it's a proper base58 address
-        const decoded = bs58.decode(match);
-        if (decoded.length === 32) {
-          addresses.push(match);
-        }
-      } catch {
-        // Not a valid base58 address
-      }
-    }
-  }
-  
-  return addresses;
-}
-
-/**
- * Validate mint address format
- */
-export function isValidMintAddress(address: string): boolean {
-  if (!address || address.length !== 44) {
-    return false;
-  }
-  
-  try {
-    const decoded = bs58.decode(address);
-    return decoded.length === 32;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Extract user address from instruction accounts
- * Note: This requires access to the parsed instruction data
- */
-export function extractUserFromInstruction(instruction: any): string | null {
-  try {
-    // Look for 'user' account in instruction
-    const userAccount = instruction.accounts?.find((acc: any) => 
-      acc.name === 'user' || acc.name === 'userAuthority'
-    );
-    
-    if (userAccount?.pubkey) {
-      return userAccount.pubkey.toString();
-    }
-    
-    // Fallback: first account is often the user
-    if (instruction.accounts?.length > 0) {
-      return instruction.accounts[0].pubkey.toString();
-    }
-  } catch {
-    // Unable to extract user
   }
   
   return null;

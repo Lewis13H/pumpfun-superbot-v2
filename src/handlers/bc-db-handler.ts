@@ -1,15 +1,18 @@
 /**
- * Bonding Curve Database Handler - Phase 4
+ * Bonding Curve Database Handler V2 - Improved Version
  * 
- * Bridges between bc-monitor and UnifiedDbServiceV2
- * Handles token discovery and trade storage with efficient batching
+ * Enhancements:
+ * - Option to save all tokens regardless of threshold
+ * - Better error handling and retry logic
+ * - Tracks why tokens weren't saved
+ * - More detailed statistics
  */
 
-import { UnifiedDbServiceV2, UnifiedTokenData, UnifiedTradeData } from '../database/unified-db-service-v2';
+import { UnifiedDbServiceV2, UnifiedTokenData, UnifiedTradeData } from '../database/unified-db-service';
 import { BondingCurveTradeEvent } from '../parsers/bc-event-parser';
 import { calculateBondingCurveProgress } from '../services/bc-price-calculator';
 
-export interface ProcessedTradeData {
+export interface ProcessedTradeDataV2 {
   event: BondingCurveTradeEvent;
   tradeType: 'buy' | 'sell' | 'unknown';
   signature: string;
@@ -21,29 +24,77 @@ export interface ProcessedTradeData {
   blockTime?: Date;
 }
 
-export class BondingCurveDbHandler {
+export interface DbHandlerStats {
+  tokensDiscovered: number;
+  tokensSaved: number;
+  tokensSkippedBelowThreshold: number;
+  tokensFailedToSave: number;
+  tradesProcessed: number;
+  tradesSaved: number;
+  tradesSkippedBelowThreshold: number;
+  saveErrors: Map<string, number>;
+}
+
+export interface DbHandlerConfig {
+  saveAllTokens: boolean;       // Save tokens regardless of threshold
+  thresholdUsd: number;         // Market cap threshold (default 8888)
+  retryFailedSaves: boolean;    // Retry failed saves
+  maxRetries: number;           // Max retry attempts
+  logVerbose: boolean;          // Detailed logging
+}
+
+export class BondingCurveDbHandlerV2 {
   private dbService: UnifiedDbServiceV2;
-  private discoveredTokens: Set<string> = new Set();
+  private discoveredTokens: Map<string, { marketCap: number, attempts: number }> = new Map();
+  private stats: DbHandlerStats;
+  private config: DbHandlerConfig;
   
-  constructor() {
+  constructor(config?: Partial<DbHandlerConfig>) {
     this.dbService = UnifiedDbServiceV2.getInstance();
+    this.stats = {
+      tokensDiscovered: 0,
+      tokensSaved: 0,
+      tokensSkippedBelowThreshold: 0,
+      tokensFailedToSave: 0,
+      tradesProcessed: 0,
+      tradesSaved: 0,
+      tradesSkippedBelowThreshold: 0,
+      saveErrors: new Map()
+    };
+    
+    // Default configuration
+    this.config = {
+      saveAllTokens: false,
+      thresholdUsd: 8888,
+      retryFailedSaves: true,
+      maxRetries: 3,
+      logVerbose: false,
+      ...config
+    };
   }
 
   /**
-   * Process a trade event with all calculated data
+   * Process a trade event with improved handling
    */
-  async processTrade(data: ProcessedTradeData): Promise<void> {
+  async processTrade(data: ProcessedTradeDataV2): Promise<void> {
     const { event, tradeType, signature, priceInSol, priceInUsd, marketCapUsd, progress } = data;
+    this.stats.tradesProcessed++;
     
-    // Skip if below threshold
-    if (marketCapUsd < 8888) {
+    // Check if we should save this trade
+    const shouldSaveTrade = this.config.saveAllTokens || marketCapUsd >= this.config.thresholdUsd;
+    
+    if (!shouldSaveTrade) {
+      this.stats.tradesSkippedBelowThreshold++;
+      if (this.config.logVerbose) {
+        console.log(`Skipping trade for ${event.mint} - MC: $${marketCapUsd.toFixed(0)} below threshold`);
+      }
       return;
     }
     
     // Check if this is a new token discovery
-    if (!this.discoveredTokens.has(event.mint)) {
-      await this.handleNewToken(data);
-      this.discoveredTokens.add(event.mint);
+    const isNewToken = !this.discoveredTokens.has(event.mint);
+    if (isNewToken) {
+      await this.handleNewTokenV2(data);
     }
     
     // Prepare trade data
@@ -65,15 +116,46 @@ export class BondingCurveDbHandler {
       blockTime: data.blockTime || new Date()
     };
     
-    // Process through database service
-    await this.dbService.processTrade(tradeData);
+    // Process through database service with retry logic
+    try {
+      await this.dbService.processTrade(tradeData);
+      this.stats.tradesSaved++;
+    } catch (error) {
+      this.handleSaveError('trade', error);
+      
+      if (this.config.retryFailedSaves) {
+        // Retry once after a short delay
+        setTimeout(async () => {
+          try {
+            await this.dbService.processTrade(tradeData);
+            this.stats.tradesSaved++;
+          } catch (retryError) {
+            console.error(`Failed to save trade after retry: ${signature}`, retryError.message);
+          }
+        }, 100);
+      }
+    }
   }
 
   /**
-   * Handle new token discovery
+   * Handle new token discovery with improved tracking
    */
-  private async handleNewToken(data: ProcessedTradeData): Promise<void> {
+  private async handleNewTokenV2(data: ProcessedTradeDataV2): Promise<void> {
     const { event, priceInSol, priceInUsd, marketCapUsd } = data;
+    
+    this.stats.tokensDiscovered++;
+    this.discoveredTokens.set(event.mint, { marketCap: marketCapUsd, attempts: 0 });
+    
+    // Check if we should save this token
+    const shouldSaveToken = this.config.saveAllTokens || marketCapUsd >= this.config.thresholdUsd;
+    
+    if (!shouldSaveToken) {
+      this.stats.tokensSkippedBelowThreshold++;
+      if (this.config.logVerbose) {
+        console.log(`🔽 Token below threshold: ${event.mint} MC: $${marketCapUsd.toFixed(0)}`);
+      }
+      return;
+    }
     
     // Prepare token data
     const tokenData: UnifiedTokenData = {
@@ -85,31 +167,130 @@ export class BondingCurveDbHandler {
       firstSeenSlot: data.slot || BigInt(0),
       firstPriceSol: priceInSol,
       firstPriceUsd: priceInUsd,
-      firstMarketCapUsd: marketCapUsd,
-      tokenCreatedAt: data.blockTime // Add actual creation time from blockchain
+      firstMarketCapUsd: marketCapUsd
     };
     
-    // Process through database service
-    await this.dbService.processTokenDiscovery(tokenData);
-    
-    console.log(`🆕 New token discovered: ${event.mint} MC: $${marketCapUsd.toFixed(0)}`);
+    // Process through database service with retry logic
+    try {
+      await this.dbService.processTokenDiscovery(tokenData);
+      this.stats.tokensSaved++;
+      console.log(`✅ New token saved: ${event.mint} MC: $${marketCapUsd.toFixed(0)}`);
+    } catch (error) {
+      this.handleSaveError('token', error);
+      this.stats.tokensFailedToSave++;
+      
+      // Update attempts counter
+      const tokenInfo = this.discoveredTokens.get(event.mint);
+      if (tokenInfo) {
+        tokenInfo.attempts++;
+        
+        // Retry if within limits
+        if (this.config.retryFailedSaves && tokenInfo.attempts < this.config.maxRetries) {
+          setTimeout(async () => {
+            try {
+              await this.dbService.processTokenDiscovery(tokenData);
+              this.stats.tokensSaved++;
+              this.stats.tokensFailedToSave--;
+              console.log(`✅ Token saved on retry: ${event.mint}`);
+            } catch (retryError) {
+              console.error(`Failed to save token after retry: ${event.mint}`, retryError.message);
+            }
+          }, 500 * tokenInfo.attempts); // Exponential backoff
+        }
+      }
+    }
   }
 
   /**
-   * Get statistics
+   * Track save errors by type
    */
-  getStats() {
+  private handleSaveError(type: 'token' | 'trade', error: any): void {
+    const errorMessage = error.message || 'Unknown error';
+    const errorKey = `${type}:${errorMessage}`;
+    
+    const currentCount = this.stats.saveErrors.get(errorKey) || 0;
+    this.stats.saveErrors.set(errorKey, currentCount + 1);
+    
+    if (this.config.logVerbose) {
+      console.error(`Save error (${type}):`, errorMessage);
+    }
+  }
+
+  /**
+   * Get detailed statistics
+   */
+  getDetailedStats() {
+    const saveRate = this.stats.tokensDiscovered > 0 
+      ? (this.stats.tokensSaved / this.stats.tokensDiscovered * 100).toFixed(1)
+      : '0.0';
+    
+    const effectiveSaveRate = this.stats.tokensDiscovered > this.stats.tokensSkippedBelowThreshold
+      ? (this.stats.tokensSaved / (this.stats.tokensDiscovered - this.stats.tokensSkippedBelowThreshold) * 100).toFixed(1)
+      : '0.0';
+    
     return {
-      discoveredTokens: this.discoveredTokens.size,
-      dbStats: this.dbService.getStats()
+      summary: {
+        tokensDiscovered: this.stats.tokensDiscovered,
+        tokensSaved: this.stats.tokensSaved,
+        tokensSaveRate: `${saveRate}%`,
+        effectiveSaveRate: `${effectiveSaveRate}%`,
+        tokensSkippedBelowThreshold: this.stats.tokensSkippedBelowThreshold,
+        tokensFailedToSave: this.stats.tokensFailedToSave,
+        tradesProcessed: this.stats.tradesProcessed,
+        tradesSaved: this.stats.tradesSaved
+      },
+      errors: Array.from(this.stats.saveErrors.entries()).map(([key, count]) => ({
+        type: key.split(':')[0],
+        message: key.split(':')[1],
+        count
+      })).sort((a, b) => b.count - a.count),
+      dbStats: this.dbService.getStats(),
+      config: this.config
     };
+  }
+
+  /**
+   * Reset statistics
+   */
+  resetStats(): void {
+    this.stats = {
+      tokensDiscovered: 0,
+      tokensSaved: 0,
+      tokensSkippedBelowThreshold: 0,
+      tokensFailedToSave: 0,
+      tradesProcessed: 0,
+      tradesSaved: 0,
+      tradesSkippedBelowThreshold: 0,
+      saveErrors: new Map()
+    };
+  }
+
+  /**
+   * Update configuration dynamically
+   */
+  updateConfig(config: Partial<DbHandlerConfig>): void {
+    this.config = { ...this.config, ...config };
   }
 
   /**
    * Force flush any pending batches
    */
   async flush(): Promise<void> {
-    // The db service will automatically flush on shutdown
-    // but we can trigger it manually if needed
+    await this.dbService.close();
+  }
+
+  /**
+   * Get list of tokens that failed to save
+   */
+  getFailedTokens(): Array<{ mint: string, marketCap: number, attempts: number }> {
+    const failed: Array<{ mint: string, marketCap: number, attempts: number }> = [];
+    
+    for (const [mint, info] of this.discoveredTokens) {
+      if (info.attempts >= this.config.maxRetries) {
+        failed.push({ mint, ...info });
+      }
+    }
+    
+    return failed;
   }
 }

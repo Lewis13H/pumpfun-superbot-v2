@@ -40,7 +40,7 @@ import { ProgressTracker, formatProgressDisplay, detectGraduationFromLogs } from
 import { BondingCurveMintDetector, NewMintDetection } from '../handlers/bc-mint-detector';
 import { BondingCurveTokenEnricher } from '../services/bc-token-enricher';
 import { bcMonitorStats } from '../services/bc-monitor-stats-aggregator';
-import { bcWebSocketServer } from '../services/bc-websocket-server';
+// import { bcWebSocketServer } from '../services/bc-websocket-server'; // File deleted
 import chalk from 'chalk';
 import bs58 from 'bs58';
 
@@ -316,14 +316,14 @@ class BondingCurveMonitor {
         });
         
         // Broadcast new token via WebSocket
-        bcWebSocketServer.broadcastNewToken({
-          mint: mintDetection.mintAddress,
-          creator: mintDetection.creator,
-          supply: mintDetection.initialSupply,
-          signature: mintDetection.signature,
-          metadata: mintDetection.metadata,
-          timestamp: new Date()
-        });
+        // bcWebSocketServer.broadcastNewToken({
+        //   mint: mintDetection.mintAddress,
+        //   creator: mintDetection.creator,
+        //   supply: mintDetection.initialSupply,
+        //   signature: mintDetection.signature,
+        //   metadata: mintDetection.metadata,
+        //   timestamp: new Date()
+        // }); // COMMENTED: File deleted
         
         // Enrich token data (non-blocking)
         this.enrichNewToken(mintDetection).catch(err => {
@@ -419,13 +419,13 @@ class BondingCurveMonitor {
           });
           
           // Broadcast graduation via WebSocket
-          bcWebSocketServer.broadcastGraduation({
-            mint: event.mint,
-            finalSol: Number(event.virtualSolReserves) / 1e9,
-            marketCap: priceData.marketCapUsd,
-            signature,
-            timestamp: new Date()
-          });
+          // bcWebSocketServer.broadcastGraduation({
+          //   mint: event.mint,
+          //   finalSol: Number(event.virtualSolReserves) / 1e9,
+          //   marketCap: priceData.marketCapUsd,
+          //   signature,
+          //   timestamp: new Date()
+          // }); // COMMENTED: File deleted
           
           // Mark in database if above threshold
           if (priceData.marketCapUsd >= 8888) {
@@ -603,18 +603,18 @@ class BondingCurveMonitor {
     });
     
     // Broadcast trade via WebSocket
-    bcWebSocketServer.broadcastTrade({
-      type: tradeType,
-      mint: event.mint,
-      user: event.user,
-      solAmount: event.solAmount,
-      tokenAmount: event.tokenAmount,
-      price: priceData.priceUsd,
-      marketCap: priceData.marketCapUsd,
-      progress: progressData.percentage,
-      signature,
-      timestamp: new Date()
-    });
+    // bcWebSocketServer.broadcastTrade({
+    //   type: tradeType,
+    //   mint: event.mint,
+    //   user: event.user,
+    //   solAmount: event.solAmount,
+    //   tokenAmount: event.tokenAmount,
+    //   price: priceData.priceUsd,
+    //   marketCap: priceData.marketCapUsd,
+    //   progress: progressData.percentage,
+    //   signature,
+    //   timestamp: new Date()
+    // }); // COMMENTED: File deleted
   }
   
 
@@ -772,7 +772,7 @@ class BondingCurveMonitor {
     });
     
     // Broadcast stats update via WebSocket
-    bcWebSocketServer.broadcastStats(bcMonitorStats.getStats());
+    // bcWebSocketServer.broadcastStats(bcMonitorStats.getStats()); // COMMENTED: File deleted
   }
 
   /**

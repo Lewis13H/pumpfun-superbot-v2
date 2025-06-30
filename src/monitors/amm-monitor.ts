@@ -8,9 +8,9 @@
 import 'dotenv/config';
 import { PublicKey, VersionedTransactionResponse } from '@solana/web3.js';
 import Client, { CommitmentLevel, SubscribeRequest } from '@triton-one/yellowstone-grpc';
-import { UnifiedDbServiceV2 } from '../database/unified-db-service-v2';
+import { UnifiedDbServiceV2 } from '../database/unified-db-service';
 import { SolPriceService } from '../services/sol-price';
-import { AutoEnricher } from '../services/auto-enricher';
+import { EnhancedAutoEnricher } from '../services/enhanced-auto-enricher';
 import { Idl } from '@coral-xyz/anchor';
 import { SolanaParser } from '@shyft-to/solana-transaction-parser';
 import { SolanaEventParser } from '../utils/event-parser';
@@ -38,7 +38,7 @@ const LAMPORTS_PER_SOL = 1e9;
 let dbService: UnifiedDbServiceV2;
 let solPriceService: SolPriceService;
 let poolStateService: AmmPoolStateService;
-let enricher: AutoEnricher | null = null;
+let enricher: EnhancedAutoEnricher | null = null;
 let currentSolPrice = 180; // Default fallback
 
 // Parsers and formatters (following Shyft example)
@@ -478,9 +478,9 @@ async function main() {
   SolPriceUpdater.getInstance().start();
   
   // Initialize auto-enricher if API key is available
-  if (process.env.HELIUS_API_KEY) {
+  if (process.env.HELIUS_API_KEY || process.env.SHYFT_API_KEY) {
     console.log(chalk.yellow('Starting auto-enricher...'));
-    enricher = AutoEnricher.getInstance();
+    enricher = EnhancedAutoEnricher.getInstance();
     await enricher.start();
   }
   

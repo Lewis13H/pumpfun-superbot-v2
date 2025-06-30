@@ -8,7 +8,7 @@
 import 'dotenv/config';
 import { Connection, PublicKey } from '@solana/web3.js';
 import Client, { SubscribeRequest, CommitmentLevel } from '@triton-one/yellowstone-grpc';
-import { UnifiedDbServiceV2 } from '../database/unified-db-service-v2';
+import { UnifiedDbServiceV2 } from '../database/unified-db-service';
 import * as borsh from '@coral-xyz/borsh';
 import bs58 from 'bs58';
 import chalk from 'chalk';
