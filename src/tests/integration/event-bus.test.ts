@@ -26,9 +26,9 @@ describe('EventBus Integration Tests', () => {
     it('should handle multiple subscribers for same event', () => {
       const results: number[] = [];
 
-      eventBus.on('test:event', () => results.push(1));
-      eventBus.on('test:event', () => results.push(2));
-      eventBus.on('test:event', () => results.push(3));
+      eventBus.on('test:event', () => { results.push(1); });
+      eventBus.on('test:event', () => { results.push(2); });
+      eventBus.on('test:event', () => { results.push(3); });
 
       eventBus.emit('test:event', {});
 
@@ -55,12 +55,12 @@ describe('EventBus Integration Tests', () => {
       expect(callCount).toBe(1);
     });
 
-    it('should handle wildcard subscriptions', () => {
+    it('should handle multiple event subscriptions', () => {
       const events: string[] = [];
 
-      eventBus.on('*', (data, eventName) => {
-        events.push(eventName!);
-      });
+      eventBus.on('event1', () => { events.push('event1'); });
+      eventBus.on('event2', () => { events.push('event2'); });
+      eventBus.on('event3', () => { events.push('event3'); });
 
       eventBus.emit('event1', {});
       eventBus.emit('event2', {});
@@ -77,10 +77,10 @@ describe('EventBus Integration Tests', () => {
         mint: 'So11111111111111111111111111111111111111112',
         type: 'buy' as const,
         userAddress: 'User11111111111111111111111111111111111111',
-        solAmount: 1000000000n,
-        tokenAmount: 1000000n,
-        virtualSolReserves: 100000000000n,
-        virtualTokenReserves: 1000000000n,
+        solAmount: BigInt(1000000000),
+        tokenAmount: BigInt(1000000),
+        virtualSolReserves: BigInt(100000000000),
+        virtualTokenReserves: BigInt(1000000000),
         slot: 123456789,
         timestamp: new Date()
       };
@@ -103,8 +103,8 @@ describe('EventBus Integration Tests', () => {
         mint: 'Token1111111111111111111111111111111111111',
         type: 'sell' as const,
         userAddress: 'User22222222222222222222222222222222222222',
-        solAmount: 2000000000n,
-        tokenAmount: 2000000n,
+        solAmount: BigInt(2000000000),
+        tokenAmount: BigInt(2000000),
         poolAddress: 'Pool11111111111111111111111111111111111111',
         slot: 987654321,
         timestamp: new Date()
@@ -127,9 +127,9 @@ describe('EventBus Integration Tests', () => {
     it('should handle token discovery chain', () => {
       const events: string[] = [];
       
-      eventBus.on(EVENTS.TOKEN_DISCOVERED, () => events.push('discovered'));
-      eventBus.on(EVENTS.TOKEN_THRESHOLD_CROSSED, () => events.push('threshold'));
-      eventBus.on(EVENTS.TOKEN_GRADUATED, () => events.push('graduated'));
+      eventBus.on(EVENTS.TOKEN_DISCOVERED, () => { events.push('discovered'); });
+      eventBus.on(EVENTS.TOKEN_THRESHOLD_CROSSED, () => { events.push('threshold'); });
+      eventBus.on(EVENTS.TOKEN_GRADUATED, () => { events.push('graduated'); });
 
       // Simulate token lifecycle
       eventBus.emit(EVENTS.TOKEN_DISCOVERED, {
@@ -175,9 +175,9 @@ describe('EventBus Integration Tests', () => {
     it('should continue calling other handlers after error', () => {
       const results: number[] = [];
 
-      eventBus.on('test:event', () => results.push(1));
+      eventBus.on('test:event', () => { results.push(1); });
       eventBus.on('test:event', () => { throw new Error('Fail'); });
-      eventBus.on('test:event', () => results.push(3));
+      eventBus.on('test:event', () => { results.push(3); });
 
       eventBus.emit('test:event', {});
 

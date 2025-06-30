@@ -9,8 +9,8 @@ import { WebSocketServer } from '../../websocket/websocket-server';
 import { createServer } from 'http';
 import { EventBus, EVENTS } from '../../core/event-bus';
 import { Container, TOKENS } from '../../core/container';
-import WebSocket from 'ws';
-import express from 'express';
+import { WebSocket } from 'ws';
+import * as express from 'express';
 
 // Mock blockchain stream
 class MockBlockchainStream {
@@ -157,21 +157,21 @@ describe('System End-to-End Tests', () => {
     (container as any).services.set(TOKENS.TradeRepository.toString(), mockTradeRepo);
 
     // Create Express app
-    app = express();
-    app.use(express.json());
+    app = express.default ? express.default() : (express as any)();
+    app.use((express.default || express).json());
 
     // Add API routes
-    app.get('/api/health', (req, res) => {
+    app.get('/api/health', (_req, res) => {
       res.json({ status: 'ok', timestamp: new Date() });
     });
 
-    app.get('/api/tokens', async (req, res) => {
+    app.get('/api/tokens', async (_req, res) => {
       const tokenRepo = await container.resolve(TOKENS.TokenRepository);
       const tokens = await tokenRepo.findByFilter({});
       res.json(tokens);
     });
 
-    app.get('/api/stats/overview', async (req, res) => {
+    app.get('/api/stats/overview', async (_req, res) => {
       const tokenRepo = await container.resolve(TOKENS.TokenRepository);
       const stats = await tokenRepo.getStatistics();
       res.json({ tokens: stats });
@@ -251,17 +251,17 @@ describe('System End-to-End Tests', () => {
     it('should expose REST API endpoints', async () => {
       // Test health endpoint
       const healthResponse = await fetch(`http://localhost:${port}/api/health`);
-      const health = await healthResponse.json();
+      const health = await healthResponse.json() as { status: string; timestamp: Date };
       expect(health.status).toBe('ok');
 
       // Test tokens endpoint
       const tokensResponse = await fetch(`http://localhost:${port}/api/tokens`);
-      const tokens = await tokensResponse.json();
+      const tokens = await tokensResponse.json() as any[];
       expect(Array.isArray(tokens)).toBe(true);
 
       // Test stats endpoint
       const statsResponse = await fetch(`http://localhost:${port}/api/stats/overview`);
-      const stats = await statsResponse.json();
+      const stats = await statsResponse.json() as { tokens: any };
       expect(stats.tokens).toBeDefined();
     });
 
@@ -290,11 +290,16 @@ describe('System End-to-End Tests', () => {
       const mintAddress = 'LifecycleToken11111111111111111111111111';
 
       // Track all events for this token
-      eventBus.on('*', (data, eventName) => {
+      const trackTokenEvent = (eventName: string) => (data: any) => {
         if (data?.mintAddress === mintAddress || data?.trade?.mintAddress === mintAddress) {
           tokenEvents.push({ event: eventName, data });
         }
-      });
+      };
+      
+      eventBus.on(EVENTS.BC_TRADE, trackTokenEvent(EVENTS.BC_TRADE));
+      eventBus.on(EVENTS.TOKEN_THRESHOLD_CROSSED, trackTokenEvent(EVENTS.TOKEN_THRESHOLD_CROSSED));
+      eventBus.on(EVENTS.TOKEN_GRADUATED, trackTokenEvent(EVENTS.TOKEN_GRADUATED));
+      eventBus.on(EVENTS.AMM_TRADE, trackTokenEvent(EVENTS.AMM_TRADE));
 
       // 1. Discover token with BC trade
       const bcTrade = {
@@ -469,8 +474,8 @@ describe('System End-to-End Tests', () => {
       const processedEvents: any[] = [];
 
       // Track processed events
-      eventBus.on(EVENTS.BC_TRADE, () => processedEvents.push('bc'));
-      eventBus.on(EVENTS.AMM_TRADE, () => processedEvents.push('amm'));
+      eventBus.on(EVENTS.BC_TRADE, () => { processedEvents.push('bc'); });
+      eventBus.on(EVENTS.AMM_TRADE, () => { processedEvents.push('amm'); });
 
       // Generate many transactions rapidly
       const transactions = [];

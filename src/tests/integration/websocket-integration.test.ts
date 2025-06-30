@@ -6,7 +6,7 @@ import { createServer } from 'http';
 import { WebSocketServer } from '../../websocket/websocket-server';
 import { EventBus, EVENTS } from '../../core/event-bus';
 import { ConfigService } from '../../core/config';
-import WebSocket from 'ws';
+import { WebSocket } from 'ws';
 
 describe('WebSocket Integration Tests', () => {
   let httpServer: any;
@@ -167,8 +167,8 @@ describe('WebSocket Integration Tests', () => {
           signature: 'test123',
           mintAddress: 'TestToken111111111111111111111111111111111',
           type: 'buy',
-          solAmount: 1000000000n,
-          tokenAmount: 1000000n
+          solAmount: BigInt(1000000000),
+          tokenAmount: BigInt(1000000)
         },
         monitor: 'BC Monitor'
       };

@@ -35,4 +35,7 @@ process.env.SHYFT_GRPC_ENDPOINT = process.env.SHYFT_GRPC_ENDPOINT || 'https://te
 process.env.SHYFT_GRPC_TOKEN = process.env.SHYFT_GRPC_TOKEN || 'test-token';
 
 // Global test utilities
-global.waitFor = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+(global as any).waitFor = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Export to make this a module
+export {};

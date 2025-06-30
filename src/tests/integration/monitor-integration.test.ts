@@ -95,8 +95,8 @@ describe('Monitor System Integration', () => {
     
     // Register core services
     eventBus = new EventBus();
-    container.register(TOKENS.EventBus, async () => eventBus);
-    container.register(TOKENS.ConfigService, async () => new ConfigService());
+    container.registerSingleton(TOKENS.EventBus, async () => eventBus);
+    container.registerSingleton(TOKENS.ConfigService, async () => new ConfigService());
     
     // Mock repositories
     tokenRepo = {
@@ -113,18 +113,24 @@ describe('Monitor System Integration', () => {
       getRecentTrades: jest.fn().mockResolvedValue([])
     } as any;
     
-    container.register(TOKENS.TokenRepository, async () => tokenRepo);
-    container.register(TOKENS.TradeRepository, async () => tradeRepo);
+    container.registerSingleton(TOKENS.TokenRepository, async () => tokenRepo);
+    container.registerSingleton(TOKENS.TradeRepository, async () => tradeRepo);
     
     // Register services
-    container.register(TOKENS.EventParser, async () => new UnifiedEventParser([]));
-    container.register(TOKENS.SolPriceService, async () => ({
+    container.registerSingleton(TOKENS.EventParser, async () => new UnifiedEventParser({}));
+    container.registerSingleton(TOKENS.SolPriceService, async () => ({
       getCurrentPrice: jest.fn().mockResolvedValue(180)
     }));
     
     // Create trade handler with mocked services
-    tradeHandler = new TradeHandler(container, eventBus);
-    container.register(TOKENS.TradeHandler, async () => tradeHandler);
+    tradeHandler = new TradeHandler({
+      tokenRepo,
+      tradeRepo,
+      priceCalculator: { getCurrentSolPrice: () => 180 } as any,
+      eventBus,
+      config: new ConfigService()
+    });
+    container.registerSingleton(TOKENS.TradeHandler, async () => tradeHandler);
     
     // Create monitors
     bcMonitor = new BCMonitorRefactored(container);
@@ -136,9 +142,9 @@ describe('Monitor System Integration', () => {
       const events: any[] = [];
       
       // Subscribe to events
-      eventBus.on(EVENTS.BC_TRADE, (data) => events.push({ type: 'bc_trade', data }));
-      eventBus.on(EVENTS.TOKEN_DISCOVERED, (data) => events.push({ type: 'token_discovered', data }));
-      eventBus.on(EVENTS.TOKEN_THRESHOLD_CROSSED, (data) => events.push({ type: 'threshold', data }));
+      eventBus.on(EVENTS.BC_TRADE, (data) => { events.push({ type: 'bc_trade', data }); });
+      eventBus.on(EVENTS.TOKEN_DISCOVERED, (data) => { events.push({ type: 'token_discovered', data }); });
+      eventBus.on(EVENTS.TOKEN_THRESHOLD_CROSSED, (data) => { events.push({ type: 'threshold', data }); });
       
       // Process mock trade
       await bcMonitor.processStreamData(mockBCTradeData);
@@ -168,8 +174,8 @@ describe('Monitor System Integration', () => {
       const events: any[] = [];
       
       // Subscribe to events
-      eventBus.on(EVENTS.AMM_TRADE, (data) => events.push({ type: 'amm_trade', data }));
-      eventBus.on(EVENTS.TOKEN_DISCOVERED, (data) => events.push({ type: 'token_discovered', data }));
+      eventBus.on(EVENTS.AMM_TRADE, (data) => { events.push({ type: 'amm_trade', data }); });
+      eventBus.on(EVENTS.TOKEN_DISCOVERED, (data) => { events.push({ type: 'token_discovered', data }); });
       
       // Process mock trade
       await ammMonitor.processStreamData(mockAMMTradeData);
@@ -218,9 +224,13 @@ describe('Monitor System Integration', () => {
       const events: any[] = [];
       
       // Subscribe to all events
-      eventBus.on('*', (data, eventName) => {
+      const trackEvent = (eventName: string) => (data: any) => {
         events.push({ event: eventName, data });
-      });
+      };
+      
+      eventBus.on(EVENTS.BC_TRADE, trackEvent(EVENTS.BC_TRADE));
+      eventBus.on(EVENTS.TOKEN_GRADUATED, trackEvent(EVENTS.TOKEN_GRADUATED));
+      eventBus.on(EVENTS.AMM_TRADE, trackEvent(EVENTS.AMM_TRADE));
       
       // 1. First discover token in BC
       await bcMonitor.processStreamData(mockBCTradeData);
