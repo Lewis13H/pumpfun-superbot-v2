@@ -46,18 +46,14 @@ npm run query-trades       # Query recent trades
 npm run dashboard          # Web dashboard (http://localhost:3001)
 
 # Testing & Debugging
-npm run debug-amm          # Debug AMM pool structure
-npm run verify-amm-session-1  # Verify pool reserve monitoring
-npm run bc-monitor-watch   # Watch parse/save rates only
-tsx scripts/test-dexscreener-recovery.ts     # Test DexScreener API
-tsx scripts/test-enhanced-enrichment.ts      # Test token metadata enrichment
-tsx scripts/batch-enrich-graphql.ts         # Batch enrich using GraphQL (fastest)
-tsx scripts/batch-enrich-tokens.ts          # Batch enrich using REST APIs
-tsx scripts/test-graphql-metadata.ts        # Test GraphQL metadata queries
-tsx scripts/quick-test-amm-creation.ts       # Test AMM token creation (1 min)
-./scripts/quick-test-bc-monitor.sh   # 5-minute quick test
-./scripts/test-bc-monitor.sh         # 1-hour comprehensive test
-./scripts/monitor-improvements.sh    # Run monitor with custom settings
+tsx scripts/test-bc-monitor-refactored.ts    # Test BC monitor
+tsx scripts/test-bc-account-monitor.ts       # Test BC account monitor
+tsx scripts/test-amm-account-monitor-refactored.ts  # Test AMM account monitor
+tsx scripts/test-graduation-handler.ts       # Test graduation handler
+tsx scripts/verify-amm-trades.ts            # Verify AMM trades against Solscan
+./scripts/test-bc-monitor.sh                 # Comprehensive BC monitor test
+./scripts/test-amm-monitor-live.sh           # Live AMM monitor test
+./scripts/monitor-improvements.sh            # Run monitor with custom settings
 psql $DATABASE_URL -c "SELECT COUNT(*) FROM tokens_unified"  # Check database
 ```
 
@@ -78,9 +74,7 @@ src/
 │   ├── bc-account-monitor.ts       # BC account state monitor (refactored with DI)
 │   ├── amm-monitor.ts              # AMM pool trade monitor (wrapped legacy with DI)
 │   ├── amm-account-monitor.ts      # AMM account state monitor (wrapped legacy with DI)
-│   ├── unified-monitor-v2.ts       # Main production monitor (DEPRECATED - has issues)
-│   └── debug/
-│       └── debug-amm-pool.ts       # AMM debugging tool
+│   └── unified-monitor-v2.ts       # Main production monitor (DEPRECATED - has issues)
 ├── services/
 │   ├── sol-price.ts                # Binance API integration
 │   ├── sol-price-updater.ts        # Automatic price updates
