@@ -175,6 +175,7 @@ export class TradeHandler {
       currentMarketCapUsd: priceInfo.marketCapUsd,
       graduatedToAmm: event.type === EventType.AMM_TRADE,
       priceSource: event.type === EventType.BC_TRADE ? 'bonding_curve' : 'amm',
+      firstProgram: event.type === EventType.BC_TRADE ? 'bonding_curve' : 'amm_pool',
       lastPriceUpdate: now,
       firstSeenSlot: Number(event.slot),
       createdAt: now
