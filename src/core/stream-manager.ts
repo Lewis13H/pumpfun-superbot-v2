@@ -121,6 +121,9 @@ export class StreamManager {
         programs: Array.from(this.subscribedPrograms)
       });
       
+      // Log the request for debugging
+      this.logger.debug('Subscription request:', JSON.stringify(request, null, 2));
+      
       this.stream = await this.options.streamClient.subscribe();
 
       // Send the subscription request
@@ -211,7 +214,7 @@ export class StreamManager {
     if (this.monitorConfigs.size > 0) {
       const mergedConfig: any = {
         commitment: CommitmentLevel.CONFIRMED,
-        accountsDataSlice: [],
+        // Initialize all required fields with empty objects
         accounts: {},
         slots: {},
         transactions: {},
@@ -219,6 +222,7 @@ export class StreamManager {
         blocks: {},
         blocksMeta: {},
         entry: {},
+        accountsDataSlice: [],
         ping: undefined
       };
       
@@ -235,6 +239,13 @@ export class StreamManager {
         // Merge other fields if needed
         if (config.slots) {
           Object.assign(mergedConfig.slots, config.slots);
+        }
+        // Merge data slices
+        if (config.accountsDataSlice) {
+          mergedConfig.accountsDataSlice = [
+            ...mergedConfig.accountsDataSlice,
+            ...config.accountsDataSlice
+          ];
         }
       }
       
@@ -253,23 +264,22 @@ export class StreamManager {
       transactions[`prog_${programId.substring(0, 8)}`] = {
         vote: false,
         failed: false,
-        signature: undefined,
         accountInclude: [programId],
         accountExclude: [],
         accountRequired: []
       };
     }
 
-    const request: SubscribeRequest = {
+    const request: any = {
       commitment: CommitmentLevel.CONFIRMED,
-      accountsDataSlice: [],
       accounts: {},
       slots: {},
-      transactions,
+      transactions: transactions,
       transactionsStatus: {},
       blocks: {},
       blocksMeta: {},
       entry: {},
+      accountsDataSlice: [],
       ping: undefined
     };
 

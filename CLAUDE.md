@@ -145,6 +145,8 @@ The system has been refactored to use clean architecture principles:
 1. **Monitor Connection Issues**: Fixed gRPC data structure handling
    - Transaction data path: `data.transaction.transaction.transaction`
    - Proper subscription keys: `pumpfun`, `pumpswap_amm`, `pumpAMM`
+   - Fixed gRPC subscription format - must include all fields (even empty ones)
+   - Account monitors must override `isRelevantTransaction` to check for account data
 2. **Metadata Enrichment**: Fixed rate limiting and efficiency
    - Batch size: 20 tokens
    - Rate limit: 200ms between requests
@@ -153,6 +155,10 @@ The system has been refactored to use clean architecture principles:
    - IDL type compatibility fixed
    - Proper error handling
    - No implicit any types
+4. **Database Schema Updates**:
+   - Fixed `sol_prices` table column names (`price_usd` not `price`)
+   - Added missing `token_created_at` column to `tokens_unified`
+   - Created separate database for AMM enhancement worktree
 
 To use the refactored monitors:
 ```bash
@@ -253,6 +259,8 @@ data.transaction.transaction.signature                       // Signature
    - gRPC data has triple-nested structure
    - Solution: Updated parser to handle `data.transaction.transaction.transaction`
    - Subscription keys must match exactly: `pumpfun`, `pumpswap_amm`, `pumpAMM`
+   - **gRPC Subscription Format**: Must include ALL fields from Shyft examples (even empty ones)
+   - **Account Monitors**: Must override `isRelevantTransaction` to return true for `data.account`
 
 2. **Metadata enrichment rate limits (FIXED January 2025)**
    - GraphQL doesn't have required tables
@@ -263,6 +271,11 @@ data.transaction.transaction.signature                       // Signature
    - IDL type incompatibility between Anchor versions
    - Solution: Cast to `any` for IDL types
    - All implicit any types now have proper annotations
+
+4. **AMM Account Monitor Issues (FIXED January 2025)**
+   - Account updates not being processed
+   - Solution: Override `isRelevantTransaction` to check for account data
+   - Monitor now correctly processes hundreds of pool state updates per minute
 
 ### Database Schema (Unified)
 

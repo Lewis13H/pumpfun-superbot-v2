@@ -132,8 +132,8 @@ export class SolPriceService {
   private async savePriceToDatabase(price: number): Promise<void> {
     try {
       await db.query(
-        'INSERT INTO sol_prices (price) VALUES ($1)',
-        [price]
+        'INSERT INTO sol_prices (price_usd, source) VALUES ($1, $2)',
+        [price, 'binance']
       );
     } catch (error) {
       throw error;

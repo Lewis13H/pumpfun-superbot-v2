@@ -118,7 +118,7 @@ export class SolPriceUpdater {
   private async savePrice(price: number, source: string): Promise<void> {
     try {
       await db.query(
-        'INSERT INTO sol_prices (price, source, created_at) VALUES ($1, $2, CURRENT_TIMESTAMP)',
+        'INSERT INTO sol_prices (price_usd, source, created_at) VALUES ($1, $2, CURRENT_TIMESTAMP)',
         [price, source]
       );
       this.lastUpdateTime = new Date();
@@ -126,7 +126,7 @@ export class SolPriceUpdater {
       // Fallback for tables without source column
       try {
         await db.query(
-          'INSERT INTO sol_prices (price) VALUES ($1)',
+          'INSERT INTO sol_prices (price_usd) VALUES ($1)',
           [price]
         );
         this.lastUpdateTime = new Date();
@@ -142,7 +142,7 @@ export class SolPriceUpdater {
     try {
       // Try with all columns first
       const result = await db.query(
-        'SELECT price, source, created_at FROM sol_prices ORDER BY created_at DESC LIMIT 1'
+        'SELECT price_usd as price, source, created_at FROM sol_prices ORDER BY created_at DESC LIMIT 1'
       );
       
       if (result.rows.length > 0) {
@@ -156,7 +156,7 @@ export class SolPriceUpdater {
       // Fallback for old schema
       try {
         const result = await db.query(
-          'SELECT price, timestamp FROM sol_prices ORDER BY timestamp DESC LIMIT 1'
+          'SELECT price_usd as price, created_at as timestamp FROM sol_prices ORDER BY created_at DESC LIMIT 1'
         );
         
         if (result.rows.length > 0) {

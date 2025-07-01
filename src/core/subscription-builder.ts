@@ -3,6 +3,7 @@
  * Creates advanced subscription configurations for Shyft gRPC
  */
 
+import { CommitmentLevel } from '@triton-one/yellowstone-grpc';
 import { Logger } from './logger';
 
 export interface SubscriptionFilter {
@@ -70,8 +71,18 @@ export class SubscriptionBuilder {
       this.config.transactions = {};
     }
     
-    this.config.transactions[key] = options;
-    this.logger.debug(`Added transaction subscription: ${key}`, { options });
+    // Ensure all fields are properly initialized
+    const cleanOptions: any = {
+      vote: options.vote ?? false,
+      failed: options.failed ?? false,
+      signature: undefined,
+      accountInclude: options.accountInclude || [],
+      accountExclude: options.accountExclude || [],
+      accountRequired: options.accountRequired || []
+    };
+    
+    this.config.transactions[key] = cleanOptions;
+    this.logger.debug(`Added transaction subscription: ${key}`, { options: cleanOptions });
     
     return this;
   }
@@ -87,8 +98,14 @@ export class SubscriptionBuilder {
       this.config.accounts = {};
     }
     
-    this.config.accounts[key] = options;
-    this.logger.debug(`Added account subscription: ${key}`, { options });
+    // Ensure filters is an array (not undefined)
+    const cleanOptions = {
+      ...options,
+      filters: options.filters || []
+    };
+    
+    this.config.accounts[key] = cleanOptions;
+    this.logger.debug(`Added account subscription: ${key}`, { options: cleanOptions });
     
     return this;
   }
@@ -249,6 +266,22 @@ export class SubscriptionBuilder {
   }
 
   /**
+   * Convert commitment string to enum
+   */
+  private getCommitmentLevel(commitment?: string): CommitmentLevel {
+    switch (commitment) {
+      case 'processed':
+        return CommitmentLevel.PROCESSED;
+      case 'confirmed':
+        return CommitmentLevel.CONFIRMED;
+      case 'finalized':
+        return CommitmentLevel.FINALIZED;
+      default:
+        return CommitmentLevel.CONFIRMED;
+    }
+  }
+
+  /**
    * Get built configuration
    */
   build(): SubscriptionConfig {
@@ -259,24 +292,54 @@ export class SubscriptionBuilder {
       hasDataSlice: !!this.config.accountsDataSlice
     });
     
-    return this.config;
+    // Ensure all required fields are present for gRPC
+    const fullConfig: any = {
+      commitment: this.getCommitmentLevel(this.config.commitment),
+      accounts: this.config.accounts || {},
+      slots: this.config.slots || {},
+      transactions: this.config.transactions || {},
+      transactionsStatus: {},
+      blocks: {},
+      blocksMeta: {},
+      entry: {},
+      accountsDataSlice: this.config.accountsDataSlice || [],
+      ping: undefined
+    };
+    
+    // Add optional fields if present
+    if (this.config.fromSlot) {
+      fullConfig.fromSlot = this.config.fromSlot;
+    }
+    
+    return fullConfig;
   }
 
   /**
    * Merge multiple subscription configs
    */
   static merge(...configs: SubscriptionConfig[]): SubscriptionConfig {
-    const merged: SubscriptionConfig = {};
+    const merged: any = {
+      commitment: CommitmentLevel.CONFIRMED,
+      accounts: {},
+      slots: {},
+      transactions: {},
+      transactionsStatus: {},
+      blocks: {},
+      blocksMeta: {},
+      entry: {},
+      accountsDataSlice: [],
+      ping: undefined
+    };
     
     for (const config of configs) {
       // Merge transactions
       if (config.transactions) {
-        merged.transactions = { ...merged.transactions, ...config.transactions };
+        Object.assign(merged.transactions, config.transactions);
       }
       
       // Merge accounts
       if (config.accounts) {
-        merged.accounts = { ...merged.accounts, ...config.accounts };
+        Object.assign(merged.accounts, config.accounts);
       }
       
       // Merge slots (last one wins)
@@ -287,7 +350,7 @@ export class SubscriptionBuilder {
       // Merge data slices
       if (config.accountsDataSlice) {
         merged.accountsDataSlice = [
-          ...(merged.accountsDataSlice || []),
+          ...merged.accountsDataSlice,
           ...config.accountsDataSlice
         ];
       }

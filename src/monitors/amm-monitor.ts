@@ -118,9 +118,24 @@ export class AMMMonitor extends BaseMonitor {
   }
 
   /**
+   * Get subscription key for AMM transactions
+   */
+  protected getSubscriptionKey(): string {
+    return 'pumpAMM';
+  }
+
+  /**
+   * Build enhanced subscribe request - override to use exact Shyft format
+   */
+  protected buildEnhancedSubscribeRequest(): any {
+    return this.buildSubscribeRequest();
+  }
+
+  /**
    * Build subscribe request for AMM transactions
    */
   protected buildSubscribeRequest(): SubscribeRequest {
+    // Use exact format from Shyft examples
     return {
       accounts: {},
       slots: {},

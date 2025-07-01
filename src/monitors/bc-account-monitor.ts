@@ -72,23 +72,15 @@ export class BCAccountMonitor extends BaseMonitor {
    * Build subscribe request for account updates
    */
   protected buildSubscribeRequest(): any {
+    // Use minimal working format
     return {
       commitment: 'confirmed' as const,
-      accountsDataSlice: [],
       accounts: {
         pumpfun: {
-          account: [],
           owner: [this.options.programId],
           filters: []
         }
-      },
-      slots: {},
-      transactions: {},
-      transactionsStatus: {},
-      blocks: {},
-      blocksMeta: {},
-      entry: {},
-      ping: undefined
+      }
     };
   }
 

@@ -110,26 +110,54 @@ export class AMMAccountMonitor extends BaseMonitor {
   }
 
   /**
+   * Get subscription key for AMM accounts
+   */
+  protected getSubscriptionKey(): string {
+    return 'pumpswap_amm';
+  }
+
+  /**
+   * Check if data is relevant to this monitor
+   * Override to handle account updates instead of transactions
+   */
+  protected isRelevantTransaction(data: any): boolean {
+    // For account monitors, we care about account updates, not transactions
+    if (data?.account) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Build enhanced subscribe request - override to use exact Shyft format
+   */
+  protected buildEnhancedSubscribeRequest(): any {
+    return this.buildSubscribeRequest();
+  }
+
+  /**
    * Build subscribe request for AMM accounts
    */
   protected buildSubscribeRequest(): SubscribeRequest {
+    // Use exact format from Shyft examples for account subscription
     return {
       slots: {},
       accounts: {
         pumpswap_amm: {
           account: [],
           filters: [],
-          owner: [PUMP_AMM_PROGRAM_ID.toBase58()],
-        },
+          owner: [PUMP_AMM_PROGRAM_ID.toBase58()]
+        }
       },
       transactions: {},
-      transactionsStatus: {},
-      entry: {},
       blocks: {},
-      blocksMeta: {},
+      blocksMeta: {
+        block: []
+      },
       accountsDataSlice: [],
-      ping: undefined,
       commitment: CommitmentLevel.PROCESSED,
+      entry: {},
+      transactionsStatus: {}
     };
   }
 
@@ -331,9 +359,21 @@ export class AMMAccountMonitor extends BaseMonitor {
     try {
       this.ammStats.accountUpdates++;
       
-      if (!data.account || !data.account.account) return;
+      // Debug: Log the data structure
+      if (this.ammStats.accountUpdates === 1) {
+        this.logger.debug('First account update data structure:', {
+          hasAccount: !!data.account,
+          accountKeys: data.account ? Object.keys(data.account) : [],
+          dataKeys: Object.keys(data)
+        });
+      }
       
-      const accountInfo = data.account.account;
+      // The account data might be directly in data.account (not nested)
+      const accountInfo = data.account?.account || data.account;
+      if (!accountInfo || !accountInfo.pubkey) {
+        return;
+      }
+      
       const accountPubkey = this.convertBase64ToBase58(accountInfo.pubkey);
       
       // Check if it's a token account we're tracking
@@ -344,7 +384,17 @@ export class AMMAccountMonitor extends BaseMonitor {
       
       // Otherwise, check if it's a pool account
       const owner = accountInfo.owner ? this.convertBase64ToBase58(accountInfo.owner) : '';
-      if (owner !== PUMP_AMM_PROGRAM_ID.toBase58()) return;
+      if (owner !== PUMP_AMM_PROGRAM_ID.toBase58()) {
+        // Debug log once to see what owners we're getting
+        if (this.ammStats.accountUpdates <= 5) {
+          this.logger.debug('Account owner mismatch:', {
+            owner,
+            expected: PUMP_AMM_PROGRAM_ID.toBase58(),
+            accountPubkey: accountPubkey.slice(0, 8) + '...'
+          });
+        }
+        return;
+      }
       
       // Decode account data
       const accountData = Buffer.from(accountInfo.data, 'base64');
