@@ -98,6 +98,36 @@ export interface AmmSellEvent {
   userBaseAmountIn: string;
 }
 
+// Fee event types
+export interface CollectCoinCreatorFeeEvent {
+  timestamp: number;
+  pool: string;
+  recipient: string;
+  coinAmount: string;
+  pcAmount: string;
+  coinMint: string;
+  pcMint: string;
+}
+
+export interface CollectProtocolFeeEvent {
+  timestamp: number;
+  pool: string;
+  poolAddress: string;
+  protocolCoinFee: string;
+  protocolPcFee: string;
+  coinMint: string;
+  pcMint: string;
+}
+
+export interface FeeCollectedEvent {
+  timestamp: number;
+  pool: string;
+  feeType: 'lp' | 'protocol' | 'creator';
+  coinAmount: string;
+  pcAmount: string;
+  totalValueUsd?: number;
+}
+
 export class EventParserService {
   private static instance: EventParserService;
   private logger: Logger;
@@ -418,6 +448,92 @@ export class EventParserService {
     }
     
     return liquidityEvents;
+  }
+
+  /**
+   * Extract coin creator fee event
+   */
+  extractCoinCreatorFeeEvent(events: ParsedEvent[]): CollectCoinCreatorFeeEvent | null {
+    for (const event of events) {
+      if (event.name === 'CollectCoinCreatorFeeEvent' || event.name === 'CreatorFeeCollected') {
+        const data = event.data;
+        return {
+          timestamp: Number(data.timestamp || Date.now()),
+          pool: data.pool,
+          recipient: data.recipient || data.creator,
+          coinAmount: data.coin_amount || data.coinAmount || '0',
+          pcAmount: data.pc_amount || data.pcAmount || '0',
+          coinMint: data.coin_mint || data.coinMint,
+          pcMint: data.pc_mint || data.pcMint
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Extract protocol fee event
+   */
+  extractProtocolFeeEvent(events: ParsedEvent[]): CollectProtocolFeeEvent | null {
+    for (const event of events) {
+      if (event.name === 'CollectProtocolFeeEvent' || event.name === 'ProtocolFeeCollected') {
+        const data = event.data;
+        return {
+          timestamp: Number(data.timestamp || Date.now()),
+          pool: data.pool,
+          poolAddress: data.pool_address || data.poolAddress || data.pool,
+          protocolCoinFee: data.protocol_coin_fee || data.protocolCoinFee || '0',
+          protocolPcFee: data.protocol_pc_fee || data.protocolPcFee || '0',
+          coinMint: data.coin_mint || data.coinMint,
+          pcMint: data.pc_mint || data.pcMint
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Get all fee events from transaction
+   */
+  getFeeEvents(tx: VersionedTransactionResponse): (CollectCoinCreatorFeeEvent | CollectProtocolFeeEvent)[] {
+    const events = this.parseTransaction(tx);
+    const feeEvents: (CollectCoinCreatorFeeEvent | CollectProtocolFeeEvent)[] = [];
+    
+    for (const event of events) {
+      const creatorFee = this.extractCoinCreatorFeeEvent([event]);
+      if (creatorFee) {
+        feeEvents.push(creatorFee);
+        continue;
+      }
+      
+      const protocolFee = this.extractProtocolFeeEvent([event]);
+      if (protocolFee) {
+        feeEvents.push(protocolFee);
+      }
+    }
+    
+    return feeEvents;
+  }
+
+  /**
+   * Extract fees from buy/sell events
+   */
+  extractFeesFromTrade(event: AmmBuyEvent | AmmSellEvent): FeeCollectedEvent | null {
+    const lpFee = BigInt(event.lpFee || '0');
+    const protocolFee = BigInt(event.protocolFee || '0');
+    
+    if (lpFee > 0n || protocolFee > 0n) {
+      return {
+        timestamp: event.timestamp,
+        pool: event.pool,
+        feeType: lpFee > protocolFee ? 'lp' : 'protocol',
+        coinAmount: '0', // Will be calculated based on trade type
+        pcAmount: (lpFee + protocolFee).toString(),
+        totalValueUsd: undefined // Will be calculated by handler
+      };
+    }
+    
+    return null;
   }
 }
 

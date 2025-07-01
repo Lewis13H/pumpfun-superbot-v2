@@ -34,6 +34,8 @@ interface AMMMonitorStats {
   totalVolumeUsd: number;
   uniqueTokens: Set<string>;
   lastSlot: number;
+  feesCollected: number;
+  totalFeesUsd: number;
 }
 
 export class AMMMonitor extends BaseMonitor {
@@ -66,7 +68,9 @@ export class AMMMonitor extends BaseMonitor {
       sells: 0,
       totalVolumeUsd: 0,
       uniqueTokens: new Set<string>(),
-      lastSlot: 0
+      lastSlot: 0,
+      feesCollected: 0,
+      totalFeesUsd: 0
     };
 
     // Initialize parsers
@@ -255,6 +259,45 @@ export class AMMMonitor extends BaseMonitor {
         }
       }
       
+      // Check for fee collection events
+      const feeEvents = eventParserService.getFeeEvents(txn);
+      
+      // Process fee events
+      for (const feeEvent of feeEvents) {
+        if ('recipient' in feeEvent) {
+          // Creator fee event
+          this.eventBus.emit(EVENTS.FEE_COLLECTED, {
+            event: feeEvent,
+            signature,
+            slot,
+            blockTime
+          });
+          
+          this.logger.info('Creator fee collected', {
+            pool: feeEvent.pool.slice(0, 8) + '...',
+            recipient: feeEvent.recipient.slice(0, 8) + '...',
+            coinAmount: feeEvent.coinAmount,
+            pcAmount: feeEvent.pcAmount,
+            signature: signature.slice(0, 8) + '...'
+          });
+        } else {
+          // Protocol fee event
+          this.eventBus.emit(EVENTS.PROTOCOL_FEE_COLLECTED, {
+            event: feeEvent,
+            signature,
+            slot,
+            blockTime
+          });
+          
+          this.logger.info('Protocol fee collected', {
+            pool: feeEvent.poolAddress.slice(0, 8) + '...',
+            protocolCoinFee: feeEvent.protocolCoinFee,
+            protocolPcFee: feeEvent.protocolPcFee,
+            signature: signature.slice(0, 8) + '...'
+          });
+        }
+      }
+      
       // Decode pump AMM transaction for swap events
       const parsedTxn = this.decodePumpAmmTxn(txn);
       if (!parsedTxn) return;
@@ -267,6 +310,27 @@ export class AMMMonitor extends BaseMonitor {
       if (!swapEvent) return;
       
       this.ammStats.trades++;
+      
+      // Check for fees in the swap event
+      const parsedEvents = eventParserService.parseTransaction(txn);
+      for (const event of parsedEvents) {
+        if (event.name === 'BuyEvent' || event.name === 'SellEvent') {
+          const feeEvent = eventParserService.extractFeesFromTrade(event.data);
+          if (feeEvent) {
+            this.eventBus.emit(EVENTS.AMM_TRADE, {
+              event: event.data,
+              signature,
+              slot,
+              blockTime
+            });
+            
+            // Track fee stats
+            this.ammStats.feesCollected++;
+            const feeValueUsd = Number(feeEvent.pcAmount) / 1e6 * this.currentSolPrice; // Simplified calculation
+            this.ammStats.totalFeesUsd += feeValueUsd;
+          }
+        }
+      }
       if (swapEvent.type === 'Buy') {
         this.ammStats.buys++;
       } else {
@@ -413,6 +477,8 @@ export class AMMMonitor extends BaseMonitor {
       'Buy Ratio': `${buyRatio.toFixed(1)}%`,
       'Unique Tokens': this.ammStats.uniqueTokens.size,
       'Total Volume': `$${this.formatNumber(Math.round(this.ammStats.totalVolumeUsd))}`,
+      'Fees Collected': this.formatNumber(this.ammStats.feesCollected),
+      'Total Fees': `$${this.formatNumber(Math.round(this.ammStats.totalFeesUsd))}`,
       'Last Slot': this.ammStats.lastSlot,
       'SOL Price': `$${this.currentSolPrice.toFixed(2)}`,
       'Errors': this.formatNumber(this.stats.errors),

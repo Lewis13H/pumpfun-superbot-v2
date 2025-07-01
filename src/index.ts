@@ -33,6 +33,8 @@ interface SystemStats {
   liquidityDeposits: number;
   liquidityWithdrawals: number;
   totalLiquidityUsd: number;
+  feesCollected: number;
+  totalFeesUsd: number;
   errors: number;
   lastError: string | null;
   lastErrorTime: Date | null;
@@ -51,6 +53,8 @@ const stats: SystemStats = {
   liquidityDeposits: 0,
   liquidityWithdrawals: 0,
   totalLiquidityUsd: 0,
+  feesCollected: 0,
+  totalFeesUsd: 0,
   errors: 0,
   lastError: null,
   lastErrorTime: null,
@@ -72,8 +76,8 @@ function displayStats() {
   const seconds = runtime % 60;
   const runtimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   
-  // Clear previous stats display (7 lines)
-  moveCursor(7);
+  // Clear previous stats display (8 lines)
+  moveCursor(8);
   
   console.log(chalk.gray('─'.repeat(70)));
   console.log(chalk.cyan('📊 System Statistics') + chalk.gray(` | Runtime: ${runtimeStr} | SOL: $${stats.solPrice.toFixed(2)}`));
@@ -101,7 +105,13 @@ function displayStats() {
     chalk.cyan(`Net Liquidity: $${Math.floor(stats.totalLiquidityUsd).toLocaleString()}`)
   );
   
-  // Fourth row: Monitor status
+  // Fourth row: Fee stats
+  console.log(
+    chalk.magenta(`Fees Collected: ${stats.feesCollected}`) + ' | ' +
+    chalk.green(`Total Fees: $${Math.floor(stats.totalFeesUsd).toLocaleString()}`)
+  );
+  
+  // Fifth row: Monitor status
   const monitorStatus = Array.from(stats.activeMonitors).map(m => 
     chalk.green('●') + ' ' + m
   ).join(' | ');
@@ -131,6 +141,7 @@ async function startMonitors() {
     await container.resolve(TOKENS.SolPriceService);
     await container.resolve(TOKENS.GraduationHandler);
     await container.resolve(TOKENS.LiquidityEventHandler);
+    await container.resolve(TOKENS.FeeEventHandler);
     
     // Initialize StreamManager - this starts the shared stream
     await container.resolve(TOKENS.StreamManager);
@@ -232,6 +243,18 @@ function setupEventListeners(eventBus: EventBus, _logger: Logger) {
       if (data.valueUsd > 10000) {
         console.log(chalk.yellow(`\n💸 Large withdrawal: $${data.valueUsd.toLocaleString()} from ${data.mint.substring(0, 8)}...\n`));
       }
+    }
+  });
+  
+  // Fee events
+  eventBus.on(EVENTS.FEE_PROCESSED, (data) => {
+    stats.feesCollected++;
+    // Fee value calculation would need to be done in the handler
+    // For now, just track the count
+    
+    // Log significant fees
+    if (data.coinAmount && Number(data.coinAmount) > 1e9) { // > 1 SOL
+      console.log(chalk.magenta(`\n💰 Fee collected: ${data.feeType} fee from ${data.poolAddress.substring(0, 8)}...\n`));
     }
   });
   

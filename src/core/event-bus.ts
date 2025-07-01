@@ -218,6 +218,7 @@ export const EVENTS = {
   // Fee events
   FEE_COLLECTED: 'fee:collected',
   PROTOCOL_FEE_COLLECTED: 'protocol_fee:collected',
+  FEE_PROCESSED: 'fee:processed',
   
   // Price events
   PRICE_UPDATED: 'price:updated',
