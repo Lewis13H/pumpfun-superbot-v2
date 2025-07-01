@@ -38,6 +38,8 @@ interface SystemStats {
   totalFeesUsd: number;
   lpPositions: number;
   lpPositionValueUsd: number;
+  poolsAnalyzed: number;
+  highApyPools: number;
   errors: number;
   lastError: string | null;
   lastErrorTime: Date | null;
@@ -60,6 +62,8 @@ const stats: SystemStats = {
   totalFeesUsd: 0,
   lpPositions: 0,
   lpPositionValueUsd: 0,
+  poolsAnalyzed: 0,
+  highApyPools: 0,
   errors: 0,
   lastError: null,
   lastErrorTime: null,
@@ -149,6 +153,7 @@ async function startMonitors() {
     await container.resolve(TOKENS.LiquidityEventHandler);
     await container.resolve(TOKENS.FeeEventHandler);
     await container.resolve(TOKENS.LpPositionHandler);
+    await container.resolve(TOKENS.PoolAnalyticsHandler);
     
     // Initialize StreamManager - this starts the shared stream
     await container.resolve(TOKENS.StreamManager);
@@ -294,6 +299,14 @@ function setupEventListeners(eventBus: EventBus, _logger: Logger) {
   // SOL price updates
   eventBus.on(EVENTS.SOL_PRICE_UPDATED, (price) => {
     stats.solPrice = price;
+  });
+  
+  // Pool analytics events
+  eventBus.on('POOL_ANALYTICS_UPDATED' as any, (data: any) => {
+    stats.poolsAnalyzed++;
+    if (data.metrics?.fees?.apy > 100) {
+      stats.highApyPools++;
+    }
   });
   
   // Threshold crossings

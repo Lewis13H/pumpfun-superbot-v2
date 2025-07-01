@@ -41,6 +41,7 @@
     "@solana/web3.js": "^1.98.2",
     "@triton-one/yellowstone-grpc": "^4.0.2",
     "@types/lodash": "^4.17.19",
+    "@types/node-cron": "^3.0.11",
     "@types/ora": "^3.1.0",
     "@types/pg": "^8.15.4",
     "@types/uuid": "^10.0.0",
@@ -53,6 +54,7 @@
     "graphql": "^16.11.0",
     "graphql-request": "^7.2.0",
     "lodash": "^4.17.21",
+    "node-cron": "^4.2.0",
     "ora": "^8.2.0",
     "pg": "^8.16.2",
     "uuid": "^11.1.0"

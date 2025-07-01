@@ -171,6 +171,16 @@ export async function createContainer(): Promise<Container> {
     return new LpPositionHandler(eventBus, dbService, poolStateService);
   });
   
+  container.registerSingleton(TOKENS.PoolAnalyticsHandler, async () => {
+    const { PoolAnalyticsHandler } = await import('../handlers/pool-analytics-handler');
+    const eventBus = await container.resolve(TOKENS.EventBus);
+    
+    const handler = new PoolAnalyticsHandler(eventBus);
+    await handler.initialize();
+    
+    return handler;
+  });
+  
   container.registerSingleton(TOKENS.PoolRepository, async () => {
     // TODO: Implement pool repository
     throw new Error('PoolRepository not implemented yet');
