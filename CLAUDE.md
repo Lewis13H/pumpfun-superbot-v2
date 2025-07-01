@@ -45,13 +45,16 @@ src/
 │   ├── stream-manager.ts         # Shared gRPC stream management (NEW)
 │   ├── config.ts                 # Centralized configuration
 │   ├── logger.ts                 # Structured logging
-│   └── base-monitor.ts           # Base monitor abstraction
+│   ├── base-monitor.ts           # Base monitor abstraction (enhanced Phase 2)
+│   ├── subscription-builder.ts   # Advanced subscription configs (Phase 2)
+│   ├── filter-factory.ts         # Memcmp/datasize filters (Phase 2)
+│   └── slot-monitor.ts           # Slot tracking & fork detection (Phase 2)
 ├── monitors/
 │   ├── bc-monitor.ts               # Bonding curve trade monitor (refactored with DI)
 │   ├── bc-account-monitor.ts       # BC account state monitor (refactored with DI)
 │   ├── amm-monitor.ts              # AMM pool trade monitor (wrapped legacy with DI)
 │   └── amm-account-monitor.ts      # AMM account state monitor (wrapped legacy with DI)
-├── services/                        # 15 essential services
+├── services/                        # 20+ essential services
 │   ├── sol-price.ts                # Binance API integration
 │   ├── sol-price-updater.ts        # Automatic price updates
 │   ├── bc-price-calculator.ts      # BC-specific price calculations
@@ -67,7 +70,10 @@ src/
 │   ├── dexscreener-price-service.ts    # DexScreener API client
 │   ├── dexscreener-price-recovery.ts   # Stale graduated token recovery
 │   ├── price-calculator.ts         # General price calculations
-│   └── recovery-queue.ts           # Recovery queue management (NEW)
+│   ├── recovery-queue.ts           # Recovery queue management (NEW)
+│   ├── idl-parser-service.ts       # Anchor IDL parsing (Phase 1)
+│   ├── event-parser-service.ts     # Event extraction from logs (Phase 1)
+│   └── inner-ix-parser.ts          # Inner instruction analysis (Phase 1)
 ├── api/
 │   ├── server-unified.ts           # Main API server
 │   ├── server-refactored.ts        # Refactored API server
@@ -76,12 +82,15 @@ src/
 ├── database/
 │   └── unified-db-service.ts       # High-performance DB service
 ├── parsers/
-│   ├── unified-event-parser.ts     # Main parser for both programs
+│   ├── unified-event-parser.ts     # Main parser for both programs (enhanced Phase 1)
 │   ├── strategies/
 │   │   ├── base-strategy.ts        # Base parsing strategy
 │   │   ├── bc-trade-strategy.ts    # BC trade parsing (with creator extraction)
-│   │   └── amm-trade-strategy.ts   # AMM trade parsing
-│   └── bc-event-parser.ts          # Legacy BC parser
+│   │   ├── amm-trade-strategy.ts   # AMM trade parsing
+│   │   ├── bc-trade-idl-strategy.ts # IDL-based BC parsing (Phase 1)
+│   │   └── migration-detection-strategy.ts # Graduation detection (Phase 1)
+│   ├── bc-event-parser.ts          # Legacy BC parser
+│   └── types.ts                    # Parser types with Phase 1 enhancements
 ├── handlers/
 │   ├── trade-handler.ts            # Unified trade handler
 │   └── graduation-handler.ts       # Graduation event handler
@@ -91,7 +100,7 @@ src/
 │   └── trade-repository.ts         # Trade data access
 ├── stream/
 │   └── client.ts                   # Singleton gRPC client
-├── utils/                          # 9 essential utilities
+├── utils/                          # 10+ essential utilities
 │   ├── constants.ts                # Shared constants
 │   ├── amm-pool-decoder.ts         # AMM pool decoding
 │   ├── amm-price-calculator.ts     # AMM price calculations
@@ -100,7 +109,8 @@ src/
 │   ├── pump-addresses.ts           # Address derivation utilities
 │   ├── suppress-parser-warnings.ts # Suppress ComputeBudget warnings
 │   ├── swapTransactionParser.ts    # AMM swap parsing (from Shyft)
-│   └── transaction-formatter.ts    # gRPC transaction formatting (from Shyft)
+│   ├── transaction-formatter.ts    # gRPC transaction formatting (from Shyft)
+│   └── parser-error-suppressor.ts  # Configurable error suppression (Phase 1)
 ├── scripts/                        # Utility scripts
 │   ├── sol-price-updater.ts       # SOL price update script
 │   └── startup-recovery.ts         # Startup recovery script
