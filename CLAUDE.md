@@ -528,13 +528,56 @@ Recovery Flow:
 - **Abandoned Token Detection**: Identify failed projects
 - **Analytics Dashboard**: Comprehensive migration analytics
 
+## Phase 4 Enhancements (January 2025) - Failed Transaction & MEV Analysis
+
+### ✅ New Components Added
+
+1. **Failed Transaction Analyzer** (`services/failed-tx-analyzer.ts`)
+   - Analyzes failed transactions to determine failure reasons
+   - Tracks slippage, insufficient funds, MEV, and other failures
+   - Builds analysis metadata for each failure type
+   - Maintains statistics on failure patterns
+
+2. **MEV Detector** (`services/mev-detector.ts`)
+   - Detects sandwich attacks, frontrunning, and arbitrage
+   - Tracks suspicious addresses and MEV patterns
+   - Analyzes slot-level transaction ordering
+   - Stores MEV events in database with evidence
+
+3. **Slippage Analyzer** (`services/slippage-analyzer.ts`)
+   - Analyzes slippage failures and price movements
+   - Tracks token volatility and slippage patterns
+   - Provides slippage recommendations per token
+   - Identifies high slippage and potential MEV activity
+
+4. **Congestion Monitor** (`services/congestion-monitor.ts`)
+   - Monitors network congestion in real-time
+   - Tracks failure rates and TPS metrics
+   - Detects congestion patterns and periods
+   - Provides recommendations based on congestion level
+
+5. **Failure Analytics API** (`api/failure-analytics-endpoints.ts`)
+   - REST endpoints for failure analysis data
+   - MEV statistics and recent events
+   - Slippage recommendations and patterns
+   - Congestion status and network health
+   - Comprehensive failure summary endpoint
+
+### 🔧 Key Features
+
+- **Comprehensive Failure Analysis**: Categorizes failures by type with detailed metadata
+- **MEV Detection**: Identifies sandwich attacks and frontrunning patterns
+- **Slippage Intelligence**: Per-token slippage recommendations based on history
+- **Network Health Monitoring**: Real-time congestion detection and alerts
+- **Analytics API**: Rich endpoints for monitoring and analysis
+
 ## Enhancement Roadmap
 
 See `BONDING-CURVE-ENHANCEMENT-PLAN.md` for the complete 6-phase enhancement plan:
 - **Phase 1**: ✅ Core Infrastructure & Parser Upgrade (COMPLETED)
 - **Phase 2**: ✅ Advanced Subscription & Filtering (COMPLETED)
 - **Phase 3**: ✅ New Token & Migration Detection (COMPLETED)
-- **Phase 4**: Failed Transaction & MEV Analysis
+- **Phase 4**: ✅ Failed Transaction & MEV Analysis (COMPLETED)
 - **Phase 5**: Advanced State Tracking & Analytics
 - **Phase 6**: Performance Optimization & Production Features
 
