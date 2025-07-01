@@ -43,6 +43,7 @@ export abstract class BaseMonitor {
   protected dbService: any; // Will be injected
   protected solPriceService: any; // Will be injected
   protected slotMonitor?: SlotMonitor; // Optional slot monitor
+  protected lifecycleService?: any; // Optional lifecycle service (Phase 3)
   
   protected currentSolPrice: number = 180; // Default fallback
   protected isShuttingDown: boolean = false;
