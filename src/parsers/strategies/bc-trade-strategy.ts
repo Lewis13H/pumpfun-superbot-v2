@@ -137,26 +137,28 @@ export class BCTradeStrategy implements ParseStrategy {
   }
 
   private findBondingCurveAccount(accounts: string[]): string | null {
-    // Bonding curve is typically at index 1 in pump.fun transactions
-    // Index 0: User (fee payer)
-    // Index 1: Bonding curve
-    // Index 2: Associated bonding curve
-    // Index 3: Mint
-    // Index 4: Creator (optional)
-    if (accounts.length > 1) {
-      return accounts[1];
+    // Based on pump.fun IDL, bonding curve is at index 3 for both buy and sell instructions
+    // Index 0: global (PDA)
+    // Index 1: fee_recipient
+    // Index 2: mint
+    // Index 3: bonding_curve (PDA derived from mint)
+    // Index 4: associated_bonding_curve
+    // Index 5: associated_user
+    // Index 6: user (signer)
+    // Index 7: system_program
+    // Index 8: token_program (buy) or creator_vault (sell)
+    
+    // The bonding curve should be at index 3
+    if (accounts.length > 3) {
+      const bondingCurve = accounts[3];
+      // Validate it's not the system program or token program
+      if (bondingCurve !== '11111111111111111111111111111111' && 
+          bondingCurve !== 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
+        return bondingCurve;
+      }
     }
     
-    // Fallback: look for accounts that could be PDAs
-    for (const account of accounts) {
-      try {
-        const pubkey = new PublicKey(account);
-        // Check if it could be a bonding curve PDA
-        if (pubkey.toBase58().length === 44) {
-          return account;
-        }
-      } catch {}
-    }
+    // If that fails, we shouldn't guess - return null
     return null;
   }
 
@@ -206,6 +208,16 @@ export class BCTradeStrategy implements ParseStrategy {
       
       // Get bonding curve from accounts array instead
       const bondingCurveKey = this.findBondingCurveAccount(context.accounts) || 'unknown';
+      
+      // Debug: Log if we couldn't find bonding curve
+      if (bondingCurveKey === 'unknown' || bondingCurveKey === null) {
+        logger.warn('Could not find bonding curve in accounts', {
+          signature: context.signature,
+          mint,
+          accountCount: context.accounts.length,
+          accounts: context.accounts.slice(0, 5) // First 5 accounts for debugging
+        });
+      }
 
       // Read virtual reserves based on event size
       let vSolInBondingCurve = 0n;
@@ -228,8 +240,9 @@ export class BCTradeStrategy implements ParseStrategy {
         vTokenInBondingCurve = this.readUInt64LE(data, 81);
       }
       
-      // Creator is not available in trade transactions
-      // It should be extracted from token creation transactions only
+      // Creator is not directly available in trade transactions
+      // It's stored in the bonding curve account data, which requires a separate query
+      // For now, we leave it undefined and it should be populated by enrichment services
       let creator: string | undefined;
       
       // Debug log
