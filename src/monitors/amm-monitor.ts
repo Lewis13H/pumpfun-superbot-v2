@@ -20,6 +20,8 @@ import { parseSwapTransactionOutput } from '../utils/swapTransactionParser';
 import { AmmPoolStateService } from '../services/amm-pool-state-service';
 import { EnhancedAutoEnricher } from '../services/enhanced-auto-enricher';
 import { eventParserService } from '../services/event-parser-service';
+import { EnhancedTradeHandler } from '../handlers/enhanced-trade-handler';
+import { TradeEvent, EventType, TradeType } from '../parsers/types';
 
 // Constants
 const PUMP_AMM_PROGRAM_ID = new PublicKey('pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA');
@@ -42,6 +44,7 @@ export class AMMMonitor extends BaseMonitor {
   private ammStats: AMMMonitorStats;
   private poolStateService!: AmmPoolStateService;
   private enricher: EnhancedAutoEnricher | null = null;
+  private tradeHandler!: EnhancedTradeHandler;
   
   // Parsers from legacy code
   private txnFormatter = new TransactionFormatter();
@@ -99,6 +102,9 @@ export class AMMMonitor extends BaseMonitor {
     // Get pool state service
     this.poolStateService = await this.container.resolve(TOKENS.PoolStateService);
     
+    // Get enhanced trade handler
+    this.tradeHandler = await this.container.resolve(TOKENS.EnhancedTradeHandler);
+    
     // Initialize auto-enricher if API key is available
     if (process.env.HELIUS_API_KEY || process.env.SHYFT_API_KEY) {
       this.enricher = EnhancedAutoEnricher.getInstance();
@@ -107,6 +113,9 @@ export class AMMMonitor extends BaseMonitor {
     
     // Setup event listeners
     this.setupEventListeners();
+    
+    // Start monitoring price impact trends
+    this.tradeHandler.monitorPriceImpactTrends();
   }
 
   /**
@@ -413,29 +422,27 @@ export class AMMMonitor extends BaseMonitor {
         }
       });
       
-      // Process in database
-      const tradeData = {
-        mintAddress: swapEvent.mint,
+      // Create trade event for enhanced handler
+      const tradeEvent: TradeEvent = {
+        type: EventType.AMM_TRADE,
         signature,
-        program: 'amm_pool' as const,
-        tradeType: swapEvent.type.toLowerCase() as 'buy' | 'sell',
+        slot: BigInt(slot),
+        blockTime: Date.now(),
+        programId: PUMP_AMM_PROGRAM_ID.toBase58(),
+        tradeType: swapEvent.type === 'Buy' ? TradeType.BUY : TradeType.SELL,
+        mintAddress: swapEvent.mint,
         userAddress: swapEvent.user,
         solAmount: BigInt(Math.floor(solAmount * LAMPORTS_PER_SOL)),
         tokenAmount: BigInt(Math.floor(tokenAmount * Math.pow(10, TOKEN_DECIMALS))),
-        priceSol: priceInSol,
-        priceUsd,
-        marketCapUsd: priceUsd * 1e9,
         virtualSolReserves: BigInt(poolBaseReserves),
         virtualTokenReserves: BigInt(poolQuoteReserves),
-        bondingCurveProgress: 100,
-        slot: BigInt(slot),
-        blockTime: new Date()
+        realSolReserves: BigInt(poolBaseReserves),
+        realTokenReserves: BigInt(poolQuoteReserves),
+        poolAddress: swapEvent.pool
       };
       
-      await this.dbService.processTrade(tradeData);
-      
-      // Emit trade processed event for graduation handler
-      this.eventBus.emit(EVENTS.TRADE_PROCESSED, tradeData);
+      // Process trade with enhanced handler (includes price impact calculations)
+      await this.tradeHandler.processTrade(tradeEvent, this.currentSolPrice);
       
       // Log significant trades
       if (volumeUsd > 100) {

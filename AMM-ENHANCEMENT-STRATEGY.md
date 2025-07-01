@@ -424,6 +424,8 @@ ulation {
    ALTER TABLE trades_unified ADD COLUMN execution_price DECIMAL(20, 12);
    ```
 
+MERGE 
+
 ### Session 6: Dashboard & API Enhancements (4-5 hours)
 **Builds on existing dashboard**
 

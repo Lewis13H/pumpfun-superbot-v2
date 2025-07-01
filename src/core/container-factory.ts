@@ -132,6 +132,24 @@ export async function createContainer(): Promise<Container> {
     });
   });
   
+  container.registerTransient(TOKENS.EnhancedTradeHandler, async () => {
+    const { EnhancedTradeHandler } = await import('../handlers/enhanced-trade-handler');
+    const tokenRepo = await container.resolve(TOKENS.TokenRepository);
+    const tradeRepo = await container.resolve(TOKENS.TradeRepository);
+    const priceCalculator = await container.resolve(TOKENS.PriceCalculator);
+    const eventBus = await container.resolve(TOKENS.EventBus);
+    const config = await container.resolve(TOKENS.ConfigService);
+    
+    return new EnhancedTradeHandler({
+      tokenRepo,
+      tradeRepo,
+      priceCalculator,
+      eventBus,
+      config,
+      container
+    });
+  });
+  
   container.registerSingleton(TOKENS.GraduationHandler, async () => {
     const { GraduationHandler } = await import('../handlers/graduation-handler');
     const eventBus = await container.resolve(TOKENS.EventBus);

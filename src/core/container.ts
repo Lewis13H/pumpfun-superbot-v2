@@ -133,6 +133,7 @@ export const TOKENS = {
   
   // Handlers
   TradeHandler: 'TradeHandler' as ServiceToken<any>,
+  EnhancedTradeHandler: 'EnhancedTradeHandler' as ServiceToken<any>,
   GraduationHandler: 'GraduationHandler' as ServiceToken<any>,
   LiquidityEventHandler: 'LiquidityEventHandler' as ServiceToken<any>,
   FeeEventHandler: 'FeeEventHandler' as ServiceToken<any>,
