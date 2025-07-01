@@ -170,6 +170,7 @@ The system has been refactored to use clean architecture principles:
 1. **Monitor Connection Issues**: Fixed gRPC data structure handling
    - Transaction data path: `data.transaction.transaction.transaction`
    - Proper subscription keys: `pumpfun`, `pumpswap_amm`, `pumpAMM`
+   - Fixed StreamManager subscription format conversion from monitor configs to gRPC format
 2. **Metadata Enrichment**: Fixed rate limiting and efficiency
    - Batch size: 20 tokens
    - Rate limit: 200ms between requests
@@ -178,6 +179,7 @@ The system has been refactored to use clean architecture principles:
    - IDL type compatibility fixed
    - Proper error handling
    - No implicit any types
+   - Fixed unused imports
 
 To use the refactored monitors:
 ```bash

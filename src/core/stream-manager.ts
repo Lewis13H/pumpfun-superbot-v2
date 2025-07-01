@@ -123,6 +123,11 @@ export class StreamManager {
       
       this.stream = await this.options.streamClient.subscribe();
 
+      // Log request details for debugging
+      console.log('About to send subscription request');
+      console.log('Request type:', typeof request);
+      console.log('Request keys:', Object.keys(request));
+      
       // Send the subscription request
       await new Promise<void>((resolve, reject) => {
         this.stream.write(request, (err: any) => {
@@ -243,7 +248,35 @@ export class StreamManager {
         accountKeys: Object.keys(mergedConfig.accounts)
       });
       
-      return mergedConfig;
+      // Convert account subscriptions to proper gRPC format
+      const accounts: any = {};
+      if (mergedConfig.accounts) {
+        for (const [key, accountConfig] of Object.entries(mergedConfig.accounts)) {
+          const accConfig = accountConfig as any;
+          accounts[key] = {
+            account: [],
+            owner: accConfig.owner || [],
+            filters: [],
+            nonemptyTxnSignature: accConfig.nonemptyTxnSignature
+          };
+        }
+      }
+      
+      // Build proper gRPC request
+      const request: SubscribeRequest = {
+        commitment: CommitmentLevel.CONFIRMED,
+        accounts,
+        slots: mergedConfig.slots || {},
+        transactions: mergedConfig.transactions || {},
+        transactionsStatus: {},
+        blocks: {},
+        blocksMeta: {},
+        entry: {},
+        accountsDataSlice: [],
+        ping: undefined
+      };
+      
+      return request;
     }
     
     // Fallback to default transaction-based subscriptions
@@ -262,7 +295,6 @@ export class StreamManager {
 
     const request: SubscribeRequest = {
       commitment: CommitmentLevel.CONFIRMED,
-      accountsDataSlice: [],
       accounts: {},
       slots: {},
       transactions,
@@ -270,8 +302,15 @@ export class StreamManager {
       blocks: {},
       blocksMeta: {},
       entry: {},
+      accountsDataSlice: [],
       ping: undefined
     };
+
+    this.logger.info('Built subscription request', {
+      hasTransactions: Object.keys(transactions).length > 0,
+      transactionKeys: Object.keys(transactions),
+      request: JSON.stringify(request, null, 2)
+    });
 
     return request;
   }
