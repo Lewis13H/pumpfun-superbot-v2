@@ -9,9 +9,9 @@ Real-time Solana token monitor for pump.fun bonding curves and pump.swap AMM poo
 ## Development Commands
 
 ```bash
-# Refactored Architecture (Recommended)
-npm run start-refactored      # Run all 4 refactored monitors with DI
-npm run start-wrapped         # Run refactored BC + wrapped AMM monitors (RECOMMENDED)
+# Production Commands
+npm run start               # Run all 4 monitors with production features (RECOMMENDED)
+npm run dev                 # Same as npm run start (for development)
 
 # Individual Monitors
 npm run bc-monitor          # Bonding curve trade monitor (>95% parse rate)
@@ -107,8 +107,7 @@ src/
 │       ├── monitor-integration.test.ts # Monitor integration tests
 │       ├── system-e2e.test.ts      # End-to-end tests
 │       └── websocket-integration.test.ts # WebSocket tests
-├── start-refactored-monitors.ts    # Start all refactored monitors
-└── start-wrapped-monitors.ts       # Start BC + wrapped AMM monitors
+└── index.ts                        # Main entry point - starts all 4 monitors
 ```
 
 ### Core Data Flow
@@ -130,8 +129,8 @@ The system has been refactored to use clean architecture principles:
 
 To use the refactored monitors:
 ```bash
-npm run start-refactored  # Runs all 4 refactored monitors (AMM monitors have gRPC issues)
-npm run start-wrapped     # RECOMMENDED: Refactored BC + wrapped AMM monitors
+npm run start           # RECOMMENDED: Runs all 4 monitors with production features
+npm run dev             # Same as npm run start
 ```
 
 #### Monitor Architecture (December 2024)
@@ -492,7 +491,7 @@ The bonding curve monitor (`bc-monitor.ts`) was developed in 5 phases:
 ### Running the Monitors
 ```bash
 # Recommended: Run all refactored monitors
-npm run start-wrapped       # BC monitors + wrapped AMM monitors
+npm run start              # Run all 4 monitors with production features
 
 # Or run individually
 npm run bc-monitor          # BC trades
@@ -759,7 +758,7 @@ npm run sol-price-updater
 
 ```bash
 # Run the recommended setup
-npm run start-wrapped     # Starts all 4 monitors with DI
+npm run start            # Starts all 4 monitors with DI
 npm run dashboard         # In another terminal, starts API & dashboard
 
 # Optional services

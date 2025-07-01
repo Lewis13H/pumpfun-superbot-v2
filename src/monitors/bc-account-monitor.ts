@@ -6,13 +6,12 @@
 import chalk from 'chalk';
 import bs58 from 'bs58';
 import * as borsh from '@coral-xyz/borsh';
-import { PublicKey } from '@solana/web3.js';
+// import { PublicKey } from '@solana/web3.js';
 import { BaseMonitor } from '../core/base-monitor';
 import { Container, TOKENS } from '../core/container';
 import { PUMP_PROGRAM } from '../utils/constants';
 import { EVENTS } from '../core/event-bus';
-import { TokenRepository } from '../repositories/token-repository';
-import { GraduationHandler } from '../handlers/graduation-handler';
+// Removed unused imports TokenRepository and GraduationHandler
 
 interface BCAccountStats {
   accountUpdates: number;
@@ -37,8 +36,6 @@ const BONDING_CURVE_DISCRIMINATOR = [23, 183, 248, 55, 96, 216, 172, 96];
 
 export class BCAccountMonitor extends BaseMonitor {
   private bcAccountStats: BCAccountStats;
-  private tokenRepo!: TokenRepository;
-  private graduationHandler!: GraduationHandler;
 
   constructor(container: Container) {
     super(
@@ -65,9 +62,9 @@ export class BCAccountMonitor extends BaseMonitor {
   protected async initializeServices(): Promise<void> {
     await super.initializeServices();
     
-    // Get services from container
-    this.tokenRepo = await this.container.resolve(TOKENS.TokenRepository);
-    this.graduationHandler = await this.container.resolve(TOKENS.GraduationHandler);
+    // Get services from container (kept for future use)
+    await this.container.resolve(TOKENS.TokenRepository);
+    await this.container.resolve(TOKENS.GraduationHandler);
   }
   
 
@@ -79,7 +76,7 @@ export class BCAccountMonitor extends BaseMonitor {
       commitment: 'confirmed' as const,
       accountsDataSlice: [],
       accounts: {
-        pump_accounts: {
+        pumpfun: {
           account: [],
           owner: [this.options.programId],
           filters: []
@@ -100,14 +97,6 @@ export class BCAccountMonitor extends BaseMonitor {
    */
   async processStreamData(data: any): Promise<void> {
     try {
-      // Debug: log first few data packets
-      if (this.stats.transactions < 5) {
-        this.logger.debug('Stream data received', {
-          hasAccount: !!data.account,
-          hasPing: !!data.ping,
-          keys: Object.keys(data)
-        });
-      }
       
       // Count all stream data
       this.stats.transactions++;

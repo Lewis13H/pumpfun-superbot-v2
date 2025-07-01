@@ -18,7 +18,7 @@ async function main() {
     await container.resolve(TOKENS.EventBus);
     await container.resolve(TOKENS.DatabaseService);
     await container.resolve(TOKENS.SolPriceService);
-    await container.resolve(TOKENS.AmmPoolStateService);
+    await container.resolve(TOKENS.PoolStateService);
     
     // Create and start monitor
     const monitor = new AMMAccountMonitor(container);

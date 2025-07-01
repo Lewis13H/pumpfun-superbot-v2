@@ -6,7 +6,7 @@ import { Pool } from 'pg';
 import { createServer } from 'http';
 // import { bcWebSocketServer } from '../services/bc-websocket-server'; // File deleted
 // import { unifiedWebSocketServer } from '../services/unified-websocket-server-fixed';
-const WebSocket = require('ws');
+// const WebSocket = require('ws'); // Not used
 import bcMonitorEndpoints from './bc-monitor-endpoints';
 import ammEndpoints from './amm-endpoints';
 
@@ -29,22 +29,22 @@ console.log('⚠️  Unified WebSocket server DISABLED - Dashboard improvements 
 
 // Create a mock unifiedWebSocketServer for monitors that expect it
 (global as any).unifiedWebSocketServer = {
-  broadcast: (message: any) => {
+  broadcast: (_message: any) => {
     // No-op - WebSocket disabled
   },
-  broadcastTrade: (trade: any, source: string = 'bc') => {
+  broadcastTrade: (_trade: any, _source: string = 'bc') => {
     // No-op - WebSocket disabled
   },
-  broadcastGraduation: (graduation: any) => {
+  broadcastGraduation: (_graduation: any) => {
     // No-op - WebSocket disabled
   },
-  broadcastNewToken: (token: any, source: string = 'bc') => {
+  broadcastNewToken: (_token: any, _source: string = 'bc') => {
     // No-op - WebSocket disabled
   },
-  broadcastPoolStateChange: (poolState: any) => {
+  broadcastPoolStateChange: (_poolState: any) => {
     // No-op - WebSocket disabled
   },
-  broadcastStats: (stats: any, source: string) => {
+  broadcastStats: (_stats: any, _source: string) => {
     // No-op - WebSocket disabled
   },
   getClientCount: () => 0
@@ -228,7 +228,8 @@ app.get('/api/tokens/:mintAddress', async (req, res) => {
     const result = await pool.query(query, [mintAddress]);
     
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Token not found' });
+      res.status(404).json({ error: 'Token not found' });
+      return;
     }
     
     res.json(result.rows[0]);

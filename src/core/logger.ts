@@ -25,14 +25,14 @@ export interface LogEntry {
 export interface LoggerOptions {
   level?: LogLevel;
   context?: string;
-  color?: typeof chalk;
+  color?: any; // Chalk instance or color function
   eventBus?: EventBus;
 }
 
 export class Logger {
   private level: LogLevel;
   private context: string;
-  private color: typeof chalk;
+  private color: any; // Chalk instance or color function
   private eventBus?: EventBus;
   private static globalLevel: LogLevel = LogLevel.INFO;
 
@@ -53,7 +53,7 @@ export class Logger {
   /**
    * Create a child logger with specific context
    */
-  child(context: string, color?: typeof chalk): Logger {
+  child(context: string, color?: any): Logger {
     return new Logger({
       level: this.level,
       context: `${this.context}:${context}`,
@@ -147,7 +147,7 @@ export class Logger {
 
     if (entry.data && Object.keys(entry.data).length > 0) {
       // Custom replacer to handle BigInt serialization
-      const replacer = (key: string, value: any) => {
+      const replacer = (_key: string, value: any) => {
         if (typeof value === 'bigint') {
           return value.toString();
         }
@@ -222,7 +222,7 @@ export function createLogger(context: string, options?: Omit<LoggerOptions, 'con
 
 // Pre-configured loggers
 export const loggers = {
-  monitor: (name: string, color?: typeof chalk) => createLogger(`Monitor:${name}`, { color }),
+  monitor: (name: string, color?: any) => createLogger(`Monitor:${name}`, { color }),
   service: (name: string) => createLogger(`Service:${name}`),
   parser: (name: string) => createLogger(`Parser:${name}`),
   handler: (name: string) => createLogger(`Handler:${name}`),

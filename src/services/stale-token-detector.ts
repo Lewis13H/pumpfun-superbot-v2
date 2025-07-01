@@ -5,7 +5,7 @@
 
 import { db } from '../database';
 import { UnifiedGraphQLPriceRecovery } from './unified-graphql-price-recovery';
-import { DexScreenerPriceRecovery } from './dexscreener-price-recovery';
+// import { DexScreenerPriceRecovery } from './dexscreener-price-recovery'; // Removed - not used
 import { RecoveryQueue } from './recovery-queue';
 import { 
   StaleToken, 
@@ -22,7 +22,7 @@ export class StaleTokenDetector {
   private config: StaleDetectionConfig;
   private recoveryQueue: RecoveryQueue;
   private priceRecovery: UnifiedGraphQLPriceRecovery;
-  private dexScreenerRecovery: DexScreenerPriceRecovery;
+  // private dexScreenerRecovery: DexScreenerPriceRecovery; // Removed - not used
   private isRunning = false;
   private scanInterval: NodeJS.Timeout | null = null;
   private stats: StaleDetectionStats = {
@@ -53,7 +53,7 @@ export class StaleTokenDetector {
     
     this.recoveryQueue = new RecoveryQueue();
     this.priceRecovery = UnifiedGraphQLPriceRecovery.getInstance();
-    this.dexScreenerRecovery = DexScreenerPriceRecovery.getInstance();
+    // DexScreener recovery not used in this implementation
   }
   
   static getInstance(config?: Partial<StaleDetectionConfig>): StaleTokenDetector {
@@ -159,7 +159,7 @@ export class StaleTokenDetector {
           };
           
           // Process in batches
-          const tokenMints = tokens.rows.map(r => r.mint_address);
+          const tokenMints = tokens.rows.map((r: any) => r.mint_address);
           const startTime = Date.now();
           
           const result = await this.priceRecovery.recoverPrices(tokenMints);
@@ -224,7 +224,7 @@ export class StaleTokenDetector {
       console.log(chalk.yellow(`🔍 Found ${result.rows.length} potentially stale tokens`));
       
       // Convert to StaleToken objects with priority
-      const staleTokens: StaleToken[] = result.rows.map(row => {
+      const staleTokens: StaleToken[] = result.rows.map((row: any) => {
         const token: StaleToken = {
           mintAddress: row.mint_address,
           symbol: row.symbol,
@@ -235,14 +235,14 @@ export class StaleTokenDetector {
           priority: 0, // Will be calculated
         };
         
-        token.priority = RecoveryQueue.calculatePriority(token);
+        token.priority = this.calculateTokenPriority(token);
         return token;
       });
       
       this.stats.staleTokensFound = staleTokens.length;
       
       // Add to recovery queue
-      await this.recoveryQueue.addTokens(staleTokens);
+      this.recoveryQueue.add(staleTokens);
       
       // Update stats
       const queueStats = this.recoveryQueue.getStats();
@@ -275,15 +275,16 @@ export class StaleTokenDetector {
       
       // Get next batch
       const batch = this.recoveryQueue.getNextBatch(this.config.batchSize);
-      if (batch.length === 0) {
+      const tokenBatch = batch as any;
+      if (!tokenBatch.tokens || tokenBatch.tokens.length === 0) {
         setTimeout(processQueue, 5000);
         return;
       }
       
-      console.log(chalk.blue(`🔄 Processing ${batch.length} tokens from recovery queue...`));
+      console.log(chalk.blue(`🔄 Processing ${tokenBatch.tokens.length} tokens from recovery queue...`));
       
       try {
-        const mintAddresses = batch.map(item => item.mintAddress);
+        const mintAddresses = tokenBatch.tokens.map((item: StaleToken) => item.mintAddress);
         const startTime = Date.now();
         
         // Recover prices
@@ -294,8 +295,11 @@ export class StaleTokenDetector {
         const failedMints = result.failed.map(fail => fail.mintAddress);
         
         // Mark completed in queue
-        this.recoveryQueue.markCompleted(successfulMints, true);
-        this.recoveryQueue.markCompleted(failedMints, false);
+        const results: RecoveryResult[] = [
+          ...successfulMints.map(mint => ({ mintAddress: mint, success: true, priceUpdated: true, duration: 0 })),
+          ...failedMints.map(mint => ({ mintAddress: mint, success: false, priceUpdated: false, duration: 0 }))
+        ];
+        this.recoveryQueue.markCompleted(results);
         
         // Update stats
         this.stats.tokensRecovered += result.successful.length;
@@ -310,15 +314,22 @@ export class StaleTokenDetector {
         }
         
         console.log(chalk.green(
-          `✅ Recovered ${result.successful.length}/${batch.length} tokens in ${(duration / 1000).toFixed(1)}s`
+          `✅ Recovered ${result.successful.length}/${tokenBatch.tokens.length} tokens in ${(duration / 1000).toFixed(1)}s`
         ));
         
       } catch (error) {
         console.error(chalk.red('❌ Recovery batch failed:'), error);
         
         // Mark all as failed
-        const mintAddresses = batch.map(item => item.mintAddress);
-        this.recoveryQueue.markCompleted(mintAddresses, false);
+        const mintAddresses = tokenBatch.tokens.map((item: StaleToken) => item.mintAddress);
+        const failedResults = mintAddresses.map((mint: any) => ({ 
+          mintAddress: mint, 
+          success: false, 
+          priceUpdated: false, 
+          duration: 0,
+          error: 'Failed to recover'
+        }));
+        this.recoveryQueue.markCompleted(failedResults);
       }
       
       // Process next batch immediately if queue is large
@@ -415,5 +426,30 @@ export class StaleTokenDetector {
     ));
     
     return recoveryResults;
+  }
+
+  /**
+   * Calculate priority for a token
+   */
+  private calculateTokenPriority(token: StaleToken): number {
+    let priority = 0;
+    
+    // Market cap priority
+    if (token.marketCapUsd >= this.config.criticalMarketCap) priority += 50;
+    else if (token.marketCapUsd >= this.config.highMarketCap) priority += 40;
+    else if (token.marketCapUsd >= this.config.mediumMarketCap) priority += 30;
+    else if (token.marketCapUsd >= this.config.lowMarketCap) priority += 20;
+    else priority += 10;
+    
+    // Staleness priority
+    const hoursStale = token.staleDuration / 60;
+    if (hoursStale >= 24) priority += 30;
+    else if (hoursStale >= 12) priority += 25;
+    else if (hoursStale >= 6) priority += 20;
+    else if (hoursStale >= 3) priority += 15;
+    else if (hoursStale >= 1) priority += 10;
+    else priority += 5;
+    
+    return Math.min(priority, 100);
   }
 }

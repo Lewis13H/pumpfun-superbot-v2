@@ -16,7 +16,7 @@ export class SolanaEventParser {
     for (const programInfo of programInfos) {
       this.addParserFromIdl(
         new PublicKey(programInfo.programId),
-        programInfo.idl as Idl
+        programInfo.idl as any
       );
     }
   }

@@ -18,15 +18,13 @@ import {
   AmmPriceUpdate,
 } from '../types/graphql.types';
 import {
-  GET_BONDING_CURVES,
-  GET_GRADUATED_CURVES,
+  GET_BONDING_CURVES
 } from '../graphql/queries/bonding-curve.queries';
 import {
   GET_AMM_POOLS,
   GET_AMM_POOL_RESERVES,
 } from '../graphql/queries/amm-pool.queries';
 import { PriceCalculator } from './price-calculator';
-// import { calculateAmmTokenPrice, parseReserves, isValidAmmPool } from './amm-graphql-price-calculator';
 import { GRAPHQL_CONFIG } from '../config/graphql.config';
 import { deriveBondingCurveAddresses } from '../utils/pump-addresses';
 import chalk from 'chalk';
@@ -40,15 +38,11 @@ export class UnifiedGraphQLPriceRecovery {
   private static instance: UnifiedGraphQLPriceRecovery;
   private client: ShyftGraphQLClient;
   private solPriceService: SolPriceService;
-  // private ammPoolRecovery: AmmPoolPriceRecovery;
-  // private shyftAmmRecovery: ShyftAmmPriceRecovery;
   private cache: Map<string, { data: PriceUpdate; timestamp: number }> = new Map();
 
   private constructor() {
     this.client = ShyftGraphQLClient.getInstance();
     this.solPriceService = SolPriceService.getInstance();
-    // this.ammPoolRecovery = AmmPoolPriceRecovery.getInstance();
-    // this.shyftAmmRecovery = ShyftAmmPriceRecovery.getInstance();
   }
 
   static getInstance(): UnifiedGraphQLPriceRecovery {
@@ -126,35 +120,11 @@ export class UnifiedGraphQLPriceRecovery {
     // Process graduated tokens (AMM pools)
     if (graduatedMints.length > 0) {
       // First try Shyft AMM recovery (which actually works)
-      console.log(chalk.blue(`🔍 Trying Shyft AMM recovery for ${graduatedMints.length} graduated tokens...`));
-      const shyftResult = await this.shyftAmmRecovery.recoverAmmPrices(graduatedMints);
-      successful.push(...shyftResult.successful);
-      
-      // For tokens that failed Shyft recovery, try the original AMM pool query
-      if (shyftResult.failed.length > 0) {
-        console.log(chalk.yellow(`⚠️ ${shyftResult.failed.length} tokens failed Shyft recovery, trying legacy AMM query...`));
-        const failedMints = shyftResult.failed.map(f => f.mintAddress);
-        const ammResult = await this.recoverAmmPoolPrices(failedMints, currentSolPrice);
-        successful.push(...ammResult.successful);
-        
-        // For tokens that failed both Shyft and legacy, try pool state fallback
-        if (ammResult.failed.length > 0) {
-          console.log(chalk.yellow(`⚠️ ${ammResult.failed.length} tokens failed all GraphQL recovery, trying pool state fallback...`));
-          
-          const stillFailedMints = ammResult.failed.map(f => f.mintAddress);
-          const poolStateResult = await this.ammPoolRecovery.recoverPricesFromPoolStates(stillFailedMints);
-          
-          successful.push(...poolStateResult.successful);
-          failed.push(...poolStateResult.failed);
-        }
-        
-        graphqlQueries += ammResult.graphqlQueries;
-      } else {
-        // All succeeded with Shyft
-        failed.push(...shyftResult.failed);
-      }
-      
-      graphqlQueries += 2; // Count Shyft queries
+      // Direct AMM pool recovery since Shyft AMM is not available
+      const ammResult = await this.recoverAmmPoolPrices(graduatedMints, currentSolPrice);
+      successful.push(...ammResult.successful);
+      failed.push(...ammResult.failed);
+      graphqlQueries += ammResult.graphqlQueries;
     }
 
     const queryTime = Date.now() - startTime;
@@ -189,7 +159,7 @@ export class UnifiedGraphQLPriceRecovery {
     `, [mints]);
 
     const map = new Map<string, TokenInfo>();
-    result.rows.forEach(row => {
+    result.rows.forEach((row: any) => {
       map.set(row.mint_address, {
         mintAddress: row.mint_address,
         graduated: row.graduated_to_amm,
@@ -244,7 +214,7 @@ export class UnifiedGraphQLPriceRecovery {
 
           const priceUpdate = this.calculatePriceFromBondingCurve(bc, mintAddress, solPriceUsd);
           successful.push(priceUpdate);
-          this.cachePrice(priceUpdate);
+          this.cachePrice(priceUpdate as PriceUpdate);
         });
 
         // Mark missing as failed
@@ -317,7 +287,7 @@ export class UnifiedGraphQLPriceRecovery {
         // Get all token accounts for reserves
         const tokenAccounts: string[] = [];
         pools.forEach(pool => {
-          if (isValidAmmPool(pool)) {
+          if (this.isValidAmmPool(pool)) {
             tokenAccounts.push(pool.baseAccount, pool.quoteAccount);
           }
         });
@@ -337,7 +307,7 @@ export class UnifiedGraphQLPriceRecovery {
 
           // Process pools with reserves
           pools.forEach(pool => {
-            if (!isValidAmmPool(pool)) {
+            if (!this.isValidAmmPool(pool)) {
               failed.push({
                 mintAddress: pool.tokenMint,
                 reason: 'Invalid AMM pool',
@@ -363,7 +333,7 @@ export class UnifiedGraphQLPriceRecovery {
               solPriceUsd
             );
             successful.push(priceUpdate);
-            this.cachePrice(priceUpdate);
+            this.cachePrice(priceUpdate as PriceUpdate);
           });
         }
 
@@ -415,9 +385,8 @@ export class UnifiedGraphQLPriceRecovery {
     const virtualTokenReserves = BigInt(data.virtualTokenReserves);
 
     const calculator = new PriceCalculator();
-    const priceResult = calculator.calculateBondingCurvePrice(
-      virtualSolReserves,
-      virtualTokenReserves,
+    const priceResult = calculator.calculatePrice(
+      { solReserves: virtualSolReserves, tokenReserves: virtualTokenReserves, isVirtual: true },
       solPriceUsd
     );
 
@@ -447,9 +416,9 @@ export class UnifiedGraphQLPriceRecovery {
     tokenReserves: bigint,
     solPriceUsd: number
   ): AmmPriceUpdate {
-    const priceResult = calculateAmmTokenPrice(
-      solReserves,
-      tokenReserves,
+    const calculator = new PriceCalculator();
+    const priceResult = calculator.calculatePrice(
+      { solReserves, tokenReserves, isVirtual: true },
       solPriceUsd
     );
 
@@ -560,6 +529,13 @@ export class UnifiedGraphQLPriceRecovery {
    */
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Check if AMM pool data is valid
+   */
+  private isValidAmmPool(pool: AmmPoolData): boolean {
+    return !!(pool.baseAccount && pool.quoteAccount && pool.tokenMint && pool.lpSupply);
   }
 
   /**

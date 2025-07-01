@@ -27,9 +27,9 @@ export class GraduationHandler {
   constructor(
     private eventBus: EventBus,
     private tokenRepo: TokenRepository,
-    private dbService: UnifiedDbServiceV2
+    _dbService: UnifiedDbServiceV2
   ) {
-    this.logger = new Logger({ context: 'GraduationHandler', color: chalk.magenta });
+    this.logger = new Logger({ context: 'GraduationHandler', color: chalk });
     this.setupEventListeners();
   }
 
@@ -76,7 +76,7 @@ export class GraduationHandler {
   private async loadExistingMappings(): Promise<void> {
     try {
       // Query recent trades to build initial mapping
-      const result = await this.tokenRepo.query(`
+      const result: any = await this.tokenRepo.executeQuery(`
         SELECT DISTINCT 
           t.mint_address,
           t.bonding_curve_key,
@@ -144,7 +144,7 @@ export class GraduationHandler {
    * Handle bonding curve creation event
    */
   private async handleBondingCurveCreation(event: any): Promise<void> {
-    const { bondingCurve, mintAddress, creator, slot } = event;
+    const { bondingCurve, mintAddress } = event;
     
     if (!bondingCurve || !mintAddress) return;
 
@@ -161,7 +161,7 @@ export class GraduationHandler {
     this.logger.debug('Bonding curve created', {
       bondingCurve,
       mintAddress,
-      creator
+      creator: event.creator
     });
   }
 
@@ -171,7 +171,7 @@ export class GraduationHandler {
   private async storeBondingCurveMapping(bondingCurve: string, mintAddress: string): Promise<void> {
     try {
       // Try to insert or update, handling both unique constraints
-      await this.tokenRepo.query(`
+      await this.tokenRepo.executeQuery(`
         INSERT INTO bonding_curve_mappings (bonding_curve_key, mint_address)
         VALUES ($1, $2)
         ON CONFLICT (bonding_curve_key) DO UPDATE
@@ -181,11 +181,11 @@ export class GraduationHandler {
       `, [bondingCurve, mintAddress]);
     } catch (error) {
       // Table might not exist yet, create it
-      if (error.message?.includes('does not exist')) {
+      if ((error as any).message?.includes('does not exist')) {
         await this.createMappingTable();
         // Retry the insert
         await this.storeBondingCurveMapping(bondingCurve, mintAddress);
-      } else if (error.message?.includes('duplicate key value violates unique constraint')) {
+      } else if ((error as any).message?.includes('duplicate key value violates unique constraint')) {
         // This is expected if the mint already has a mapping or the BC already has a different mint
         // Just ignore it silently
         return;
@@ -199,7 +199,7 @@ export class GraduationHandler {
    * Create bonding curve mapping table
    */
   private async createMappingTable(): Promise<void> {
-    await this.tokenRepo.query(`
+    await this.tokenRepo.executeQuery(`
       CREATE TABLE IF NOT EXISTS bonding_curve_mappings (
         bonding_curve_key VARCHAR(64) PRIMARY KEY,
         mint_address VARCHAR(64) NOT NULL,
@@ -216,7 +216,7 @@ export class GraduationHandler {
    * Handle graduation event from account monitor
    */
   private async handleGraduation(event: any): Promise<void> {
-    const { bondingCurveKey, virtualSolReserves, virtualTokenReserves, complete, slot } = event;
+    const { bondingCurveKey, virtualSolReserves, complete } = event;
     
     if (!bondingCurveKey) return;
 
@@ -254,13 +254,13 @@ export class GraduationHandler {
 
     // Check database
     try {
-      const result = await this.tokenRepo.query(`
+      const result: any = await this.tokenRepo.executeQuery(`
         SELECT mint_address 
         FROM bonding_curve_mappings 
         WHERE bonding_curve_key = $1
       `, [bondingCurve]);
 
-      if (result.rows.length > 0) {
+      if (result.rows && result.rows.length > 0) {
         const mintAddress = result.rows[0].mint_address;
         
         // Update cache
@@ -280,14 +280,14 @@ export class GraduationHandler {
 
     // Try to find from recent trades
     try {
-      const result = await this.tokenRepo.query(`
+      const result: any = await this.tokenRepo.executeQuery(`
         SELECT DISTINCT mint_address 
         FROM trades_unified 
         WHERE bonding_curve_key = $1 
         LIMIT 1
       `, [bondingCurve]);
 
-      if (result.rows.length > 0) {
+      if (result.rows && result.rows.length > 0) {
         return result.rows[0].mint_address;
       }
     } catch (error) {
@@ -303,7 +303,7 @@ export class GraduationHandler {
   private async attemptMintRecovery(bondingCurve: string): Promise<void> {
     // Method 1: Check recent trades with high activity
     try {
-      const result = await this.tokenRepo.query(`
+      const result: any = await this.tokenRepo.executeQuery(`
         SELECT t.mint_address, COUNT(*) as trade_count
         FROM trades_unified t
         WHERE t.program = 'bonding_curve'

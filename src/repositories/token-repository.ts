@@ -16,6 +16,9 @@ export interface Token {
   uri?: string;
   decimals?: number;
   supply?: string;
+  creator?: string; // Pump.fun creator address
+  totalSupply?: string; // Token total supply
+  bondingCurveKey?: string; // Bonding curve address
   firstPriceSol?: number;
   firstPriceUsd?: number;
   firstMarketCapUsd?: number;
@@ -28,6 +31,8 @@ export interface Token {
   graduationSlot?: bigint;
   priceSource?: string;
   metadataSource?: string;
+  firstProgram?: 'bonding_curve' | 'amm_pool';
+  firstSeenSlot?: number;
   lastPriceUpdate?: Date;
   lastMetadataUpdate?: Date;
   createdAt?: Date;
@@ -126,7 +131,7 @@ export class TokenRepository extends BaseRepository<Token> {
   async batchSave(tokens: Token[]): Promise<Token[]> {
     if (tokens.length === 0) return [];
 
-    return this.transaction(async (client) => {
+    return this.transaction(async (_client) => {
       const saved: Token[] = [];
       
       for (const token of tokens) {
@@ -385,5 +390,13 @@ export class TokenRepository extends BaseRepository<Token> {
       withMetadata: parseInt(result.with_metadata, 10),
       aboveThreshold: parseInt(result.above_threshold, 10)
     };
+  }
+
+  /**
+   * Execute a raw query (for graduation handler use)
+   */
+  async executeQuery<R = any>(text: string, params?: any[]): Promise<{ rows: R[] }> {
+    const result = await this.pool.query(text, params);
+    return result;
   }
 }

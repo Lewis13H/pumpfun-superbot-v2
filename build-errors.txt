@@ -1,0 +1,95 @@
+src/core/stream-manager.ts(101,33): error TS6133: 'reconnectDelay' is declared but its value is never read.
+src/handlers/graduation-handler.ts(30,13): error TS6138: Property 'dbService' is declared but its value is never read.
+src/handlers/trade-handler.ts(164,5): error TS6133: 'solPriceUsd' is declared but its value is never read.
+src/index.ts(113,11): error TS6133: 'config' is declared but its value is never read.
+src/index.ts(122,11): error TS6133: 'streamManager' is declared but its value is never read.
+src/index.ts(168,50): error TS6133: 'logger' is declared but its value is never read.
+src/index.ts(322,45): error TS6133: 'promise' is declared but its value is never read.
+src/monitors/amm-account-monitor.ts(19,7): error TS6133: 'TOKEN_PROGRAM_ID' is declared but its value is never read.
+src/monitors/amm-account-monitor.ts(220,31): error TS2339: Property 'streamClient' does not exist on type 'AMMAccountMonitor'.
+src/monitors/amm-account-monitor.ts(222,30): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/monitors/amm-monitor.ts(7,8): error TS6133: 'Client' is declared but its value is never read.
+src/monitors/amm-monitor.ts(73,75): error TS2345: Argument of type 'import("/Users/lewisharding/Coding Projects/pumpfun-superbot-v2-mac/pumpfun-superbot-v2/node_modules/@coral-xyz/anchor/dist/cjs/idl").Idl' is not assignable to parameter of type 'import("/Users/lewisharding/Coding Projects/pumpfun-superbot-v2-mac/pumpfun-superbot-v2/node_modules/@shyft-to/solana-transaction-parser/node_modules/@coral-xyz/anchor/dist/cjs/idl").Idl'.
+  Property 'address' is missing in type 'import("/Users/lewisharding/Coding Projects/pumpfun-superbot-v2-mac/pumpfun-superbot-v2/node_modules/@coral-xyz/anchor/dist/cjs/idl").Idl' but required in type 'import("/Users/lewisharding/Coding Projects/pumpfun-superbot-v2-mac/pumpfun-superbot-v2/node_modules/@shyft-to/solana-transaction-parser/node_modules/@coral-xyz/anchor/dist/cjs/idl").Idl'.
+src/monitors/amm-monitor.ts(73,75): error TS2352: Conversion of type '{ address: string; metadata: { name: string; version: string; spec: string; description: string; }; instructions: ({ name: string; discriminator: number[]; accounts: ({ name: string; writable?: undefined; signer?: undefined; relations?: undefined; pda?: undefined; address?: undefined; } | ... 6 more ... | { ...; })[...' to type 'Idl' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ address: string; metadata: { name: string; version: string; spec: string; description: string; }; instructions: ({ name: string; discriminator: number[]; accounts: ({ name: string; writable?: undefined; signer?: undefined; relations?: undefined; pda?: undefined; address?: undefined; } | ... 6 more ... | { ...; })[...' is missing the following properties from type 'Idl': version, name
+src/monitors/amm-monitor.ts(82,78): error TS2352: Conversion of type '{ address: string; metadata: { name: string; version: string; spec: string; description: string; }; instructions: ({ name: string; discriminator: number[]; accounts: ({ name: string; writable?: undefined; signer?: undefined; relations?: undefined; pda?: undefined; address?: undefined; } | ... 6 more ... | { ...; })[...' to type 'Idl' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ address: string; metadata: { name: string; version: string; spec: string; description: string; }; instructions: ({ name: string; discriminator: number[]; accounts: ({ name: string; writable?: undefined; signer?: undefined; relations?: undefined; pda?: undefined; address?: undefined; } | ... 6 more ... | { ...; })[...' is missing the following properties from type 'Idl': version, name
+src/monitors/amm-monitor.ts(156,9): error TS18047: 'tx.meta' is possibly 'null'.
+src/monitors/amm-monitor.ts(222,49): error TS2339: Property 'pool_base_token_reserves' does not exist on type '{ type: string; user: any; mint: any; out_amount: any; in_amount: any; }'.
+src/monitors/amm-monitor.ts(223,50): error TS2339: Property 'pool_quote_token_reserves' does not exist on type '{ type: string; user: any; mint: any; out_amount: any; in_amount: any; }'.
+src/monitors/amm-monitor.ts(235,34): error TS2339: Property 'pool' does not exist on type '{ type: string; user: any; mint: any; out_amount: any; in_amount: any; }'.
+src/monitors/bc-account-monitor.ts(9,1): error TS6133: 'PublicKey' is declared but its value is never read.
+src/monitors/bc-account-monitor.ts(40,11): error TS6133: 'tokenRepo' is declared but its value is never read.
+src/monitors/bc-account-monitor.ts(41,11): error TS6133: 'graduationHandler' is declared but its value is never read.
+src/monitors/bc-monitor.ts(285,11): error TS6133: 'bar' is declared but its value is never read.
+src/monitors/bc-monitor.ts(286,11): error TS6133: 'color' is declared but its value is never read.
+src/parsers/bc-event-parser.ts(11,1): error TS6133: 'TRADE_EVENT_SIZE' is declared but its value is never read.
+src/parsers/bc-event-parser.ts(51,41): error TS18046: 'error' is of type 'unknown'.
+src/parsers/bc-event-parser.ts(149,58): error TS18046: 'error' is of type 'unknown'.
+src/parsers/unified-event-parser.ts(165,82): error TS6133: 'key' is declared but its value is never read.
+src/repositories/base-repository.ts(32,12): error TS18046: 'error' is of type 'unknown'.
+src/repositories/token-repository.ts(134,36): error TS6133: 'client' is declared but its value is never read.
+src/run-amm-account-monitor.ts(21,36): error TS2551: Property 'AmmPoolStateService' does not exist on type '{ readonly StreamClient: ServiceToken<any>; readonly StreamManager: ServiceToken<any>; readonly DatabaseService: ServiceToken<any>; ... 14 more ...; readonly PriceRecovery: ServiceToken<...>; }'. Did you mean 'PoolStateService'?
+src/run-amm-monitor.ts(21,36): error TS2551: Property 'AmmPoolStateService' does not exist on type '{ readonly StreamClient: ServiceToken<any>; readonly StreamManager: ServiceToken<any>; readonly DatabaseService: ServiceToken<any>; ... 14 more ...; readonly PriceRecovery: ServiceToken<...>; }'. Did you mean 'PoolStateService'?
+src/services/amm-pool-state-service.ts(8,3): error TS6133: 'AmmPoolReserves' is declared but its value is never read.
+src/services/amm-pool-state-service.ts(291,13): error TS6133: 'account' is declared but its value is never read.
+src/services/enhanced-auto-enricher.ts(10,1): error TS6133: 'graphqlMetadataEnricher' is declared but its value is never read.
+src/services/graphql-client.ts(24,7): error TS2353: Object literal may only specify known properties, and 'timeout' does not exist in type 'RequestConfig'.
+src/services/graphql-metadata-enricher.ts(40,11): error TS6196: 'MetadataResult' is declared but never used.
+src/services/graphql-metadata-enricher.ts(59,11): error TS6133: 'graphqlClient' is declared but its value is never read.
+src/services/graphql-metadata-enricher.ts(60,20): error TS6133: 'BATCH_SIZE' is declared but its value is never read.
+src/services/graphql-metadata-enricher.ts(84,28): error TS6133: 'mintAddresses' is declared but its value is never read.
+src/services/graphql-metadata-enricher.ts(98,34): error TS6133: 'mintAddresses' is declared but its value is never read.
+src/services/graphql-metadata-enricher.ts(108,17): error TS6133: 'fetchPumpFunDataSeparately' is declared but its value is never read.
+src/services/graphql-metadata-enricher.ts(108,44): error TS6133: 'mintAddresses' is declared but its value is never read.
+src/services/graphql-metadata-enricher.ts(117,17): error TS6133: 'fetchMetaplexMetadata' is declared but its value is never read.
+src/services/graphql-metadata-enricher.ts(117,39): error TS6133: 'mintAddresses' is declared but its value is never read.
+src/services/graphql-metadata-enricher.ts(130,17): error TS6133: 'fetchSPLTokenData' is declared but its value is never read.
+src/services/graphql-metadata-enricher.ts(130,35): error TS6133: 'mintAddresses' is declared but its value is never read.
+src/services/stale-token-detector.ts(9,31): error TS2307: Cannot find module './recovery-queue' or its corresponding type declarations.
+src/services/stale-token-detector.ts(25,11): error TS6133: 'dexScreenerRecovery' is declared but its value is never read.
+src/services/stale-token-detector.ts(162,46): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/services/stale-token-detector.ts(227,57): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/services/stale-token-detector.ts(286,41): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/services/stale-token-detector.ts(320,41): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/services/unified-graphql-price-recovery.ts(22,3): error TS6133: 'GET_GRADUATED_CURVES' is declared but its value is never read.
+src/services/unified-graphql-price-recovery.ts(130,38): error TS2339: Property 'shyftAmmRecovery' does not exist on type 'UnifiedGraphQLPriceRecovery'.
+src/services/unified-graphql-price-recovery.ts(136,52): error TS7006: Parameter 'f' implicitly has an 'any' type.
+src/services/unified-graphql-price-recovery.ts(145,46): error TS2339: Property 'ammPoolRecovery' does not exist on type 'UnifiedGraphQLPriceRecovery'.
+src/services/unified-graphql-price-recovery.ts(192,25): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/services/unified-graphql-price-recovery.ts(315,36): error TS2339: Property 'pump_swap_LiquidityPool' does not exist on type 'GetAmmPoolsResponse'.
+src/services/unified-graphql-price-recovery.ts(319,23): error TS7006: Parameter 'pool' implicitly has an 'any' type.
+src/services/unified-graphql-price-recovery.ts(320,15): error TS2304: Cannot find name 'isValidAmmPool'.
+src/services/unified-graphql-price-recovery.ts(339,25): error TS7006: Parameter 'pool' implicitly has an 'any' type.
+src/services/unified-graphql-price-recovery.ts(340,18): error TS2304: Cannot find name 'isValidAmmPool'.
+src/services/unified-graphql-price-recovery.ts(365,29): error TS2345: Argument of type 'AmmPriceUpdate' is not assignable to parameter of type 'PriceUpdate'.
+  Types of property 'source' are incompatible.
+    Type '"amm"' is not assignable to type '"graphql"'.
+src/services/unified-graphql-price-recovery.ts(366,29): error TS2345: Argument of type 'AmmPriceUpdate' is not assignable to parameter of type 'PriceUpdate'.
+  Types of property 'source' are incompatible.
+    Type '"amm"' is not assignable to type '"graphql"'.
+src/services/unified-graphql-price-recovery.ts(371,46): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/services/unified-graphql-price-recovery.ts(418,36): error TS2551: Property 'calculateBondingCurvePrice' does not exist on type 'PriceCalculator'. Did you mean 'calculateBondingCurveProgress'?
+src/services/unified-graphql-price-recovery.ts(450,25): error TS2304: Cannot find name 'calculateAmmTokenPrice'.
+src/services/unified-graphql-price-recovery.ts(457,25): error TS2339: Property 'tokenMint' does not exist on type 'AmmPoolData'.
+src/services/unified-graphql-price-recovery.ts(465,29): error TS2551: Property 'lpSupply' does not exist on type 'AmmPoolData'. Did you mean 'lp_supply'?
+src/tests/integration/monitor-integration.test.ts(350,33): error TS2304: Cannot find name 'BCMonitorRefactored'.
+src/tests/integration/monitor-integration.test.ts(362,33): error TS2304: Cannot find name 'BCMonitorRefactored'.
+src/types/graphql.types.ts(92,18): error TS2430: Interface 'AmmPriceUpdate' incorrectly extends interface 'PriceUpdate'.
+  Types of property 'source' are incompatible.
+    Type '"amm"' is not assignable to type '"graphql"'.
+src/utils/event-parser.ts(19,9): error TS2352: Conversion of type 'import("/Users/lewisharding/Coding Projects/pumpfun-superbot-v2-mac/pumpfun-superbot-v2/node_modules/@shyft-to/solana-transaction-parser/node_modules/@coral-xyz/anchor/dist/cjs/idl").Idl' to type 'import("/Users/lewisharding/Coding Projects/pumpfun-superbot-v2-mac/pumpfun-superbot-v2/node_modules/@coral-xyz/anchor/dist/cjs/idl").Idl' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'Idl' is missing the following properties from type 'Idl': version, name
+src/utils/swapTransactionParser.ts(1,44): error TS7006: Parameter 'parsedInstruction' implicitly has an 'any' type.
+src/utils/swapTransactionParser.ts(1,63): error TS7006: Parameter 'transaction' implicitly has an 'any' type.
+src/utils/swapTransactionParser.ts(6,10): error TS7006: Parameter 'instruction' implicitly has an 'any' type.
+src/utils/swapTransactionParser.ts(13,57): error TS7006: Parameter 'account' implicitly has an 'any' type.
+src/utils/swapTransactionParser.ts(14,11): error TS6133: 'user_quote_token_account' is declared but its value is never read.
+src/utils/swapTransactionParser.ts(14,69): error TS7006: Parameter 'account' implicitly has an 'any' type.
+src/utils/swapTransactionParser.ts(15,11): error TS6133: 'pool_base_token_account' is declared but its value is never read.
+src/utils/swapTransactionParser.ts(15,68): error TS7006: Parameter 'account' implicitly has an 'any' type.
+src/utils/swapTransactionParser.ts(21,11): error TS6133: 'quoteAmount' is declared but its value is never read.
+src/utils/swapTransactionParser.ts(31,11): error TS7006: Parameter 'instruction' implicitly has an 'any' type.
+src/utils/swapTransactionParser.ts(36,63): error TS7006: Parameter 'account' implicitly has an 'any' type.
+src/utils/swapTransactionParser.ts(37,64): error TS7006: Parameter 'account' implicitly has an 'any' type.

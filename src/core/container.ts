@@ -118,6 +118,7 @@ export class Container {
 export const TOKENS = {
   // Core services
   StreamClient: 'StreamClient' as ServiceToken<any>,
+  StreamManager: 'StreamManager' as ServiceToken<any>,
   DatabaseService: 'DatabaseService' as ServiceToken<any>,
   SolPriceService: 'SolPriceService' as ServiceToken<any>,
   EventBus: 'EventBus' as ServiceToken<any>,

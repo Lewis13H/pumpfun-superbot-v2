@@ -134,26 +134,6 @@ export class BCMonitor extends BaseMonitor {
     const startTime = Date.now();
     
     try {
-      // Debug: log first few data packets
-      if (this.stats.transactions < 5 || (data.transaction && this.bcStats.trades < 3)) {
-        const activeKeys = Object.keys(data).filter(k => data[k] !== undefined && data[k] !== null);
-        
-        // Deep inspect transaction structure
-        if (data.transaction && this.stats.transactions < 3) {
-          this.logger.info('Transaction structure', {
-            topLevelKeys: Object.keys(data.transaction),
-            hasTransaction: !!data.transaction.transaction,
-            signature: data.transaction.signature || data.transaction.transaction?.signature || 'none',
-            txKeys: data.transaction.transaction ? Object.keys(data.transaction.transaction) : []
-          });
-        }
-        
-        this.logger.info('Stream data received', {
-          type: data.ping ? 'ping' : data.pong ? 'pong' : data.transaction ? 'transaction' : 'other',
-          activeKeys,
-          hasTransaction: !!data.transaction
-        });
-      }
       
       // Skip non-transaction updates
       if (!data.transaction) {
@@ -163,17 +143,6 @@ export class BCMonitor extends BaseMonitor {
       // Create parse context
       const context = UnifiedEventParser.createContext(data);
       
-      // Check if this looks like a pump.fun transaction
-      const isPumpTx = context.accounts.some(acc => acc === PUMP_PROGRAM);
-      if (isPumpTx && this.stats.transactions < 5) {
-        this.logger.info('Pump.fun transaction detected', {
-          signature: context.signature.substring(0, 20) + '...',
-          accounts: context.accounts.length,
-          logs: context.logs.length,
-          hasData: !!context.data,
-          dataSize: context.data?.length
-        });
-      }
       
       // Track event size if available
       if (context.data) {
@@ -190,15 +159,6 @@ export class BCMonitor extends BaseMonitor {
       if (!event) {
         this.bcStats.parseErrors++;
         
-        // Debug: log first few parse errors
-        if (this.bcStats.parseErrors <= 5 && context.logs.length > 0) {
-          this.logger.debug('Parse failed', {
-            hasData: !!context.data,
-            dataSize: context.data?.length,
-            logs: context.logs.slice(0, 3),
-            accounts: context.accounts.length
-          });
-        }
         return;
       }
       
@@ -316,16 +276,9 @@ export class BCMonitor extends BaseMonitor {
   /**
    * Display health bar
    */
-  private displayHealthBar(health: number): void {
-    const width = 50;
-    const clampedHealth = Math.max(0, Math.min(100, health));
-    const filled = Math.round((clampedHealth / 100) * width);
-    const empty = Math.max(0, width - filled);
-    
-    const bar = chalk.green('█').repeat(filled) + chalk.gray('░').repeat(empty);
-    const color = health > 90 ? chalk.green : health > 70 ? chalk.yellow : chalk.red;
-    
-    console.log(`\nHealth: ${bar} ${color(health.toFixed(1) + '%')}\n`);
+  private displayHealthBar(_health: number): void {
+    // Health bar display removed - stats are shown in main index.ts
+    // Keeping method signature for potential future use
   }
 
   /**

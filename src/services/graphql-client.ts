@@ -21,7 +21,7 @@ export class ShyftGraphQLClient {
       headers: {
         'Content-Type': 'application/json',
       },
-      timeout: GRAPHQL_CONFIG.timeout,
+      // timeout: GRAPHQL_CONFIG.timeout, // timeout not supported in graphql-request v6+
     });
     
     if (process.env.DISABLE_MONITOR_STATS !== 'true') {

@@ -5,7 +5,6 @@
 
 import { 
   AmmPoolAccount, 
-  AmmPoolReserves, 
   AmmPoolMetrics, 
   AmmPoolState,
   PoolStateUpdate 
@@ -288,7 +287,7 @@ export class AmmPoolStateService {
    * Save pool state to database
    */
   private async savePoolState(poolState: AmmPoolState): Promise<void> {
-    const { account, reserves, metrics } = poolState;
+    const { reserves, metrics } = poolState;
     
     try {
       await db.query(`

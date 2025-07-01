@@ -28,7 +28,7 @@ export interface PriceUpdate {
   realSolReserves?: bigint;
   realTokenReserves?: bigint;
   lastUpdated: Date;
-  source: 'graphql';
+  source: 'graphql' | 'amm';
 }
 
 export interface BulkPriceRecoveryResult {
@@ -56,11 +56,12 @@ export interface GraphQLError {
 // AMM Pool Types
 export interface AmmPoolData {
   pubkey: string;
-  base_mint: string; // SOL mint
-  quote_mint: string; // Token mint
-  pool_base_token_account: string; // SOL reserves account
-  pool_quote_token_account: string; // Token reserves account
-  lp_supply: string;
+  baseMint?: string; // SOL mint
+  quoteMint?: string; // Token mint
+  baseAccount: string; // SOL reserves account
+  quoteAccount: string; // Token reserves account
+  tokenMint: string; // Token mint address
+  lpSupply: string;
   _updatedAt: string;
 }
 
@@ -78,7 +79,7 @@ export interface AmmPoolWithReserves extends AmmPoolData {
 }
 
 export interface GetAmmPoolsResponse {
-  pump_fun_amm_Pool: AmmPoolData[];
+  pump_swap_LiquidityPool?: AmmPoolData[];
 }
 
 export interface GetTokenAccountsResponse {
@@ -89,7 +90,7 @@ export interface GetAmmPoolsWithReservesResponse {
   pools: AmmPoolWithReserves[];
 }
 
-export interface AmmPriceUpdate extends PriceUpdate {
+export interface AmmPriceUpdate extends Omit<PriceUpdate, 'source'> {
   poolAddress: string;
   lpSupply: bigint;
   source: 'amm';

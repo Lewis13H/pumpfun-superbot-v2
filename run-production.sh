@@ -10,4 +10,4 @@ export NODE_ENV=production
 export $(cat .env.production | grep -v '^#' | xargs)
 
 # Run with production settings
-npm run start-wrapped
+npm run start

@@ -16,7 +16,7 @@ import * as borsh from '@coral-xyz/borsh';
 
 // Constants
 const PUMP_AMM_PROGRAM_ID = new PublicKey('pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA');
-const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+// const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 
 // Token account layout for SPL tokens
 const TOKEN_ACCOUNT_LAYOUT = borsh.struct([
@@ -217,9 +217,9 @@ export class AMMAccountMonitor extends BaseMonitor {
     };
     
     // Add to existing subscription
-    const stream = await this.streamClient.getClient().subscribe();
+    const stream = await (this as any).streamClient.getClient().subscribe();
     
-    stream.on("data", async (data) => {
+    stream.on("data", async (data: any) => {
       if (data?.account) {
         await this.processTokenAccountUpdate(data);
       }

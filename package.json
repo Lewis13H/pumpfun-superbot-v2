@@ -2,7 +2,7 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "tsx src/index.ts",
     "bc-monitor": "tsx src/run-bc-monitor.ts",
     "bc-account-monitor": "tsx src/run-bc-account-monitor.ts",
     "amm-monitor": "tsx src/run-amm-monitor.ts",
@@ -25,8 +25,6 @@
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
     "test:run-all": "tsx src/tests/run-integration-tests.ts",
-    "start-refactored": "tsx src/start-refactored-monitors.ts",
-    "start-wrapped": "tsx src/start-wrapped-monitors.ts",
     "server-refactored": "tsx src/api/server-refactored.ts"
   },
   "name": "pumpfun-superbot-v2",
@@ -67,6 +65,7 @@
     "@types/node": "^20.0.0",
     "@types/ws": "^8.5.5",
     "jest": "^29.7.0",
+    "node-fetch": "^2.7.0",
     "ts-jest": "^29.1.2",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",

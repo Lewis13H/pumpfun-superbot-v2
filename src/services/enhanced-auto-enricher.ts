@@ -7,7 +7,7 @@
 import { db } from '../database';
 import { HeliusService } from './helius';
 import { ShyftMetadataService } from './shyft-metadata-service';
-import { graphqlMetadataEnricher } from './graphql-metadata-enricher';
+// import { graphqlMetadataEnricher } from './graphql-metadata-enricher';
 import chalk from 'chalk';
 
 interface EnrichmentResult {
@@ -28,10 +28,11 @@ export class EnhancedAutoEnricher {
   private isRunning = false;
   private enrichmentQueue: Set<string> = new Set();
   private enrichmentInterval: NodeJS.Timeout | null = null;
-  private readonly BATCH_SIZE = 20; // Process more tokens at once
+  private readonly BATCH_SIZE = 20; // Batch size for processing tokens
   private readonly CHECK_INTERVAL = 30000; // Check every 30 seconds
-  // private readonly MAX_RETRIES = 3;
   private readonly MARKET_CAP_THRESHOLD = 8888; // Enrich all tokens above $8,888
+  private lastEnrichmentTime = 0;
+  private readonly MIN_ENRICHMENT_DELAY = 1000; // Minimum 1s between enrichment batches
   
   // Track statistics
   private stats = {
@@ -87,6 +88,30 @@ export class EnhancedAutoEnricher {
   }
   
   /**
+   * Enrich token immediately when it crosses threshold
+   * Called from database service when a token hits $8,888
+   */
+  async enrichTokenOnThreshold(mintAddress: string, marketCapUsd: number): Promise<void> {
+    console.log(chalk.magenta(`💎 Token ${mintAddress} crossed $${marketCapUsd.toFixed(0)} - immediate enrichment triggered`));
+    
+    // Add to front of queue
+    this.enrichmentQueue.add(mintAddress);
+    
+    // Process immediately with single token
+    try {
+      const result = await this.enrichToken(mintAddress);
+      if (result.source !== 'none') {
+        console.log(chalk.green(`✅ Successfully enriched ${result.symbol || 'Unknown'} from ${result.source}`));
+      }
+    } catch (error) {
+      console.error(chalk.red('Error enriching token on threshold:'), error);
+    }
+    
+    // Remove from queue after processing
+    this.enrichmentQueue.delete(mintAddress);
+  }
+
+  /**
    * Check for tokens that need enrichment
    * Prioritize tokens above $8,888 market cap
    */
@@ -130,93 +155,83 @@ export class EnhancedAutoEnricher {
   private async processQueue() {
     if (this.enrichmentQueue.size === 0) return;
     
+    // Enforce minimum delay between enrichment batches
+    const timeSinceLastEnrichment = Date.now() - this.lastEnrichmentTime;
+    if (timeSinceLastEnrichment < this.MIN_ENRICHMENT_DELAY) {
+      await new Promise(resolve => setTimeout(resolve, this.MIN_ENRICHMENT_DELAY - timeSinceLastEnrichment));
+    }
+    
     const batch = Array.from(this.enrichmentQueue).slice(0, this.BATCH_SIZE);
     
     console.log(chalk.cyan(`🔄 Processing batch of ${batch.length} tokens...`));
     
-    // Try GraphQL first (most efficient for bulk)
+    // Skip GraphQL since it doesn't have the required tables
+    // Go directly to Shyft API
     try {
-      console.log(chalk.blue('🔹 Attempting GraphQL bulk metadata fetch...'));
-      const graphqlResult = await graphqlMetadataEnricher.enrichTokensInDatabase(batch);
+      console.log(chalk.blue('🔹 Fetching metadata from Shyft API...'));
+      const shyftBulkResults = await this.shyftService.getBulkMetadata(batch);
       
-      // Check which tokens were successfully enriched
-      const needsFallback: string[] = [];
+      // Process Shyft API results
+      const stillNeedEnrichment: string[] = [];
+      let shyftSuccessCount = 0;
+      
       for (const mint of batch) {
-        const checkResult = await db.query(
-          'SELECT metadata_source FROM tokens_unified WHERE mint_address = $1',
-          [mint]
-        );
-        
-        if (!checkResult.rows[0]?.metadata_source || checkResult.rows[0].metadata_source === null) {
-          needsFallback.push(mint);
+        const shyftData = shyftBulkResults.get(mint);
+        if (shyftData && (shyftData.name || shyftData.symbol)) {
+          // Update with Shyft data
+          const result: EnrichmentResult = {
+            mintAddress: mint,
+            symbol: shyftData.symbol,
+            name: shyftData.name,
+            description: shyftData.description,
+            image: shyftData.image,
+            uri: shyftData.uri,
+            source: 'shyft',
+            enrichedAt: new Date()
+          };
+          
+          await this.updateTokenMetadata(result);
+          this.stats.shyftSuccess++;
+          this.stats.totalEnriched++;
+          shyftSuccessCount++;
+          
+          console.log(
+            chalk.green('✅'),
+            chalk.white(`${mint.slice(0, 8)}...`),
+            chalk.gray('→'),
+            chalk.cyan(result.symbol || 'N/A'),
+            chalk.gray('(shyft api)')
+          );
+        } else {
+          stillNeedEnrichment.push(mint);
         }
       }
       
-      console.log(chalk.green(`   ✅ GraphQL enriched ${graphqlResult.success} tokens`));
+      console.log(chalk.green(`   ✅ Shyft API enriched ${shyftSuccessCount} tokens`));
       
-      if (needsFallback.length > 0) {
-        console.log(chalk.yellow(`   🔸 ${needsFallback.length} tokens need fallback enrichment...`));
+      // Process remaining tokens with Helius (if configured)
+      if (stillNeedEnrichment.length > 0 && process.env.HELIUS_API_KEY) {
+        console.log(chalk.yellow(`   🔸 ${stillNeedEnrichment.length} tokens need Helius fallback...`));
         
-        // Try bulk Shyft API as fallback
-        console.log(chalk.blue('🔹 Attempting bulk Shyft API metadata fetch...'));
-        const shyftBulkResults = await this.shyftService.getBulkMetadata(needsFallback);
-        
-        // Process Shyft API results
-        const stillNeedEnrichment: string[] = [];
-        
-        for (const mint of needsFallback) {
-          const shyftData = shyftBulkResults.get(mint);
-          if (shyftData && (shyftData.name || shyftData.symbol)) {
-            // Update with Shyft data
-            const result: EnrichmentResult = {
-              mintAddress: mint,
-              symbol: shyftData.symbol,
-              name: shyftData.name,
-              description: shyftData.description,
-              image: shyftData.image,
-              uri: shyftData.uri,
-              source: 'shyft',
-              enrichedAt: new Date()
-            };
-            
-            await this.updateTokenMetadata(result);
-            this.stats.shyftSuccess++;
-            this.stats.totalEnriched++;
-            
-            console.log(
-              chalk.green('✅'),
-              chalk.white(`${mint.slice(0, 8)}...`),
-              chalk.gray('→'),
-              chalk.cyan(result.symbol || 'N/A'),
-              chalk.gray('(shyft api)')
-            );
-          } else {
-            stillNeedEnrichment.push(mint);
-          }
+        for (const mint of stillNeedEnrichment) {
+          await this.enrichToken(mint);
+          // Delay between Helius calls
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
-        
-        // Process remaining tokens with Helius
-        if (stillNeedEnrichment.length > 0) {
-          console.log(chalk.yellow(`🔸 ${stillNeedEnrichment.length} tokens need Helius fallback...`));
-          
-          for (const mint of stillNeedEnrichment) {
-            await this.enrichToken(mint);
-            // Small delay between Helius calls
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-        }
+      } else if (stillNeedEnrichment.length > 0) {
+        console.log(chalk.gray(`   ℹ️ ${stillNeedEnrichment.length} tokens could not be enriched (no Helius API key)`));
+        this.stats.failures += stillNeedEnrichment.length;
       }
       
     } catch (error) {
-      console.error(chalk.red('Bulk enrichment error, falling back to individual:'), error);
-      // Fallback to individual processing
-      const promises = batch.map(mint => this.enrichToken(mint));
-      await Promise.all(promises);
+      console.error(chalk.red('Bulk enrichment error:'), error);
+      this.stats.failures += batch.length;
     }
     
     // Remove processed tokens from queue
     batch.forEach(mint => this.enrichmentQueue.delete(mint));
     this.stats.queueSize = this.enrichmentQueue.size;
+    this.lastEnrichmentTime = Date.now();
   }
   
   /**
@@ -244,8 +259,8 @@ export class EnhancedAutoEnricher {
           enrichedAt: new Date()
         };
         this.stats.shyftSuccess++;
-      } else {
-        // Fallback to Helius
+      } else if (process.env.HELIUS_API_KEY) {
+        // Fallback to Helius only if API key is configured
         const heliusMetadata = await this.heliusService.getTokenMetadata(mintAddress);
         if (heliusMetadata && (heliusMetadata.name || heliusMetadata.symbol)) {
           result = {
@@ -262,6 +277,9 @@ export class EnhancedAutoEnricher {
         } else {
           this.stats.failures++;
         }
+      } else {
+        // No Helius API key configured
+        this.stats.failures++;
       }
       
       // Update database if we got metadata
@@ -410,29 +428,6 @@ export class EnhancedAutoEnricher {
    */
   getStats() {
     return { ...this.stats };
-  }
-  
-  /**
-   * Enrich token immediately when it crosses threshold
-   * Called by database service when saving tokens
-   */
-  async enrichTokenOnThreshold(mintAddress: string, marketCapUsd: number): Promise<void> {
-    if (marketCapUsd >= this.MARKET_CAP_THRESHOLD) {
-      console.log(chalk.green(`💎 Token ${mintAddress} crossed $${this.MARKET_CAP_THRESHOLD} threshold - enriching immediately`));
-      
-      // Add to queue with high priority
-      this.enrichmentQueue.add(mintAddress);
-      
-      // Process immediately
-      const result = await this.enrichToken(mintAddress);
-      
-      if (result.source !== 'none') {
-        console.log(chalk.green(`✅ Successfully enriched ${result.symbol || 'Unknown'} from ${result.source}`));
-      }
-      
-      // Remove from queue after processing
-      this.enrichmentQueue.delete(mintAddress);
-    }
   }
   
   /**

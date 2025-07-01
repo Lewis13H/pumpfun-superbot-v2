@@ -82,9 +82,9 @@ export class TradeHandler {
       
       // Add bonding curve specific fields if applicable
       if (event.type === EventType.BC_TRADE && 'bondingCurveKey' in event) {
-        trade.bondingCurveKey = event.bondingCurveKey;
+        trade.bondingCurveKey = (event as any).bondingCurveKey;
         trade.bondingCurveProgress = this.priceCalculator.calculateBondingCurveProgress(
-          event.virtualSolReserves
+          (event as any).virtualSolReserves
         );
       }
       
@@ -161,7 +161,7 @@ export class TradeHandler {
   private async createNewToken(
     event: TradeEvent,
     priceInfo: any,
-    solPriceUsd: number
+    _solPriceUsd: number
   ): Promise<Token> {
     const now = new Date();
     
@@ -180,6 +180,14 @@ export class TradeHandler {
       firstSeenSlot: Number(event.slot),
       createdAt: now
     };
+
+    // Add pump.fun specific fields if available (from BC trade)
+    if (event.type === EventType.BC_TRADE && 'creator' in event) {
+      token.creator = (event as any).creator;
+    }
+    if (event.type === EventType.BC_TRADE && 'bondingCurveKey' in event) {
+      token.bondingCurveKey = (event as any).bondingCurveKey;
+    }
     
     // Check if threshold crossed
     const threshold = this.config.get('monitors').bcSaveThreshold;

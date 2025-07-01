@@ -28,7 +28,10 @@ export abstract class BaseRepository<T> {
       const result = await this.pool.query(text, params);
       return result.rows;
     } catch (error) {
-      this.logger.error('Query failed', error as Error, { text, params });
+      // Don't log duplicate key errors - they're often expected
+      if (!(error as any).message?.includes('duplicate key value violates unique constraint')) {
+        this.logger.error('Query failed', error as Error, { text, params });
+      }
       throw error;
     }
   }

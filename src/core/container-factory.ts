@@ -25,6 +25,25 @@ export async function createContainer(): Promise<Container> {
   // Register stream client
   container.registerSingleton(TOKENS.StreamClient, () => StreamClient.getInstance());
   
+  // Register StreamManager (shared stream for all monitors)
+  container.registerSingleton(TOKENS.StreamManager, async () => {
+    const { StreamManager } = await import('./stream-manager');
+    const streamClientService = await container.resolve(TOKENS.StreamClient);
+    const eventBus = await container.resolve(TOKENS.EventBus);
+    const config = await container.resolve(TOKENS.ConfigService);
+    
+    const manager = new StreamManager({
+      streamClient: streamClientService.getClient(), // Pass the yellowstone-grpc Client
+      eventBus,
+      reconnectDelay: config.get('grpc').reconnectDelay,
+      maxReconnectDelay: config.get('grpc').maxReconnectDelay
+    });
+    
+    // Don't start here - let it start when first monitor subscribes
+    
+    return manager;
+  });
+  
   // Register database service
   container.registerSingleton(TOKENS.DatabaseService, () => UnifiedDbServiceV2.getInstance());
   

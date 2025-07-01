@@ -18,6 +18,8 @@ export interface UnifiedTokenData {
   firstPriceUsd?: number;
   firstMarketCapUsd: number;
   tokenCreatedAt?: Date; // Actual blockchain creation time
+  creator?: string; // Pump.fun creator address
+  totalSupply?: string; // Token total supply
 }
 
 export interface UnifiedTradeData {
@@ -34,6 +36,8 @@ export interface UnifiedTradeData {
   virtualSolReserves?: bigint;
   virtualTokenReserves?: bigint;
   bondingCurveProgress?: number;
+  bondingCurveKey?: string; // Bonding curve address
+  creator?: string; // Creator address (for first trade)
   slot: bigint;
   blockTime: Date;
 }
@@ -377,8 +381,8 @@ export class UnifiedDbServiceV2 {
     if (tokens.length === 0) return;
     
     const values = tokens.map((_, i) => {
-      const offset = i * 13;
-      return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13})`;
+      const offset = i * 15; // Updated for 15 fields
+      return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, $${offset + 14}, $${offset + 15})`;
     }).join(',');
     
     const params = tokens.flatMap(t => [
@@ -394,19 +398,24 @@ export class UnifiedDbServiceV2 {
       t.firstMarketCapUsd,
       t.firstMarketCapUsd,
       t.firstProgram,
-      t.tokenCreatedAt || null // Add token creation time
+      t.tokenCreatedAt || null, // Add token creation time
+      t.creator || null, // Creator address
+      t.totalSupply || null // Total supply
     ]);
     
     await db.query(`
       INSERT INTO tokens_unified (
         mint_address, symbol, name, uri, first_program, first_seen_slot,
         first_price_sol, first_price_usd, latest_price_sol, first_market_cap_usd,
-        latest_market_cap_usd, current_program, token_created_at
+        latest_market_cap_usd, current_program, token_created_at,
+        creator, total_supply
       ) VALUES ${values}
       ON CONFLICT (mint_address) DO UPDATE SET
         symbol = COALESCE(tokens_unified.symbol, EXCLUDED.symbol),
         name = COALESCE(tokens_unified.name, EXCLUDED.name),
         uri = COALESCE(tokens_unified.uri, EXCLUDED.uri),
+        creator = COALESCE(tokens_unified.creator, EXCLUDED.creator),
+        total_supply = COALESCE(tokens_unified.total_supply, EXCLUDED.total_supply),
         updated_at = NOW()
     `, params);
     
@@ -439,6 +448,7 @@ export class UnifiedDbServiceV2 {
           latest_bonding_curve_progress = $7,
           latest_update_slot = $8,
           current_program = $9,
+          creator = COALESCE(creator, $10),
           updated_at = NOW()
         WHERE mint_address = $1
       `, [
@@ -450,14 +460,15 @@ export class UnifiedDbServiceV2 {
         trade.virtualTokenReserves?.toString() || null,
         trade.bondingCurveProgress || null,
         trade.slot.toString(),
-        trade.program
+        trade.program,
+        trade.creator || null
       ]);
     }
     
     // Insert trades
     const values = trades.map((_, i) => {
-      const offset = i * 15;
-      return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, $${offset + 14}, $${offset + 15})`;
+      const offset = i * 16; // Updated for 16 fields
+      return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, $${offset + 14}, $${offset + 15}, $${offset + 16})`;
     }).join(',');
     
     const params = trades.flatMap(t => [
@@ -473,6 +484,7 @@ export class UnifiedDbServiceV2 {
       t.marketCapUsd,
       t.virtualSolReserves?.toString() || null,
       t.virtualTokenReserves?.toString() || null,
+      t.bondingCurveKey || null, // NEW: bonding curve key for graduation tracking
       t.bondingCurveProgress || null,
       t.slot.toString(),
       t.blockTime
@@ -482,8 +494,8 @@ export class UnifiedDbServiceV2 {
       INSERT INTO trades_unified (
         mint_address, signature, program, trade_type, user_address,
         sol_amount, token_amount, price_sol, price_usd, market_cap_usd,
-        virtual_sol_reserves, virtual_token_reserves, bonding_curve_progress,
-        slot, block_time
+        virtual_sol_reserves, virtual_token_reserves, bonding_curve_key,
+        bonding_curve_progress, slot, block_time
       ) VALUES ${values}
       ON CONFLICT (signature) DO NOTHING
     `, params);

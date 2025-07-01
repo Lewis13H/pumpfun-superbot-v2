@@ -40,6 +40,7 @@ export interface BCTradeEvent extends TradeEvent {
   bondingCurveKey: string;
   vSolInBondingCurve: bigint;
   vTokenInBondingCurve: bigint;
+  creator?: string; // Creator address from pump.fun bonding curve
 }
 
 export interface AMMTradeEvent extends TradeEvent {

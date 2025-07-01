@@ -1,5 +1,6 @@
 import { CommitmentLevel, SubscribeRequest } from '@triton-one/yellowstone-grpc';
 import chalk from 'chalk';
+import bs58 from 'bs58';
 import { Container, TOKENS } from './container';
 import { EventBus, EVENTS } from './event-bus';
 import { ConfigService } from './config';
@@ -27,13 +28,12 @@ export abstract class BaseMonitor {
   protected config!: ConfigService;
   protected logger: Logger;
   
-  protected streamClient: any; // Will be injected
+  protected streamManager: any; // Will be injected
   protected dbService: any; // Will be injected
   protected solPriceService: any; // Will be injected
   
   protected currentSolPrice: number = 180; // Default fallback
   protected isShuttingDown: boolean = false;
-  protected reconnectAttempts: number = 0;
   protected displayInterval?: NodeJS.Timeout;
   protected priceUpdateInterval?: NodeJS.Timeout;
 
@@ -59,7 +59,7 @@ export abstract class BaseMonitor {
   protected async initializeServices(): Promise<void> {
     this.eventBus = await this.container.resolve(TOKENS.EventBus);
     this.config = await this.container.resolve(TOKENS.ConfigService);
-    this.streamClient = await this.container.resolve(TOKENS.StreamClient);
+    this.streamManager = await this.container.resolve(TOKENS.StreamManager);
     this.dbService = await this.container.resolve(TOKENS.DatabaseService);
     this.solPriceService = await this.container.resolve(TOKENS.SolPriceService);
   }
@@ -85,15 +85,17 @@ export abstract class BaseMonitor {
       // Start display interval
       this.startDisplayInterval();
       
+      // Subscribe to stream data events
+      this.setupStreamListener();
+      
+      // Register with stream manager using monitor's subscription config
+      const subscriptionConfig = this.buildSubscribeRequest();
+      await this.streamManager.subscribeTo(this.options.programId, subscriptionConfig);
+      
       // Emit monitor started event
       this.eventBus.emit(EVENTS.MONITOR_STARTED, {
         monitor: this.options.monitorName,
         timestamp: new Date()
-      });
-      
-      // Start monitoring in background
-      this.startMonitoring().catch(error => {
-        this.logger.error('Fatal monitoring error', error);
       });
     } catch (error) {
       this.logger.error('Failed to start monitor', error as Error);
@@ -158,72 +160,61 @@ export abstract class BaseMonitor {
   }
 
   /**
-   * Main monitoring loop
+   * Setup listener for stream data
    */
-  protected async startMonitoring(reconnectDelay?: number): Promise<void> {
-    if (this.isShuttingDown) return;
-    
-    const grpcConfig = this.config.get('grpc');
-    const delay = reconnectDelay || grpcConfig.reconnectDelay;
-    
-    try {
-      const request = this.buildSubscribeRequest();
-      const stream = await this.streamClient.getClient().subscribe();
+  protected setupStreamListener(): void {
+    this.eventBus.on(EVENTS.STREAM_DATA, async (data: any) => {
+      if (this.isShuttingDown) return;
       
-      // Send the subscription request
-      await new Promise<void>((resolve, reject) => {
-        stream.write(request, (err: any) => {
-          if (err === null || err === undefined) {
-            this.logger.info('Connected to gRPC stream');
-            this.reconnectAttempts = 0;
-            resolve();
-          } else {
-            reject(err);
-          }
-        });
-      });
+      // Check if this transaction is relevant to our monitor
+      if (!this.isRelevantTransaction(data)) return;
       
-      // Process stream data
-      stream.on('data', async (data: any) => {
-        if (this.isShuttingDown) return;
-        
-        try {
-          await this.processStreamData(data);
-          this.stats.transactions++;
-        } catch (error) {
-          this.stats.errors++;
-          if (this.shouldLogError(error)) {
-            this.logger.error('Error processing transaction', error as Error);
-          }
+      try {
+        await this.processStreamData(data);
+        this.stats.transactions++;
+      } catch (error) {
+        this.stats.errors++;
+        if (this.shouldLogError(error)) {
+          this.logger.error('Error processing transaction', error as Error);
         }
-      });
-      
-      // Handle stream end
-      await new Promise((resolve) => {
-        stream.on('end', resolve);
-        stream.on('error', resolve);
-      });
-    } catch (error) {
-      this.stats.errors++;
-      this.stats.reconnections++;
-      
-      this.logger.error('Stream error', error as Error);
-      this.eventBus.emit(EVENTS.MONITOR_ERROR, {
-        monitor: this.options.monitorName,
-        error: error as Error,
-        reconnectAttempts: this.reconnectAttempts
-      });
-      
-      if (!this.isShuttingDown) {
-        const nextDelay = Math.min(delay * 2, grpcConfig.maxReconnectDelay);
-        this.logger.warn(`Reconnecting in ${nextDelay / 1000}s...`);
-        this.reconnectAttempts++;
-        
-        setTimeout(() => {
-          this.startMonitoring(nextDelay);
-        }, delay);
       }
+    });
+  }
+
+  /**
+   * Check if data is relevant to this monitor
+   */
+  protected isRelevantTransaction(data: any): boolean {
+    // Check if this is account data
+    if (data?.account) {
+      // For account updates, check if the owner matches our program
+      const owner = data.account.owner;
+      if (owner) {
+        const ownerStr = typeof owner === 'string' ? owner : bs58.encode(owner);
+        return ownerStr === this.options.programId;
+      }
+      return false;
     }
+    
+    // Check if this is transaction data
+    if (data?.transaction) {
+      // The structure from gRPC is: data.transaction.transaction.transaction.message.accountKeys
+      const tx = data.transaction.transaction;
+      const innerTx = tx?.transaction;
+      const accounts = innerTx?.message?.accountKeys || [];
+      
+      // Check if our program ID is in the account keys
+      for (const account of accounts) {
+        const accountStr = typeof account === 'string' ? account : bs58.encode(account);
+        if (accountStr === this.options.programId) return true;
+      }
+      
+      // Also check logs for program invocation
+      const logs = tx?.meta?.logMessages || [];
+      return logs.some((log: string) => log.includes(this.options.programId));
+    }
+    
+    return false;
   }
 
   /**
@@ -259,6 +250,8 @@ export abstract class BaseMonitor {
     const shutdown = async () => {
       this.logger.info('Shutting down...');
       this.isShuttingDown = true;
+      
+      // Stream cleanup is now handled by StreamManager
       
       // Clear intervals
       if (this.displayInterval) clearInterval(this.displayInterval);
@@ -313,6 +306,27 @@ export abstract class BaseMonitor {
     const elapsedMs = Date.now() - startTime.getTime();
     const elapsedMinutes = elapsedMs / 60000;
     return elapsedMinutes > 0 ? count / elapsedMinutes : 0;
+  }
+
+  /**
+   * Stop the monitor and clean up connections
+   */
+  async stop(): Promise<void> {
+    this.logger.info('Stopping monitor...');
+    this.isShuttingDown = true;
+    
+    // Clear intervals
+    if (this.displayInterval) {
+      clearInterval(this.displayInterval);
+      this.displayInterval = undefined;
+    }
+    if (this.priceUpdateInterval) {
+      clearInterval(this.priceUpdateInterval);
+      this.priceUpdateInterval = undefined;
+    }
+    
+    await this.onShutdown();
+    this.logger.info('Monitor stopped');
   }
 
   // Abstract methods

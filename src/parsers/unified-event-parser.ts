@@ -162,7 +162,7 @@ export class UnifiedEventParser {
     
     // Debug first transaction
     if (!this._debugged) {
-      console.log('DEBUG: First gRPC data structure:', JSON.stringify(grpcData, (key, value) => {
+      console.log('DEBUG: First gRPC data structure:', JSON.stringify(grpcData, (_key, value) => {
         if (Buffer.isBuffer(value)) {
           return { type: 'Buffer', length: value.length, first10: Array.from(value.slice(0, 10)) };
         }
@@ -171,19 +171,18 @@ export class UnifiedEventParser {
       this._debugged = true;
     }
     
+    let message, meta;
+    
     try {
-      // Handle the nested gRPC structure: transaction.transaction.transaction
-      let message, meta;
-      
+      // Handle the nested gRPC structure
       if (grpcData.transaction?.transaction?.transaction) {
-        // Standard gRPC structure
-        const innerTx = grpcData.transaction.transaction.transaction;
-        message = innerTx.message;
+        // Standard gRPC structure: data.transaction.transaction.transaction.message
+        message = grpcData.transaction.transaction.transaction.message;
         meta = grpcData.transaction.transaction.meta;
       } else if (grpcData.transaction?.transaction) {
         // Fallback structure
         message = grpcData.transaction.transaction.message;
-        meta = grpcData.transaction.transaction.meta;
+        meta = grpcData.transaction.meta;
       } else if (grpcData.transaction) {
         // Direct structure
         message = grpcData.transaction.message;
@@ -249,8 +248,8 @@ export class UnifiedEventParser {
       });
     }
 
-    // Extract logs
-    const logs = grpcData.transaction?.transaction?.meta?.logMessages || [];
+    // Extract logs (from the correct path)
+    const logs = grpcData.transaction?.meta?.logMessages || meta?.logMessages || [];
     
     // If we didn't find instruction data, try to extract from logs
     if (!instructionData && logs.length > 0) {
@@ -272,9 +271,11 @@ export class UnifiedEventParser {
       }
     }
     
-    // Extract signature (might be a Buffer)
+    // Extract signature (from the correct path)
     let signature = '';
-    const sig = grpcData.transaction?.transaction?.signature;
+    const sig = grpcData.transaction?.transaction?.signature || 
+                grpcData.transaction?.signature || 
+                grpcData.transaction?.transaction?.transaction?.signatures?.[0];
     if (sig) {
       if (Buffer.isBuffer(sig)) {
         signature = bs58.encode(sig);
@@ -288,8 +289,8 @@ export class UnifiedEventParser {
 
     return {
       signature,
-      slot: BigInt(grpcData.transaction?.slot || grpcData.slot || 0),
-      blockTime: grpcData.blockTime || grpcData.transaction?.blockTime,
+      slot: BigInt(grpcData.transaction?.slot || grpcData.transaction?.transaction?.slot || grpcData.slot || 0),
+      blockTime: grpcData.transaction?.transaction?.blockTime || grpcData.transaction?.blockTime || grpcData.blockTime || Date.now() / 1000,
       accounts,
       logs,
       data: instructionData

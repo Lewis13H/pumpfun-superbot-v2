@@ -10,7 +10,7 @@
 
 import { UnifiedDbServiceV2, UnifiedTokenData, UnifiedTradeData } from '../database/unified-db-service';
 import { BondingCurveTradeEvent } from '../parsers/bc-event-parser';
-import { calculateBondingCurveProgress } from '../services/bc-price-calculator';
+// import { calculateBondingCurveProgress } from '../services/bc-price-calculator';  // Unused import
 
 export interface ProcessedTradeDataV2 {
   event: BondingCurveTradeEvent;
@@ -129,7 +129,7 @@ export class BondingCurveDbHandlerV2 {
           try {
             await this.dbService.processTrade(tradeData);
             this.stats.tradesSaved++;
-          } catch (retryError) {
+          } catch (retryError: any) {
             console.error(`Failed to save trade after retry: ${signature}`, retryError.message);
           }
         }, 100);
@@ -192,7 +192,7 @@ export class BondingCurveDbHandlerV2 {
               this.stats.tokensSaved++;
               this.stats.tokensFailedToSave--;
               console.log(`✅ Token saved on retry: ${event.mint}`);
-            } catch (retryError) {
+            } catch (retryError: any) {
               console.error(`Failed to save token after retry: ${event.mint}`, retryError.message);
             }
           }, 500 * tokenInfo.attempts); // Exponential backoff

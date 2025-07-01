@@ -198,15 +198,29 @@ export class BCTradeStrategy implements ParseStrategy {
       // Read virtual reserves based on event size
       let vSolInBondingCurve = 0n;
       let vTokenInBondingCurve = 0n;
+      let realSolReserves = 0n;
+      let realTokenReserves = 0n;
 
       if (data.length === 225) {
         // 225-byte format: reserves at offsets 97 and 105
         vSolInBondingCurve = this.readUInt64LE(data, 97);
         vTokenInBondingCurve = this.readUInt64LE(data, 105);
+        
+        // NEW: Extract real reserves for 225-byte events
+        // Real reserves are at offsets 145 and 153
+        realSolReserves = this.readUInt64LE(data, 145);
+        realTokenReserves = this.readUInt64LE(data, 153);
       } else if (data.length === 113) {
         // 113-byte format: reserves at offsets 73 and 81
         vSolInBondingCurve = this.readUInt64LE(data, 73);
         vTokenInBondingCurve = this.readUInt64LE(data, 81);
+      }
+      
+      // Extract creator from accounts array
+      // Based on pump.fun documentation, creator is typically at index 4
+      let creator: string | undefined;
+      if (context.accounts && context.accounts.length > 4) {
+        creator = context.accounts[4];
       }
       
       // Debug log
@@ -214,7 +228,10 @@ export class BCTradeStrategy implements ParseStrategy {
         logger.debug('Parsed reserves', {
           dataSize: data.length,
           solReserves: vSolInBondingCurve.toString(),
-          tokenReserves: vTokenInBondingCurve.toString()
+          tokenReserves: vTokenInBondingCurve.toString(),
+          realSolReserves: realSolReserves.toString(),
+          realTokenReserves: realTokenReserves.toString(),
+          creator
         });
       }
 
@@ -233,7 +250,10 @@ export class BCTradeStrategy implements ParseStrategy {
         vSolInBondingCurve,
         vTokenInBondingCurve,
         virtualSolReserves: vSolInBondingCurve,
-        virtualTokenReserves: vTokenInBondingCurve
+        virtualTokenReserves: vTokenInBondingCurve,
+        realSolReserves,
+        realTokenReserves,
+        creator
       };
     } catch (error) {
       logger.debug('Failed to parse event data', { error, dataLength: data.length });

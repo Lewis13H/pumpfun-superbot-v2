@@ -8,7 +8,7 @@
  */
 
 import { PublicKey } from '@solana/web3.js';
-import { TRADE_EVENT_SIZE } from '../utils/constants';
+// import { TRADE_EVENT_SIZE } from '../utils/constants';
 
 export interface BondingCurveTradeEvent {
   mint: string;
@@ -48,7 +48,7 @@ export function parsePumpFunTradeEventV2(data: Buffer): BondingCurveTradeEvent |
     return null;
   } catch (error) {
     // Log but don't throw - return null for unparseable events
-    console.debug('Event parse error:', error.message, 'Size:', data.length);
+    console.debug('Event parse error:', (error as Error).message, 'Size:', data.length);
     return null;
   }
 }
@@ -146,7 +146,7 @@ export function extractTradeEventsFromLogsV2(
           }
         } catch (error) {
           parseStats.failed++;
-          console.debug('Failed to decode base64 data:', error.message);
+          console.debug('Failed to decode base64 data:', (error as Error).message);
         }
       }
     }

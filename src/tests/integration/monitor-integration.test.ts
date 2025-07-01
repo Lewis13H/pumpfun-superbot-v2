@@ -2,7 +2,6 @@
  * Integration tests for monitor system
  */
 
-// import { createContainer } from '../../core/container-factory';
 import { BCMonitor } from '../../monitors/bc-monitor';
 import { AMMMonitor } from '../../monitors/amm-monitor';
 import { EventBus, EVENTS } from '../../core/event-bus';
@@ -347,7 +346,7 @@ describe('Monitor System Integration', () => {
       process.env.BC_SAVE_THRESHOLD = '1000';
       
       // Create new monitor with updated config
-      const customMonitor = new BCMonitorRefactored(container);
+      const customMonitor = new BCMonitor(container);
       
       // Process trade
       await customMonitor.processStreamData(mockBCTradeData);
@@ -359,7 +358,7 @@ describe('Monitor System Integration', () => {
     it('should handle SAVE_ALL_TOKENS mode', async () => {
       process.env.SAVE_ALL_TOKENS = 'true';
       
-      const customMonitor = new BCMonitorRefactored(container);
+      const customMonitor = new BCMonitor(container);
       await customMonitor.processStreamData(mockBCTradeData);
       
       // Should save token regardless of threshold

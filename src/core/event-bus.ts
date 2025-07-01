@@ -202,6 +202,7 @@ export const EVENTS = {
   TOKEN_DISCOVERED: 'token:discovered',
   TOKEN_GRADUATED: 'token:graduated',
   TOKEN_THRESHOLD_CROSSED: 'token:threshold_crossed',
+  TOKEN_METADATA_UPDATED: 'token:metadata_updated',
   BONDING_CURVE_CREATED: 'bonding_curve:created',
   GRADUATION_PROCESSED: 'graduation:processed',
   
@@ -218,6 +219,9 @@ export const EVENTS = {
   MONITOR_STOPPED: 'monitor:stopped',
   MONITOR_ERROR: 'monitor:error',
   MONITOR_STATS_UPDATED: 'monitor:stats_updated',
+  
+  // Stream events
+  STREAM_DATA: 'stream:data',
   
   // WebSocket events
   WS_CLIENT_CONNECTED: 'ws:client_connected',

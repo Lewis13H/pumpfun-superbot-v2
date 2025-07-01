@@ -4,12 +4,12 @@
  */
 
 import { PublicKey, VersionedTransactionResponse } from '@solana/web3.js';
-import Client, { CommitmentLevel, SubscribeRequest } from '@triton-one/yellowstone-grpc';
+import { CommitmentLevel, SubscribeRequest } from '@triton-one/yellowstone-grpc';
 import chalk from 'chalk';
 import { BaseMonitor } from '../core/base-monitor';
 import { Container, TOKENS } from '../core/container';
 import { EVENTS } from '../core/event-bus';
-import { Idl } from '@coral-xyz/anchor';
+// Removed unused import Idl
 import { SolanaParser } from '@shyft-to/solana-transaction-parser';
 import { SolanaEventParser } from '../utils/event-parser';
 import pumpAmmIdl from '../idls/pump_amm_0.1.0.json';
@@ -70,7 +70,7 @@ export class AMMMonitor extends BaseMonitor {
 
     // Initialize parsers
     this.pumpAmmIxParser = new SolanaParser([]);
-    this.pumpAmmIxParser.addParserFromIdl(PUMP_AMM_PROGRAM_ID.toBase58(), pumpAmmIdl as Idl);
+    this.pumpAmmIxParser.addParserFromIdl(PUMP_AMM_PROGRAM_ID.toBase58(), pumpAmmIdl as any);
     
     // Create silent console for parser
     const silentConsole = {
@@ -79,7 +79,7 @@ export class AMMMonitor extends BaseMonitor {
       error: () => {},
     };
     this.pumpAmmEventParser = new SolanaEventParser([], silentConsole);
-    this.pumpAmmEventParser.addParserFromIdl(PUMP_AMM_PROGRAM_ID.toBase58(), pumpAmmIdl as Idl);
+    this.pumpAmmEventParser.addParserFromIdl(PUMP_AMM_PROGRAM_ID.toBase58(), pumpAmmIdl as any);
   }
 
   /**
@@ -148,7 +148,7 @@ export class AMMMonitor extends BaseMonitor {
    * Decode pump AMM transaction (from legacy code)
    */
   private decodePumpAmmTxn(tx: VersionedTransactionResponse): any {
-    if (tx.meta?.err) return;
+    if (!tx.meta || tx.meta.err) return;
     
     try {
       const parsedIxs = this.pumpAmmIxParser.parseTransactionData(
