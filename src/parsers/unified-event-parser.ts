@@ -6,6 +6,8 @@
 import { ParseStrategy, ParseContext, ParsedEvent } from './types';
 import { BCTradeStrategy } from './strategies/bc-trade-strategy';
 import { AMMTradeStrategy } from './strategies/amm-trade-strategy';
+import { BCTradeIDLStrategy } from './strategies/bc-trade-idl-strategy';
+import { MigrationDetectionStrategy } from './strategies/migration-detection-strategy';
 import { Logger } from '../core/logger';
 import { EventBus } from '../core/event-bus';
 import bs58 from 'bs58';
@@ -14,6 +16,7 @@ export interface ParserOptions {
   strategies?: ParseStrategy[];
   eventBus?: EventBus;
   logErrors?: boolean;
+  useIDLParsing?: boolean;
 }
 
 export class UnifiedEventParser {
@@ -26,13 +29,21 @@ export class UnifiedEventParser {
     failed: 0,
     byStrategy: new Map<string, number>()
   };
-  private static _debugged = false;
 
   constructor(options: ParserOptions = {}) {
-    this.strategies = options.strategies || [
+    // Default to IDL parsing if not specified
+    const useIDL = options.useIDLParsing !== false;
+    
+    this.strategies = options.strategies || (useIDL ? [
+      new BCTradeIDLStrategy(),      // IDL-based BC parsing
+      new MigrationDetectionStrategy(), // Migration detection
+      new BCTradeStrategy(),          // Fallback simple parsing
+      new AMMTradeStrategy()          // AMM parsing
+    ] : [
       new BCTradeStrategy(),
       new AMMTradeStrategy()
-    ];
+    ]);
+    
     this.eventBus = options.eventBus;
     this.logger = new Logger({ 
       context: 'UnifiedEventParser',
@@ -160,16 +171,6 @@ export class UnifiedEventParser {
     const accounts: string[] = [];
     let instructionData: Buffer | undefined;
     
-    // Debug first transaction
-    if (!this._debugged) {
-      console.log('DEBUG: First gRPC data structure:', JSON.stringify(grpcData, (_key, value) => {
-        if (Buffer.isBuffer(value)) {
-          return { type: 'Buffer', length: value.length, first10: Array.from(value.slice(0, 10)) };
-        }
-        return value;
-      }, 2).substring(0, 1000));
-      this._debugged = true;
-    }
     
     let message, meta;
     
@@ -238,15 +239,6 @@ export class UnifiedEventParser {
       // Log error but continue
     }
     
-    // Debug: Log what we found
-    if (!this._debugged && accounts.length > 0) {
-      console.log('DEBUG: Parse results:', {
-        accounts: accounts.length,
-        instructionData: instructionData ? instructionData.length : 'none',
-        hasMeta: !!meta,
-        hasMessage: !!message
-      });
-    }
 
     // Extract logs (from the correct path)
     const logs = grpcData.transaction?.meta?.logMessages || meta?.logMessages || [];
@@ -259,9 +251,6 @@ export class UnifiedEventParser {
           if (match?.[1]) {
             try {
               instructionData = Buffer.from(match[1], 'base64');
-              if (!this._debugged) {
-                console.log('DEBUG: Extracted data from logs:', instructionData.length);
-              }
               break;
             } catch (error) {
               // Ignore decode errors
@@ -293,7 +282,10 @@ export class UnifiedEventParser {
       blockTime: grpcData.transaction?.transaction?.blockTime || grpcData.transaction?.blockTime || grpcData.blockTime || Date.now() / 1000,
       accounts,
       logs,
-      data: instructionData
+      data: instructionData,
+      accountKeys: message?.accountKeys || [],
+      userAddress: accounts[0], // First account is usually the fee payer/user
+      fullTransaction: grpcData // Pass full gRPC data for IDL parsing
     };
   }
 }

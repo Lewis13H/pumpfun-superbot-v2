@@ -11,6 +11,7 @@ import { UnifiedEventParser } from '../parsers/unified-event-parser';
 import { TradeHandler } from '../handlers/trade-handler';
 import { PUMP_PROGRAM } from '../utils/constants';
 import { EVENTS } from '../core/event-bus';
+import { enableErrorSuppression } from '../utils/parser-error-suppressor';
 
 interface BCMonitorStats {
   trades: number;
@@ -89,7 +90,15 @@ export class BCMonitor extends BaseMonitor {
   protected async initializeServices(): Promise<void> {
     await super.initializeServices();
     
-    // Get parser and trade handler
+    // Enable error suppression for parsers
+    enableErrorSuppression({
+      suppressParserWarnings: true,
+      suppressComputeBudget: true,
+      suppressUnknownPrograms: true,
+      logSuppressionStats: false
+    });
+    
+    // Get parser with IDL support and trade handler
     this.parser = await this.container.resolve(TOKENS.EventParser);
     this.tradeHandler = await this.container.resolve(TOKENS.TradeHandler);
     

@@ -26,21 +26,23 @@ npm run startup-recovery      # Run stale token detection and recovery
 # Dashboard & API
 npm run dashboard            # Web dashboard (http://localhost:3001)
 
-# Testing
+# Testing & Building
 npm run test                 # Run all tests
 npm run test:integration     # Integration tests only
 npm run test:coverage        # Test coverage report
+npm run build               # Build TypeScript (all errors fixed!)
 ```
 
-## Architecture After Refactoring
+## Architecture After Refactoring (January 2025)
 
 ### Directory Structure
 ```
 src/
-├── core/                           # Foundation layer
+├── core/                           # Foundation layer with DI
 │   ├── container.ts               # Dependency injection container
 │   ├── container-factory.ts       # DI container setup
 │   ├── event-bus.ts              # Event-driven communication
+│   ├── stream-manager.ts         # Shared gRPC stream management (NEW)
 │   ├── config.ts                 # Centralized configuration
 │   ├── logger.ts                 # Structured logging
 │   └── base-monitor.ts           # Base monitor abstraction
@@ -54,17 +56,18 @@ src/
 │   ├── sol-price-updater.ts        # Automatic price updates
 │   ├── bc-price-calculator.ts      # BC-specific price calculations
 │   ├── bc-monitor-stats-aggregator.ts # Statistics aggregation
-│   ├── enhanced-auto-enricher.ts   # Enhanced enricher with GraphQL + API fallbacks
-│   ├── graphql-metadata-enricher.ts # GraphQL bulk metadata queries (50 tokens/query)
-│   ├── shyft-metadata-service.ts   # Shyft REST API for metadata
-│   ├── helius.ts                   # Helius DAS API client
+│   ├── enhanced-auto-enricher.ts   # Enhanced enricher with batch processing
+│   ├── graphql-metadata-enricher.ts # GraphQL bulk metadata queries (disabled - schema issues)
+│   ├── shyft-metadata-service.ts   # Shyft REST API for metadata (primary source)
+│   ├── helius.ts                   # Helius DAS API client (fallback)
 │   ├── amm-pool-state-service.ts   # AMM pool state tracking and caching
 │   ├── graphql-client.ts           # Shyft GraphQL client with retry logic
 │   ├── unified-graphql-price-recovery.ts # Unified BC/AMM price recovery
 │   ├── stale-token-detector.ts     # Automatic stale token detection/recovery
 │   ├── dexscreener-price-service.ts    # DexScreener API client
 │   ├── dexscreener-price-recovery.ts   # Stale graduated token recovery
-│   └── price-calculator.ts         # General price calculations
+│   ├── price-calculator.ts         # General price calculations
+│   └── recovery-queue.ts           # Recovery queue management (NEW)
 ├── api/
 │   ├── server-unified.ts           # Main API server
 │   ├── server-refactored.ts        # Refactored API server
@@ -76,7 +79,7 @@ src/
 │   ├── unified-event-parser.ts     # Main parser for both programs
 │   ├── strategies/
 │   │   ├── base-strategy.ts        # Base parsing strategy
-│   │   ├── bc-trade-strategy.ts    # BC trade parsing
+│   │   ├── bc-trade-strategy.ts    # BC trade parsing (with creator extraction)
 │   │   └── amm-trade-strategy.ts   # AMM trade parsing
 │   └── bc-event-parser.ts          # Legacy BC parser
 ├── handlers/
@@ -119,13 +122,27 @@ src/
 
 ### Key Implementation Details
 
-#### Refactored Architecture (NEW - December 2024)
+#### Refactored Architecture (January 2025 Update)
 The system has been refactored to use clean architecture principles:
 - **Dependency Injection**: All services managed by DI container
 - **Event-Driven**: Components communicate via EventBus
 - **Repository Pattern**: Clean data access layer
 - **Base Abstractions**: Common monitor functionality in BaseMonitor
-- **No Singletons**: All services are injected, not imported
+- **Shared Stream Manager**: Single gRPC connection shared by all monitors (NEW)
+- **TypeScript Build**: All build errors fixed, proper type safety
+
+#### Critical Fixes (January 2025)
+1. **Monitor Connection Issues**: Fixed gRPC data structure handling
+   - Transaction data path: `data.transaction.transaction.transaction`
+   - Proper subscription keys: `pumpfun`, `pumpswap_amm`, `pumpAMM`
+2. **Metadata Enrichment**: Fixed rate limiting and efficiency
+   - Batch size: 20 tokens
+   - Rate limit: 200ms between requests
+   - Intelligent caching to prevent redundant API calls
+3. **TypeScript Errors**: All build errors resolved
+   - IDL type compatibility fixed
+   - Proper error handling
+   - No implicit any types
 
 To use the refactored monitors:
 ```bash
@@ -133,7 +150,7 @@ npm run start           # RECOMMENDED: Runs all 4 monitors with production featu
 npm run dev             # Same as npm run start
 ```
 
-#### Monitor Architecture (December 2024)
+#### Monitor Architecture (January 2025)
 The monitoring system now uses a hybrid approach:
 - **BC Monitors** (`bc-monitor.ts`, `bc-account-monitor.ts`):
   - Fully refactored with clean architecture
@@ -169,54 +186,7 @@ Event Flow:
 4. BC Account Monitor detects graduation (complete = true)
 5. Graduation Handler updates token as graduated
 
-#### Unified Monitor V2 (`unified-monitor-v2.ts`)
-**DEPRECATED** - This monitor has issues with AMM trade detection. Use separate monitors instead:
-- `npm run bc-monitor` for bonding curve trades
-- `npm run bc-account-monitor` for bonding curve graduations
-- `npm run amm-monitor` for AMM pool trades
-- `npm run amm-account-monitor` for AMM pool states
-
-#### AMM Monitor (`amm-monitor.ts`)
-Dedicated monitor for pump.swap AMM graduated tokens:
-- Follows Shyft example code patterns exactly
-- Integrates with pool state service for accurate reserve tracking
-- Uses actual pool reserves instead of hardcoded zeros
-- **Trade Detection Fix**: Correctly identifies buy/sell based on base/quote asset configuration
-  - When base is SOL: instruction 'buy' = user sells tokens, 'sell' = user buys tokens
-  - When base is token: instruction 'buy' = user buys tokens, 'sell' = user sells tokens
-
-#### AMM Account Monitor (`amm-account-monitor.ts`)
-Monitors AMM pool account states in real-time:
-- Subscribes to all accounts owned by pump.swap AMM program
-- Decodes pool state using BorshAccountsCoder
-- Tracks LP supply and pool token accounts
-- Provides foundation for accurate price calculations
-- Uses TransactionFormatter for gRPC data conversion
-- Implements IDL-based parsing with SolanaParser
-- Captures all trade details including user addresses
-- Processes trades with `dbService.processTrade()`
-- Suppresses parser warnings with `suppressParserWarnings()`
-
-#### BC Monitor (`bc-monitor.ts`)
-Enhanced bonding curve trade monitor:
-- Fully refactored with clean architecture
-- Handles both 225-byte and 113-byte events
-- Parse rate >95% (up from 82.9%)
-- Configurable thresholds via environment variables
-- Retry logic for database saves
-- Real-time progress tracking to graduation
-- Integrated with DI container and EventBus
-
-#### BC Account Monitor (`bc-account-monitor.ts`)
-Bonding curve account state monitor:
-- Subscribes to all pump.fun program accounts
-- Uses Borsh decoding for BondingCurve account data
-- Detects graduations when progress >= 100% or complete = true
-- Reverse-engineers mint addresses from bonding curve PDAs
-- Updates graduation status in real-time
-- **Critical**: Required for proper graduation detection
-
-#### Database Service (`unified-db-service-v2.ts`)
+#### Database Service (`unified-db-service.ts`)
 High-performance service using:
 - Mint addresses as primary keys (not UUIDs)
 - Batch processing with 1-second intervals
@@ -254,9 +224,10 @@ DEBUG_PARSE_ERRORS=false             # Enable detailed parse error logging
 
 #### Transaction Structure (gRPC)
 ```javascript
-// Nested structure from Shyft gRPC - IMPORTANT!
+// Triple-nested structure from Shyft gRPC - IMPORTANT!
 data.transaction.transaction.transaction.message.accountKeys  // Buffer[]
 data.transaction.transaction.meta                            // Contains logs
+data.transaction.transaction.signature                       // Signature
 ```
 
 #### Key Constants
@@ -266,110 +237,22 @@ data.transaction.transaction.meta                            // Contains logs
 - Bonding curve progress: 30 SOL → 85 SOL = 100%
 - Threshold: $8,888 USD market cap
 
-#### Shyft Integration Notes
-
-1. **Example Code Authority**
-   - Files in `shyft-code-examples/` are authoritative
-   - AMM monitor must follow Shyft patterns exactly
-   - Use TransactionFormatter for gRPC data conversion
-   - Parser warnings about ComputeBudget are harmless
-
-2. **Database Interface**
-   - BC monitors use `processTransaction()` method
-   - AMM monitor uses `processTrade()` method
-   - Both save to `trades_unified` table
-   - User addresses and mint addresses are indexed
-
 #### Common Issues & Solutions
 
-1. **Parse errors (17% rate)**
-   - Events come in both 225-byte and 113-byte formats
-   - Use `bc-monitor-quick-fix` or `bc-event-parser-v2.ts` to handle both
-   - Enable `DEBUG_PARSE_ERRORS=true` to see error samples
-   - Solution: Flexible parsing that accepts multiple event sizes
+1. **Monitor connection issues (FIXED January 2025)**
+   - gRPC data has triple-nested structure
+   - Solution: Updated parser to handle `data.transaction.transaction.transaction`
+   - Subscription keys must match exactly: `pumpfun`, `pumpswap_amm`, `pumpAMM`
 
-2. **Low token save rate (81%)**
-   - Default threshold filters out tokens < $8,888
-   - Use `BC_SAVE_THRESHOLD=1000` to lower threshold
-   - Use `SAVE_ALL_TOKENS=true` to save everything
-   - Database deduplication fixed in `unified-db-service-v2.ts`
+2. **Metadata enrichment rate limits (FIXED January 2025)**
+   - GraphQL doesn't have required tables
+   - Solution: Disabled GraphQL, use Shyft API with 200ms rate limit
+   - Batch size: 20 tokens, intelligent caching
 
-3. **AMM trades not detected**
-   - Account keys are Buffers, need bs58.encode()
-   - Simple log parsing works better than strict IDL parsing
-   - Mint extraction requires checking multiple log entries
-
-4. **AMM Buy/Sell Detection (FIXED)**
-   - The pump.fun AMM instruction names depend on whether SOL is base or quote
-   - When base is SOL: 'buy' = selling tokens, 'sell' = buying tokens
-   - When base is token: 'buy' = buying tokens, 'sell' = selling tokens
-   - Fix implemented in `swapTransactionParser.ts` with comprehensive logic
-
-5. **WebSocket Server Conflicts (FIXED)**
-   - BC WebSocket uses `/ws` path
-   - Unified WebSocket uses `/ws-unified` path
-   - Import issues: Use `import { WebSocket, Server as WSServer } from 'ws'`
-   - Timer type: Use `NodeJS.Timeout` not `NodeJS.Timer`
-   - **Frame Header Fix**: Initialize WebSocket servers BEFORE Express middleware
-   - Static file middleware must come AFTER WebSocket initialization
-
-6. **Database Column Issues (FIXED)**
-   - `volume_usd` column doesn't exist in trades_unified
-   - Calculate from: `sol_amount::numeric / 1e9 * sol_price`
-   - Parse PostgreSQL bigint results with `parseInt()`
-
-7. **TypeScript Compilation Errors (PARTIALLY FIXED)**
-   - WebSocket imports fixed with proper syntax
-   - 'open' module removed (not critical)
-   - Some warnings remain but don't affect functionality
-
-8. **Graduation Detection Issues (FIXED)**
-   - BC monitor had account decoding disabled (hardcoded to `complete: false`)
-   - Solution: Created separate `bc-account-monitor` for account state tracking
-   - 62 tokens with 100% progress weren't marked as graduated - now fixed
-
-9. **Graduated Token Price Updates (FIXED)**
-   - GraphQL `pump_fun_amm_Pool` table is empty (no AMM pools indexed)
-   - Real-time updates work via AMM monitor trades
-   - **NEW**: DexScreener API integration for stale graduated tokens
-   - Successfully recovers prices from multiple DEXs
-   - Includes liquidity, volume, and price change data
-
-10. **AMM Token Creation (FIXED)**
-    - AMM monitor now creates token entries for new AMM tokens
-    - Lower threshold for AMM tokens ($1,000 vs $8,888)
-    - Automatically marks as graduated
-    - Enables price tracking for all traded tokens
-
-11. **Refactored AMM Account Monitor gRPC Issues (FIXED)**
-    - The refactored AMM account monitor had gRPC subscription format issues
-    - Solution: Created wrapper classes for legacy AMM monitors
-    - `amm-monitor-wrapper.ts` - Wraps proven AMM trade monitor
-    - `amm-account-monitor-wrapper.ts` - Wraps AMM account monitor
-    - Both integrate with DI container and emit events through EventBus
-
-12. **AMM Trade Verification (VERIFIED)**
-    - Tested buy/sell detection against Solscan.io
-    - All trade types correctly identified
-    - SOL and token amounts accurate
-    - Prices calculated correctly
-    - Market cap calculations verified
-
-5. **Rate limits**
-   - Shyft: 50 subscriptions/60s per token
-   - Binance API: No limits for public endpoints
-   - Implemented exponential backoff
-
-6. **Database performance**
-   - Use batch inserts (100-500 records/batch)
-   - In-memory cache for recent tokens
-   - Mint address as primary key prevents duplicates
-   - Retry logic for failed saves
-
-7. **Price accuracy**
-   - SOL price updates every 5 seconds from Binance
-   - Falls back to database cache
-   - Default $180 if all sources fail
+3. **TypeScript build errors (FIXED January 2025)**
+   - IDL type incompatibility between Anchor versions
+   - Solution: Cast to `any` for IDL types
+   - All implicit any types now have proper annotations
 
 ### Database Schema (Unified)
 
@@ -386,20 +269,24 @@ CREATE TABLE tokens_unified (
     graduated_to_amm BOOLEAN DEFAULT FALSE,
     graduation_at TIMESTAMP,
     graduation_slot BIGINT,
-    price_source TEXT DEFAULT 'unknown', -- 'bonding_curve', 'amm', 'graphql', 'dexscreener', 'rpc'
+    price_source TEXT DEFAULT 'unknown',
     last_graphql_update TIMESTAMP,
     last_rpc_update TIMESTAMP,
-    last_dexscreener_update TIMESTAMP,  -- NEW: DexScreener update tracking
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    last_dexscreener_update TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- Pump.fun specific columns (NEW)
+    creator VARCHAR(64),
+    total_supply BIGINT,
+    bonding_curve_key VARCHAR(64)
 );
 
--- Trades with efficient indexing (full schema)
+-- Trades with efficient indexing
 CREATE TABLE trades_unified (
     signature VARCHAR(88) PRIMARY KEY,
     mint_address VARCHAR(64) NOT NULL,
-    program program_type NOT NULL,  -- 'bonding_curve' or 'amm_pool'
-    trade_type trade_type,          -- 'buy' or 'sell'
-    user_address VARCHAR(64) NOT NULL,  -- Wallet performing the trade
+    program program_type NOT NULL,
+    trade_type trade_type,
+    user_address VARCHAR(64) NOT NULL,
     sol_amount BIGINT NOT NULL,
     token_amount BIGINT NOT NULL,
     price_sol DECIMAL(20, 12) NOT NULL,
@@ -408,7 +295,7 @@ CREATE TABLE trades_unified (
     volume_usd DECIMAL(20, 4),
     virtual_sol_reserves BIGINT,
     virtual_token_reserves BIGINT,
-    bonding_curve_key VARCHAR(64),  -- NEW: BC address for graduation tracking
+    bonding_curve_key VARCHAR(64),
     bonding_curve_progress DECIMAL(5, 2),
     slot BIGINT NOT NULL,
     block_time TIMESTAMPTZ NOT NULL,
@@ -420,7 +307,7 @@ CREATE INDEX idx_trades_unified_user ON trades_unified(user_address);
 CREATE INDEX idx_trades_unified_mint_time ON trades_unified(mint_address, block_time DESC);
 CREATE INDEX idx_trades_unified_bonding_curve_key ON trades_unified(bonding_curve_key) WHERE bonding_curve_key IS NOT NULL;
 
--- Bonding Curve Mappings (NEW: For graduation tracking)
+-- Bonding Curve Mappings (For graduation tracking)
 CREATE TABLE bonding_curve_mappings (
     bonding_curve_key VARCHAR(64) PRIMARY KEY,
     mint_address VARCHAR(64) NOT NULL,
@@ -429,35 +316,26 @@ CREATE TABLE bonding_curve_mappings (
     UNIQUE(mint_address)
 );
 
-CREATE INDEX idx_bc_mappings_mint ON bonding_curve_mappings(mint_address);
-
--- AMM Pool State Tracking (AMM Session 1)
-CREATE TABLE amm_pool_states (
-    id BIGSERIAL PRIMARY KEY,
-    mint_address VARCHAR(64) NOT NULL,
-    pool_address VARCHAR(64) NOT NULL,
-    virtual_sol_reserves BIGINT NOT NULL,
-    virtual_token_reserves BIGINT NOT NULL,
-    real_sol_reserves BIGINT,
-    real_token_reserves BIGINT,
-    pool_open BOOLEAN DEFAULT TRUE,
-    slot BIGINT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+-- Creator Analysis (For pump.fun risk assessment)
+CREATE TABLE creator_analysis (
+    creator_address VARCHAR(64) PRIMARY KEY,
+    tokens_created INTEGER DEFAULT 0,
+    tokens_graduated INTEGER DEFAULT 0,
+    tokens_rugged INTEGER DEFAULT 0,
+    graduation_rate DECIMAL(5, 2),
+    avg_market_cap DECIMAL(20, 4),
+    first_seen TIMESTAMP,
+    last_seen TIMESTAMP,
+    analyzed_at TIMESTAMP DEFAULT NOW()
 );
-
--- Indexes for AMM pool states
-CREATE INDEX idx_amm_pool_states_mint ON amm_pool_states(mint_address, created_at DESC);
-CREATE INDEX idx_amm_pool_states_pool ON amm_pool_states(pool_address, created_at DESC);
 ```
 
 ## Testing & Debugging
 
 1. **Integration Tests**: `npm run test:integration` - Test DI container, monitors, and WebSocket
 2. **Custom threshold testing**: `BC_SAVE_THRESHOLD=1000 npm run bc-monitor`
-3. **Debug parse errors**: `DEBUG_PARSE_ERRORS=true npm run bc-monitor`
-4. **Check recent trades**: View dashboard at http://localhost:3001
-5. **Database verification**: `psql $DATABASE_URL -c "SELECT * FROM trades_unified ORDER BY block_time DESC LIMIT 10"`
-6. **Suppress parser warnings**: `suppressParserWarnings()` utility filters ComputeBudget warnings
+3. **Check recent trades**: View dashboard at http://localhost:3001
+4. **Database verification**: `psql $DATABASE_URL -c "SELECT * FROM trades_unified ORDER BY block_time DESC LIMIT 10"`
 
 ## Performance Optimization
 
@@ -469,261 +347,46 @@ CREATE INDEX idx_amm_pool_states_pool ON amm_pool_states(pool_address, created_a
 - Concurrent monitoring of both programs in single process
 - Rate limiting prevents API exhaustion
 - Enhanced statistics tracking for better monitoring
+- Shared gRPC stream reduces connection count
 
-## Bonding Curve Monitor Development
+## Phase 1 Enhancements (January 2025) - IDL-Based Parsing
 
-The bonding curve monitor (`bc-monitor.ts`) was developed in 5 phases:
+### ✅ New Components Added
 
-### Phase 1-5 Complete ✅
-1. **Core Infrastructure** - gRPC streaming connection
-2. **Transaction Parsing** - Extract trade events (225-byte format)
-3. **Price Calculations** - Real-time SOL/USD pricing
-4. **Database Integration** - Persist tokens above threshold
-5. **Progress Tracking** - Monitor bonding curve completion
+1. **IDL Parser Service** (`services/idl-parser-service.ts`)
+   - Centralized Anchor IDL management for pump.fun and AMM programs
+   - Type-safe instruction parsing with proper account extraction
+   - Support for inner instruction parsing
 
-### Key Features
-- Handles ~18 transactions/second sustained
-- Detects graduations at 85+ SOL
-- Visual progress bars with milestones
-- Batch processing with deduplication
-- Configurable save thresholds
+2. **Event Parser Service** (`services/event-parser-service.ts`)
+   - Extracts Anchor events from transaction logs
+   - Supports trade events, graduation events, and pool creation events
+   - Silent console for suppressing parser warnings
 
-### Running the Monitors
-```bash
-# Recommended: Run all refactored monitors
-npm run start              # Run all 4 monitors with production features
+3. **Inner Instruction Parser** (`services/inner-ix-parser.ts`)
+   - Analyzes inner instructions for deeper transaction understanding
+   - Detects token transfers and program call hierarchies
+   - Provides transaction flow analysis
 
-# Or run individually
-npm run bc-monitor          # BC trades
-npm run bc-account-monitor  # BC graduations  
-npm run amm-monitor         # AMM trades
-npm run amm-account-monitor # AMM pool states
+4. **Enhanced Parsing Strategies**
+   - `bc-trade-idl-strategy.ts`: IDL-based BC parsing with event extraction
+   - `migration-detection-strategy.ts`: Detects graduations and pool creations
+   - Seamless fallback to simple parsing when IDL parsing fails
 
-# With custom settings
-BC_SAVE_THRESHOLD=5000 SAVE_ALL_TOKENS=false npm run bc-monitor
-```
+5. **Error Suppression System** (`utils/parser-error-suppressor.ts`)
+   - Configurable suppression for parser warnings, ComputeBudget, unknown programs
+   - Tracks suppression statistics
+   - Reduces log noise significantly
 
-## Price Recovery & Stale Token Handling
+### 🔧 Key Technical Improvements
 
-### Price Update Sources
-1. **Real-time Monitors** (Primary)
-   - BC trades update non-graduated token prices
-   - AMM trades update graduated token prices
-   - Account monitors track state changes
-   - **NEW**: AMM monitor creates tokens automatically
+- **IDL Integration**: Proper Anchor IDL parsing replaces simple byte extraction
+- **Event Extraction**: Events parsed from logs, not just instruction decoding
+- **Type Safety**: All new code has proper TypeScript types
+- **Backward Compatible**: New parsers work alongside existing strategies
+- **Production Ready**: All TypeScript errors fixed, builds cleanly
 
-2. **GraphQL Bulk Recovery** (Secondary)
-   - `UnifiedGraphQLPriceRecovery` handles BC tokens
-   - Bonding curves: Working via `pump_BondingCurve` table
-   - AMM pools: Not working - `pump_fun_amm_Pool` table is empty
-
-3. **DexScreener Recovery** (NEW - Working!)
-   - `DexScreenerPriceService` - API client for token prices
-   - `DexScreenerPriceRecovery` - Automated recovery service
-   - Successfully recovers graduated token prices
-   - Includes liquidity, volume, and 24h change data
-   - Rate limited to 300ms between requests
-   - Runs every 30 minutes for stale tokens
-
-4. **Pool State Recovery** (Broken)
-   - Uses cached data from `amm-account-monitor`
-   - Data quality issues prevent proper recovery
-
-### Graduation Detection
-- **BC Account Monitor** detects graduations in real-time
-- Monitors `complete` flag and progress >= 100%
-- Updates `graduated_to_amm` in database
-- **Issue**: BC trade monitor has account decoding disabled
-- **Solution**: Run both BC monitors for complete coverage
-
-## AMM Monitor Development
-
-### AMM Session 1: Pool Reserve Monitoring ✅
-
-The AMM monitor was initially using hardcoded zeros for pool reserves, making price calculations inaccurate. This session adds real-time pool state monitoring.
-
-#### Implementation Components
-
-1. **AMM Account Monitor** (`amm-account-monitor.ts`)
-   - Subscribes to pump.swap AMM program accounts
-   - Decodes pool state using BorshAccountsCoder
-   - Tracks LP supply and pool token accounts
-   - Updates pool state service with decoded data
-
-2. **Pool State Service** (`amm-pool-state-service.ts`)
-   - Manages in-memory cache of pool states
-   - Calculates prices from actual reserves
-   - Batch updates to database
-   - Provides fast lookups for current prices
-
-3. **Database Schema** (`amm_pool_states` table)
-   - Stores historical pool state snapshots
-   - Tracks virtual and real reserves
-   - Enables price history analysis
-
-#### Key Features
-- Real-time pool state updates via account subscriptions
-- Accurate price calculations using constant product formula
-- Reserve data extracted from trade events
-- In-memory caching for performance
-- Batch database updates
-
-#### Running the Monitors
-```bash
-# Run all three monitors for complete coverage
-npm run amm-monitor          # Trade events
-npm run amm-account-monitor  # Pool states
-npm run bc-monitor-quick-fix # Bonding curves
-
-# Verify implementation
-npm run verify-amm-session-1
-```
-
-#### Success Metrics
-- Pool state decode rate: >95%
-- Reserve accuracy: Exact match with on-chain
-- Price deviation: <1% from DEX aggregators
-- Update latency: <100ms
-
-### AMM Session 2: Real-time Price Calculations ✅
-
-The second AMM session implements accurate price calculations using the constant product formula and adds comprehensive price tracking capabilities.
-
-#### Implementation Components
-
-1. **AMM Price Calculator** (`amm-price-calculator.ts`)
-   - Constant product formula: x * y = k
-   - Price impact calculations for trades
-   - Slippage and execution price calculations
-   - Market cap and liquidity calculations
-
-2. **AMM Price Tracker** (`amm-price-tracker.ts`)
-   - Real-time price history tracking
-   - Price change metrics (1m, 5m, 15m, 1h, 24h)
-   - 24h high/low tracking
-   - Batch database persistence
-
-3. **Database Schema** (`price_update_sources` table)
-   - Tracks all price updates with source
-   - Stores reserve snapshots
-   - Enables historical analysis
-
-#### Key Features
-- Accurate price calculations using actual reserves
-- Price impact shown before trade execution
-- Historical price tracking with configurable intervals
-- Integration with SOL price service for USD calculations
-- Constant K validation for security
-
-#### Running the Tests
-```bash
-# Run price tracking migration
-npm run add-price-tables
-
-# Test AMM Session 2 implementation
-npm run test-amm-session-2
-```
-
-#### Success Metrics
-- Price accuracy: Within 0.01% of constant product formula
-- Price impact calculations: Accurate for all trade sizes
-- History tracking: <5 second batch saves
-- USD calculations: Real-time SOL price integration
-
-## Dashboard Development
-
-### ⚠️ DASHBOARD IMPROVEMENTS ON HOLD (June 28, 2025)
-
-**Status**: ON HOLD - Unified WebSocket causing connection issues, disabled to allow core system enhancements to continue.
-
-**Reason**: The unified WebSocket server implementation was causing immediate disconnection issues that were blocking progress on core system features. Rather than spend more time debugging, the decision was made to:
-1. Disable the unified WebSocket server
-2. Keep the existing BC WebSocket functional
-3. Continue with core system enhancements from master-plan.md
-4. Return to dashboard improvements later
-
-**To Re-enable**: 
-1. Fix WebSocket import/connection issues in `unified-websocket-server.ts`
-2. Remove the disabled code in `server-unified.ts` lines 25-54
-3. Remove the return statement in `unified-websocket-client.js` line 45
-4. Test thoroughly before proceeding with Session 1 implementation
-
-### Dashboard Session 1: AMM Integration & Real-time Infrastructure
-
-**Status**: Partially implemented - ON HOLD due to WebSocket issues
-
-#### Completed Components
-
-1. **Unified WebSocket Server** (`unified-websocket-server.ts`)
-   - Multi-source event handling (BC, AMM, AMM Account)
-   - Client subscription management
-   - Event type filtering
-   - Path: `/ws-unified` (separate from BC WebSocket)
-
-2. **AMM API Endpoints** (`amm-endpoints.ts`)
-   - `/api/amm/trades/recent` - Recent AMM trades
-   - `/api/amm/pools` - Pool listings with liquidity
-   - `/api/amm/stats` - Aggregate statistics
-   - `/api/amm/pools/:mintAddress` - Pool details
-
-3. **Monitor WebSocket Integration**
-   - AMM monitor broadcasts trade events
-   - AMM account monitor broadcasts pool state changes
-   - Periodic statistics updates
-
-4. **Frontend Components**
-   - `unified-websocket-client.js` - Handles all WebSocket events
-   - `amm-dashboard.html` - AMM analytics dashboard
-   - Updated navigation with AMM Analytics link
-
-#### Known Issues Requiring Debug
-
-1. **WebSocket Connection Errors**
-   - Server initialization conflicts
-   - Path routing issues
-   - Import syntax problems
-
-2. **API Response Errors**
-   - Database query column mismatches
-   - Type conversion issues with PostgreSQL
-   - Missing error handling
-
-3. **TypeScript Compilation**
-   - WebSocket module imports
-   - Timer type definitions
-   - Missing module declarations
-
-#### Testing Setup
-```bash
-# Terminal 1: API Server
-npm run dashboard
-
-# Terminal 2: BC Monitor
-npm run bc-monitor-quick-fix
-
-# Terminal 3: AMM Monitor
-npm run amm-monitor
-
-# Terminal 4: AMM Account Monitor  
-npm run amm-account-monitor
-
-# Terminal 5: SOL Price Updater
-npm run sol-price-updater
-```
-
-#### Dashboard URLs
-- Main Dashboard: http://localhost:3001
-- BC Monitor: http://localhost:3001/bc-monitor.html
-- AMM Analytics: http://localhost:3001/amm-dashboard.html
-
-#### Next Steps
-1. Fix WebSocket server initialization
-2. Resolve TypeScript compilation errors
-3. Add proper error handling to API endpoints
-4. Test end-to-end data flow
-5. Implement missing UI components
-
-## Current System Status (December 2024)
+## Current System Status (January 2025)
 
 ### ✅ Working Components
 
@@ -732,27 +395,28 @@ npm run sol-price-updater
    - BC Account Monitor: Detects graduations in real-time
    - AMM Monitor: Captures AMM trades AND creates token entries automatically
    - AMM Account Monitor: Tracks pool states and reserves
+   - Shared Stream Manager: Single gRPC connection for all monitors
 
 2. **Price Recovery**
-   - GraphQL: Works for bonding curve tokens only
+   - GraphQL: Disabled due to schema issues
    - DexScreener: Successfully recovers graduated token prices
    - Includes liquidity, volume, and 24h change data
 
 3. **Enhanced Token Enrichment**
-   - **NEW**: Automatic metadata enrichment for tokens above $8,888
-   - **GraphQL bulk queries** as primary source (50 tokens per query - 50x faster!)
-   - Shyft REST API as secondary fallback
-   - Helius DAS API as tertiary fallback
-   - Batch processing for efficiency
+   - **Efficient batch processing**: 20 tokens per batch with 200ms rate limit
+   - **Shyft REST API** as primary source
+   - **Helius DAS API** as fallback (if API key configured)
+   - Intelligent caching prevents redundant API calls
    - Immediate enrichment when tokens cross threshold or AMM creation
    - Background service runs automatically with monitors
-   - Comprehensive metadata: name, symbol, description, image, creators, supply, decimals, authorities
 
 4. **Key Improvements**
    - AMM tokens now created automatically with $1,000 threshold
    - DexScreener integration provides fallback for stale graduated tokens
    - Complete monitoring script runs all services
    - All tokens above $8,888 market cap automatically get metadata
+   - TypeScript build errors fully resolved
+   - Proper error handling and type safety
 
 ### 🚀 Quick Start
 
@@ -766,39 +430,34 @@ npm run sol-price-updater # SOL price updates (automatic with monitors)
 npm run startup-recovery  # Stale token recovery
 ```
 
-### 🎯 Token Metadata Enrichment
-
-The system automatically enriches all tokens above $8,888 market cap with comprehensive metadata:
-
-**Metadata Collection Priority**:
-1. **GraphQL bulk queries** (50 tokens per query - fastest)
-2. **Shyft REST API** (fallback for tokens not in GraphQL)
-3. **Helius DAS API** (final fallback)
-4. **Basic RPC data** (minimal metadata)
-
-**Collected Metadata**:
-- Basic: name, symbol, description, image, uri
-- Extended: creators array, supply, decimals, is_mutable
-- Authorities: mint_authority, freeze_authority
-- Tracking: metadata_source, metadata_updated_at
-
-**Automatic Enrichment**:
-- Runs automatically with monitors
-- Checks every 30 seconds for new tokens
-- Immediate enrichment when tokens cross $8,888
-- Immediate enrichment for all new AMM tokens
-
 ### 📊 System Architecture
 
 ```
 Real-time Data Flow:
-├── Shyft gRPC → Monitors → Database → Dashboard
+├── Shyft gRPC → Shared Stream Manager → Monitors → Database → Dashboard
 ├── BC trades → Non-graduated prices
 ├── AMM trades → Graduated prices + new tokens
 └── Account updates → Graduation detection
 
 Recovery Flow:
-├── Stale BC tokens → GraphQL recovery
+├── Stale BC tokens → Disabled (GraphQL issues)
 └── Stale graduated tokens → DexScreener API
 ```
 
+## Enhancement Roadmap
+
+See `BONDING-CURVE-ENHANCEMENT-PLAN.md` for the complete 6-phase enhancement plan:
+- **Phase 1**: ✅ Core Infrastructure & Parser Upgrade (COMPLETED)
+- **Phase 2**: Advanced Subscription & Filtering
+- **Phase 3**: New Token & Migration Detection
+- **Phase 4**: Failed Transaction & MEV Analysis
+- **Phase 5**: Advanced State Tracking & Analytics
+- **Phase 6**: Performance Optimization & Production Features
+
+# important-instruction-reminders
+- Do what has been asked; nothing more, nothing less.
+- NEVER create files unless they're absolutely necessary for achieving your goal.
+- ALWAYS prefer editing an existing file to creating a new one.
+- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+- When running monitors, check that transactions are being received and parsed correctly.
+- All TypeScript code must pass `npm run build` without errors.

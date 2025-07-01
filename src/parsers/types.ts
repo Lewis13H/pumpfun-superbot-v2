@@ -33,6 +33,15 @@ export interface TradeEvent extends BaseEvent {
   virtualTokenReserves: bigint;
   realSolReserves?: bigint;
   realTokenReserves?: bigint;
+  // Phase 1 additions
+  innerInstructions?: number;
+  tokenTransfers?: number;
+  hasPoolCreation?: boolean;
+  graduated?: boolean;
+  migrationTx?: string;
+  destinationType?: 'amm_pool' | 'raydium' | 'unknown';
+  poolCreated?: boolean;
+  poolAddress?: string;
 }
 
 export interface BCTradeEvent extends TradeEvent {
@@ -77,6 +86,9 @@ export interface ParseContext {
   accounts: string[];
   logs: string[];
   data?: Buffer;
+  accountKeys?: (string | Buffer)[];
+  userAddress?: string;
+  fullTransaction?: any; // Full gRPC transaction data for IDL parsing
 }
 
 export interface ParseStrategy {
