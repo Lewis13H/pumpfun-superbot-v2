@@ -54,7 +54,7 @@ src/
 │   ├── bc-account-monitor.ts       # BC account state monitor (refactored with DI)
 │   ├── amm-monitor.ts              # AMM pool trade monitor (wrapped legacy with DI)
 │   └── amm-account-monitor.ts      # AMM account state monitor (wrapped legacy with DI)
-├── services/                        # 20+ essential services
+├── services/                        # 30+ essential services
 │   ├── sol-price.ts                # Binance API integration
 │   ├── sol-price-updater.ts        # Automatic price updates
 │   ├── bc-price-calculator.ts      # BC-specific price calculations
@@ -73,12 +73,27 @@ src/
 │   ├── recovery-queue.ts           # Recovery queue management (NEW)
 │   ├── idl-parser-service.ts       # Anchor IDL parsing (Phase 1)
 │   ├── event-parser-service.ts     # Event extraction from logs (Phase 1)
-│   └── inner-ix-parser.ts          # Inner instruction analysis (Phase 1)
+│   ├── inner-ix-parser.ts          # Inner instruction analysis (Phase 1)
+│   ├── token-creation-detector.ts  # New token detection (Phase 3)
+│   ├── migration-tracker.ts        # BC to AMM migration tracking (Phase 3)
+│   ├── pool-creation-monitor.ts    # Pool creation detection (Phase 3)
+│   ├── token-lifecycle-service.ts  # Token lifecycle tracking (Phase 3)
+│   ├── failed-tx-analyzer.ts       # Failed transaction analysis (Phase 4)
+│   ├── mev-detector.ts            # MEV pattern detection (Phase 4)
+│   ├── slippage-analyzer.ts       # Slippage analysis & recommendations (Phase 4)
+│   ├── congestion-monitor.ts      # Network congestion monitoring (Phase 4)
+│   ├── block-tracker.ts           # Block & slot tracking (Phase 5)
+│   ├── state-history-service.ts   # State history & write versions (Phase 5)
+│   ├── liquidity-depth-tracker.ts # Liquidity depth analysis (Phase 5)
+│   ├── fork-detector.ts          # Fork detection & handling (Phase 5)
+│   └── consistency-validator.ts   # Cross-service validation (Phase 5)
 ├── api/
 │   ├── server-unified.ts           # Main API server
 │   ├── server-refactored.ts        # Refactored API server
 │   ├── bc-monitor-endpoints.ts     # BC monitor specific endpoints
-│   └── amm-endpoints.ts            # AMM analytics endpoints
+│   ├── amm-endpoints.ts            # AMM analytics endpoints
+│   ├── migration-analytics-endpoints.ts # Migration analytics API (Phase 3)
+│   └── failure-analytics-endpoints.ts   # Failure analytics API (Phase 4)
 ├── database/
 │   └── unified-db-service.ts       # High-performance DB service
 ├── parsers/
@@ -396,6 +411,103 @@ CREATE TABLE creator_analysis (
 - **Backward Compatible**: New parsers work alongside existing strategies
 - **Production Ready**: All TypeScript errors fixed, builds cleanly
 
+## Complete System Architecture After All Enhancements
+
+### Enhanced Monitoring Pipeline
+```
+1. Data Ingestion Layer
+   ├── Shared gRPC Stream Manager
+   ├── Enhanced Subscription Builder (Phase 2)
+   └── Filter Factory for targeted monitoring
+
+2. Parsing & Analysis Layer
+   ├── IDL-based Event Parser (Phase 1)
+   ├── Inner Instruction Analyzer
+   ├── Failed Transaction Analyzer (Phase 4)
+   └── MEV Pattern Detector
+
+3. State Tracking Layer (Phase 5)
+   ├── Block & Slot Tracker
+   ├── State History Service
+   ├── Fork Detection
+   └── Write Version Tracking
+
+4. Token Lifecycle Layer (Phase 3)
+   ├── Creation Detection
+   ├── Migration Tracking
+   ├── Pool Creation Monitoring
+   └── Abandonment Detection
+
+5. Market Intelligence Layer
+   ├── Liquidity Depth Analysis (Phase 5)
+   ├── Price Impact Calculations
+   ├── Slippage Recommendations (Phase 4)
+   └── Manipulation Risk Assessment
+
+6. Network Health Layer (Phase 4)
+   ├── Congestion Monitoring
+   ├── Failure Rate Analysis
+   ├── MEV Activity Tracking
+   └── Performance Metrics
+
+7. Consistency & Recovery Layer (Phase 5)
+   ├── Cross-Service Validation
+   ├── Automatic Repair
+   ├── Historical Reconstruction
+   └── Orphaned Transaction Recovery
+```
+
+### Database Schema Overview
+
+After all phases, the system uses these primary tables:
+
+1. **Core Trading Data**
+   - `tokens_unified` - Token information with lifecycle status
+   - `trades_unified` - All trades with enhanced metadata
+   - `bonding_curve_mappings` - BC to token mappings
+
+2. **Lifecycle Tracking** (Phase 3)
+   - `token_lifecycle` - Complete token journey tracking
+   - `creator_analysis` - Creator performance analytics
+   - `migration_events` - BC to AMM migrations
+
+3. **Failed Transaction Analysis** (Phase 4)
+   - `failed_transactions` - Categorized failures
+   - `mev_events` - Detected MEV activity
+   - `slippage_analysis` - Historical slippage data
+
+4. **State & Chain Tracking** (Phase 5)
+   - `slot_progression` - Complete slot history
+   - `account_state_history` - State changes with write versions
+   - `liquidity_snapshots` - Periodic liquidity depth
+   - `fork_events` - Detected forks and orphaned slots
+   - `consistency_issues` - Validation failures
+
+### API Endpoints Summary
+
+The system provides comprehensive REST APIs:
+
+1. **Core Monitoring** (`/api/v1/`)
+   - Token data and trades
+   - Real-time price feeds
+   - Volume analytics
+
+2. **Migration Analytics** (`/api/v1/lifecycle/`)
+   - Token creation tracking
+   - Graduation statistics
+   - Creator leaderboards
+
+3. **Failure Analytics** (`/api/v1/failures/`)
+   - Failed transaction analysis
+   - MEV detection stats
+   - Slippage recommendations
+   - Network congestion status
+
+4. **Historical Queries** (`/api/v1/history/`)
+   - State reconstruction
+   - Historical liquidity
+   - Fork information
+
 ## Current System Status (January 2025)
 
 ### ✅ Working Components
@@ -613,6 +725,73 @@ Recovery Flow:
 - **Liquidity Intelligence**: Deep liquidity analysis with manipulation detection
 - **Fork Safety**: Automatic detection and handling of chain reorganizations
 - **Self-Healing**: Consistency validation with automatic repair attempts
+
+### Integration with Existing System
+
+The Phase 5 services integrate seamlessly with the existing monitoring infrastructure:
+
+1. **Event-Driven Integration**
+   - Block Tracker listens to `slot:update` events from monitors
+   - State History tracks `account:updated` and `transaction:processed` events
+   - Liquidity Tracker monitors `TRADE_PROCESSED` and `POOL_STATE_UPDATED` events
+   - Fork Detector emits `fork:detected` for other services to handle
+
+2. **Data Flow**
+   ```
+   Monitors → EventBus → Phase 5 Services → Database
+                      ↓
+                Consistency Validator
+                      ↓
+               Repair & Alerts
+   ```
+
+3. **Service Dependencies**
+   - Consistency Validator depends on all other Phase 5 services
+   - Monitors can query historical state via State History Service
+   - Failed Transaction Analyzer (Phase 4) uses Fork Detector for orphaned tx detection
+   - Liquidity analytics integrate with price calculations
+
+### Advanced Capabilities
+
+1. **Historical Queries**
+   ```typescript
+   // Reconstruct any account state at any past slot
+   const historicalState = await stateHistory.reconstructStateAtSlot(pubkey, slot);
+   
+   // Get all state changes for an account
+   const changes = await stateHistory.getStateChanges(pubkey, startSlot, endSlot);
+   ```
+
+2. **Liquidity Analysis**
+   ```typescript
+   // Get current liquidity depth
+   const snapshot = liquidityTracker.getCurrentLiquidity(mintAddress);
+   
+   // Calculate price impact
+   const impact = liquidityTracker.calculatePriceImpact(snapshot, tradeSizeSol);
+   
+   // Check manipulation risk
+   const risk = await liquidityTracker.analyzeDepth(mintAddress, snapshot);
+   ```
+
+3. **Fork Handling**
+   ```typescript
+   // Automatically detects forks
+   forkDetector.on('fork:detected', (event) => {
+     // Identifies orphaned slots and transactions
+     const orphaned = event.orphanedSlots;
+     const affected = event.affectedTransactions;
+   });
+   ```
+
+4. **Consistency Validation**
+   ```typescript
+   // Run full validation
+   const report = await consistencyValidator.runValidation();
+   
+   // Auto-repair inconsistencies
+   const { repaired, failed } = await consistencyValidator.repairInconsistencies();
+   ```
 
 ## Enhancement Roadmap
 
