@@ -25,7 +25,9 @@
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
     "test:run-all": "tsx src/tests/run-integration-tests.ts",
-    "server-refactored": "tsx src/api/server-refactored.ts"
+    "server-refactored": "tsx src/api/server-refactored.ts",
+    "start:performance": "tsx src/start-performance-monitors.ts",
+    "performance:metrics": "tsx src/api/performance-metrics-api.ts"
   },
   "name": "pumpfun-superbot-v2",
   "version": "1.0.0",

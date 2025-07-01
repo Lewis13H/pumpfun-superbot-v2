@@ -26,6 +26,10 @@ npm run startup-recovery      # Run stale token detection and recovery
 # Dashboard & API
 npm run dashboard            # Web dashboard (http://localhost:3001)
 
+# Performance Optimized Mode (Phase 6)
+npm run start:performance    # Run monitors with all performance optimizations
+npm run performance:metrics  # Performance metrics API (http://localhost:3002)
+
 # Testing & Building
 npm run test                 # Run all tests
 npm run test:integration     # Integration tests only
@@ -86,14 +90,20 @@ src/
 │   ├── state-history-service.ts   # State history & write versions (Phase 5)
 │   ├── liquidity-depth-tracker.ts # Liquidity depth analysis (Phase 5)
 │   ├── fork-detector.ts          # Fork detection & handling (Phase 5)
-│   └── consistency-validator.ts   # Cross-service validation (Phase 5)
+│   ├── consistency-validator.ts   # Cross-service validation (Phase 5)
+│   ├── commitment-strategy.ts     # Dynamic commitment level management (Phase 6)
+│   ├── multi-region-manager.ts    # Geographic failover and redundancy (Phase 6)
+│   ├── slot-recovery-service.ts   # Historical data recovery (Phase 6)
+│   ├── performance-monitor.ts     # Comprehensive performance tracking (Phase 6)
+│   └── alert-manager.ts          # Intelligent alert aggregation (Phase 6)
 ├── api/
 │   ├── server-unified.ts           # Main API server
 │   ├── server-refactored.ts        # Refactored API server
 │   ├── bc-monitor-endpoints.ts     # BC monitor specific endpoints
 │   ├── amm-endpoints.ts            # AMM analytics endpoints
 │   ├── migration-analytics-endpoints.ts # Migration analytics API (Phase 3)
-│   └── failure-analytics-endpoints.ts   # Failure analytics API (Phase 4)
+│   ├── failure-analytics-endpoints.ts   # Failure analytics API (Phase 4)
+│   └── performance-metrics-endpoints.ts # Performance metrics API (Phase 6)
 ├── database/
 │   └── unified-db-service.ts       # High-performance DB service
 ├── parsers/
@@ -455,6 +465,13 @@ CREATE TABLE creator_analysis (
    ├── Automatic Repair
    ├── Historical Reconstruction
    └── Orphaned Transaction Recovery
+
+8. Performance & Production Layer (Phase 6)
+   ├── Adaptive Commitment Strategy
+   ├── Multi-Region Failover
+   ├── Performance Monitoring
+   ├── Alert Management
+   └── Slot Recovery Service
 ```
 
 ### Database Schema Overview
@@ -801,7 +818,7 @@ See `BONDING-CURVE-ENHANCEMENT-PLAN.md` for the complete 6-phase enhancement pla
 - **Phase 3**: ✅ New Token & Migration Detection (COMPLETED)
 - **Phase 4**: ✅ Failed Transaction & MEV Analysis (COMPLETED)
 - **Phase 5**: ✅ Advanced State Tracking & Analytics (COMPLETED)
-- **Phase 6**: Performance Optimization & Production Features
+- **Phase 6**: ✅ Performance Optimization & Production Features (COMPLETED)
 
 # important-instruction-reminders
 - Do what has been asked; nothing more, nothing less.
