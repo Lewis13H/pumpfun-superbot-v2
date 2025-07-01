@@ -77,7 +77,7 @@ export class TradeHandler {
         virtualSolReserves: event.virtualSolReserves,
         virtualTokenReserves: event.virtualTokenReserves,
         slot: event.slot,
-        blockTime: new Date(event.blockTime || Date.now())
+        blockTime: new Date((event.blockTime || Date.now() / 1000) * 1000)
       };
       
       // Add bonding curve specific fields if applicable

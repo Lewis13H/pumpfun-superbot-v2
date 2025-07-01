@@ -118,6 +118,10 @@ async function startMonitors() {
     await container.resolve(TOKENS.SolPriceService);
     await container.resolve(TOKENS.GraduationHandler);
     
+    // Initialize metadata enricher
+    await container.resolve(TOKENS.MetadataEnricher);
+    logger.debug('Metadata enricher initialized and running');
+    
     // Initialize StreamManager - this starts the shared stream
     await container.resolve(TOKENS.StreamManager);
     logger.debug('StreamManager initialized with shared gRPC connection');

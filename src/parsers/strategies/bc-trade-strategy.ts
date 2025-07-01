@@ -137,7 +137,17 @@ export class BCTradeStrategy implements ParseStrategy {
   }
 
   private findBondingCurveAccount(accounts: string[]): string | null {
-    // Bonding curve accounts are PDAs derived from pump program
+    // Bonding curve is typically at index 1 in pump.fun transactions
+    // Index 0: User (fee payer)
+    // Index 1: Bonding curve
+    // Index 2: Associated bonding curve
+    // Index 3: Mint
+    // Index 4: Creator (optional)
+    if (accounts.length > 1) {
+      return accounts[1];
+    }
+    
+    // Fallback: look for accounts that could be PDAs
     for (const account of accounts) {
       try {
         const pubkey = new PublicKey(account);
@@ -191,9 +201,11 @@ export class BCTradeStrategy implements ParseStrategy {
       const userAddress = bs58.encode(data.subarray(offset, offset + 32));
       offset += 32;
 
-      // Read bonding curve address (32 bytes)
-      const bondingCurveKey = bs58.encode(data.subarray(offset, offset + 32));
+      // Skip the bonding curve in event data (32 bytes) - it's not accurate
       offset += 32;
+      
+      // Get bonding curve from accounts array instead
+      const bondingCurveKey = this.findBondingCurveAccount(context.accounts) || 'unknown';
 
       // Read virtual reserves based on event size
       let vSolInBondingCurve = 0n;
@@ -216,12 +228,9 @@ export class BCTradeStrategy implements ParseStrategy {
         vTokenInBondingCurve = this.readUInt64LE(data, 81);
       }
       
-      // Extract creator from accounts array
-      // Based on pump.fun documentation, creator is typically at index 4
+      // Creator is not available in trade transactions
+      // It should be extracted from token creation transactions only
       let creator: string | undefined;
-      if (context.accounts && context.accounts.length > 4) {
-        creator = context.accounts[4];
-      }
       
       // Debug log
       if (vSolInBondingCurve > 0n || vTokenInBondingCurve > 0n) {

@@ -69,27 +69,41 @@ export class BCAccountMonitor extends BaseMonitor {
   
 
   /**
-   * Build subscribe request for account updates
+   * Get subscription key for BC account monitor
    */
-  protected buildSubscribeRequest(): any {
-    return {
-      commitment: 'confirmed' as const,
-      accountsDataSlice: [],
-      accounts: {
-        pumpfun: {
-          account: [],
-          owner: [this.options.programId],
-          filters: []
-        }
-      },
-      slots: {},
-      transactions: {},
-      transactionsStatus: {},
-      blocks: {},
-      blocksMeta: {},
-      entry: {},
-      ping: undefined
-    };
+  protected getSubscriptionKey(): string {
+    return 'pumpfun_accounts';
+  }
+
+  /**
+   * Build enhanced subscribe request for account updates
+   */
+  protected buildEnhancedSubscribeRequest(): any {
+    const builder = this.subscriptionBuilder;
+    
+    // Set commitment level
+    builder.setCommitment('confirmed');
+    
+    // Add account subscription for bonding curve accounts
+    builder.addAccountSubscription(this.getSubscriptionKey(), {
+      owner: [this.options.programId],
+      filters: [], // Could add filters for specific accounts
+      nonemptyTxnSignature: true
+    });
+    
+    // Also add transaction subscription to catch graduations
+    builder.addTransactionSubscription('pumpfun', {
+      vote: false,
+      failed: false,
+      accountInclude: [this.options.programId],
+      accountRequired: [],
+      accountExclude: []
+    });
+    
+    const config = builder.build();
+    this.logger.debug('Built BC account monitor subscription', { config });
+    
+    return config;
   }
 
   /**

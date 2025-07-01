@@ -155,6 +155,14 @@ export async function createContainer(): Promise<Container> {
     return AmmPoolStateService.getInstance();
   });
   
+  // Register metadata enricher
+  container.registerSingleton(TOKENS.MetadataEnricher, async () => {
+    const { EnhancedAutoEnricher } = await import('../services/enhanced-auto-enricher');
+    const enricher = EnhancedAutoEnricher.getInstance();
+    await enricher.start();
+    return enricher;
+  });
+  
   // Initialize critical services
   const config = await container.resolve(TOKENS.ConfigService);
   
