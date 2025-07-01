@@ -293,10 +293,11 @@ data.transaction.transaction.signature                       // Signature
 
 4. **BC Monitor Data Quality Fixes (July 2025)**
    - Fixed timestamp conversion: Unix timestamps (seconds) now properly converted to JavaScript Date objects
-   - Fixed bonding curve key extraction: Now uses account array index 1 instead of incorrect event data
+   - Fixed bonding curve key extraction: Now uses account array index 3 (based on pump.fun IDL analysis)
    - Fixed creator extraction: Removed from trade events (only available in creation transactions)
    - Fixed BC Account Monitor: Now uses enhanced subscription builder for proper account updates
    - Enabled automatic metadata enrichment: EnhancedAutoEnricher starts with monitors
+   - Bonding curve extraction dramatically improved: from 44 different keys per token to mostly 1 key
 
 ### Database Schema (Unified)
 

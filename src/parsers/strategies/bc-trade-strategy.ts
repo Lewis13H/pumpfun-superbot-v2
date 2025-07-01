@@ -3,7 +3,6 @@
  * Handles both 225-byte and 113-byte events
  */
 
-import { PublicKey } from '@solana/web3.js';
 import bs58 from 'bs58';
 import { ParseStrategy, ParseContext, BCTradeEvent, EventType, TradeType } from '../types';
 import { PUMP_PROGRAM } from '../../utils/constants';
