@@ -10,6 +10,7 @@ import { BCMonitor } from './monitors/bc-monitor';
 import { BCAccountMonitor } from './monitors/bc-account-monitor';
 import { AMMMonitor } from './monitors/amm-monitor';
 import { AMMAccountMonitor } from './monitors/amm-account-monitor';
+import { LpTokenMonitor } from './monitors/lp-token-monitor';
 import { EventBus, EVENTS } from './core/event-bus';
 import { Logger, LogLevel } from './core/logger';
 import { ConfigService } from './core/config';
@@ -35,6 +36,8 @@ interface SystemStats {
   totalLiquidityUsd: number;
   feesCollected: number;
   totalFeesUsd: number;
+  lpPositions: number;
+  lpPositionValueUsd: number;
   errors: number;
   lastError: string | null;
   lastErrorTime: Date | null;
@@ -55,6 +58,8 @@ const stats: SystemStats = {
   totalLiquidityUsd: 0,
   feesCollected: 0,
   totalFeesUsd: 0,
+  lpPositions: 0,
+  lpPositionValueUsd: 0,
   errors: 0,
   lastError: null,
   lastErrorTime: null,
@@ -105,10 +110,11 @@ function displayStats() {
     chalk.cyan(`Net Liquidity: $${Math.floor(stats.totalLiquidityUsd).toLocaleString()}`)
   );
   
-  // Fourth row: Fee stats
+  // Fourth row: Fee stats and LP positions
   console.log(
     chalk.magenta(`Fees Collected: ${stats.feesCollected}`) + ' | ' +
-    chalk.green(`Total Fees: $${Math.floor(stats.totalFeesUsd).toLocaleString()}`)
+    chalk.green(`Total Fees: $${Math.floor(stats.totalFeesUsd).toLocaleString()}`) + ' | ' +
+    chalk.cyan(`LP Positions: ${stats.lpPositions}`)
   );
   
   // Fifth row: Monitor status
@@ -142,6 +148,7 @@ async function startMonitors() {
     await container.resolve(TOKENS.GraduationHandler);
     await container.resolve(TOKENS.LiquidityEventHandler);
     await container.resolve(TOKENS.FeeEventHandler);
+    await container.resolve(TOKENS.LpPositionHandler);
     
     // Initialize StreamManager - this starts the shared stream
     await container.resolve(TOKENS.StreamManager);
@@ -158,7 +165,8 @@ async function startMonitors() {
       new BCMonitor(container),
       new BCAccountMonitor(container),
       new AMMMonitor(container),
-      new AMMAccountMonitor(container)
+      new AMMAccountMonitor(container),
+      new LpTokenMonitor(container)
     ];
     
     // Start all monitors
@@ -255,6 +263,17 @@ function setupEventListeners(eventBus: EventBus, _logger: Logger) {
     // Log significant fees
     if (data.coinAmount && Number(data.coinAmount) > 1e9) { // > 1 SOL
       console.log(chalk.magenta(`\n💰 Fee collected: ${data.feeType} fee from ${data.poolAddress.substring(0, 8)}...\n`));
+    }
+  });
+  
+  // LP position events
+  eventBus.on(EVENTS.LP_POSITION_PROCESSED, (data) => {
+    stats.lpPositions++;
+    stats.lpPositionValueUsd = data.totalValueUsd;
+    
+    // Log significant positions
+    if (data.totalValueUsd > 50000) {
+      console.log(chalk.cyan(`\n🏊 Large LP position: $${data.totalValueUsd.toLocaleString()} (${data.sharePercentage.toFixed(2)}% of pool)\n`));
     }
   });
   

@@ -6,6 +6,9 @@ export const PUMP_SWAP_PROGRAM = 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
 export const AMM_PROGRAM = PUMP_SWAP_PROGRAM; // Alias for compatibility
 export const PUMP_AMM_PROGRAM = PUMP_SWAP_PROGRAM; // Another alias for new code
 
+// Token program
+export const TOKEN_PROGRAM_ID = new (require('@solana/web3.js').PublicKey)('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+
 // Trade event constants
 export const TRADE_EVENT_SIZE = 225;
 export const TOKEN_DECIMALS = 6;

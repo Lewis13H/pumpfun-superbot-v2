@@ -162,6 +162,15 @@ export async function createContainer(): Promise<Container> {
     return new FeeEventHandler(eventBus, dbService, poolStateService);
   });
   
+  container.registerSingleton(TOKENS.LpPositionHandler, async () => {
+    const { LpPositionHandler } = await import('../handlers/lp-position-handler');
+    const eventBus = await container.resolve(TOKENS.EventBus);
+    const dbService = await container.resolve(TOKENS.DatabaseService);
+    const poolStateService = await container.resolve(TOKENS.PoolStateService);
+    
+    return new LpPositionHandler(eventBus, dbService, poolStateService);
+  });
+  
   container.registerSingleton(TOKENS.PoolRepository, async () => {
     // TODO: Implement pool repository
     throw new Error('PoolRepository not implemented yet');

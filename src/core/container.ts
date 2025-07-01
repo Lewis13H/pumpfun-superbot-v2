@@ -136,6 +136,7 @@ export const TOKENS = {
   GraduationHandler: 'GraduationHandler' as ServiceToken<any>,
   LiquidityEventHandler: 'LiquidityEventHandler' as ServiceToken<any>,
   FeeEventHandler: 'FeeEventHandler' as ServiceToken<any>,
+  LpPositionHandler: 'LpPositionHandler' as ServiceToken<any>,
   
   // Repositories
   TokenRepository: 'TokenRepository' as ServiceToken<any>,

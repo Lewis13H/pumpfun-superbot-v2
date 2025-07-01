@@ -214,6 +214,8 @@ export const EVENTS = {
   LIQUIDITY_ADDED: 'liquidity:added',
   LIQUIDITY_REMOVED: 'liquidity:removed',
   LIQUIDITY_PROCESSED: 'liquidity:processed',
+  LP_POSITION_UPDATED: 'lp_position:updated',
+  LP_POSITION_PROCESSED: 'lp_position:processed',
   
   // Fee events
   FEE_COLLECTED: 'fee:collected',
