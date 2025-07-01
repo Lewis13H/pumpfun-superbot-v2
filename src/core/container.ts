@@ -134,6 +134,7 @@ export const TOKENS = {
   // Handlers
   TradeHandler: 'TradeHandler' as ServiceToken<any>,
   GraduationHandler: 'GraduationHandler' as ServiceToken<any>,
+  LiquidityEventHandler: 'LiquidityEventHandler' as ServiceToken<any>,
   
   // Repositories
   TokenRepository: 'TokenRepository' as ServiceToken<any>,

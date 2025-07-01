@@ -19,6 +19,7 @@ import { suppressParserWarnings } from '../utils/suppress-parser-warnings';
 import { parseSwapTransactionOutput } from '../utils/swapTransactionParser';
 import { AmmPoolStateService } from '../services/amm-pool-state-service';
 import { EnhancedAutoEnricher } from '../services/enhanced-auto-enricher';
+import { eventParserService } from '../services/event-parser-service';
 
 // Constants
 const PUMP_AMM_PROGRAM_ID = new PublicKey('pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA');
@@ -210,12 +211,51 @@ export class AMMMonitor extends BaseMonitor {
       
       const signature = txn.transaction.signatures[0];
       const slot = txn.slot || 0;
+      const blockTime = new Date((txn.blockTime || Math.floor(Date.now() / 1000)) * 1000);
       
       if (slot > this.ammStats.lastSlot) {
         this.ammStats.lastSlot = slot;
       }
       
-      // Decode pump AMM transaction
+      // Check for liquidity events using enhanced event parser
+      const liquidityEvents = eventParserService.getLiquidityEvents(txn);
+      
+      // Process liquidity events
+      for (const liquidityEvent of liquidityEvents) {
+        if ('lpTokenAmountOut' in liquidityEvent) {
+          // Deposit event
+          this.eventBus.emit(EVENTS.LIQUIDITY_ADDED, {
+            event: liquidityEvent,
+            signature,
+            slot,
+            blockTime
+          });
+          
+          this.logger.info('Liquidity deposit detected', {
+            pool: liquidityEvent.pool.slice(0, 8) + '...',
+            user: liquidityEvent.user.slice(0, 8) + '...',
+            lpTokens: liquidityEvent.lpTokenAmountOut,
+            signature: signature.slice(0, 8) + '...'
+          });
+        } else {
+          // Withdraw event
+          this.eventBus.emit(EVENTS.LIQUIDITY_REMOVED, {
+            event: liquidityEvent,
+            signature,
+            slot,
+            blockTime
+          });
+          
+          this.logger.info('Liquidity withdrawal detected', {
+            pool: liquidityEvent.pool.slice(0, 8) + '...',
+            user: liquidityEvent.user.slice(0, 8) + '...',
+            lpTokens: liquidityEvent.lpTokenAmountIn,
+            signature: signature.slice(0, 8) + '...'
+          });
+        }
+      }
+      
+      // Decode pump AMM transaction for swap events
       const parsedTxn = this.decodePumpAmmTxn(txn);
       if (!parsedTxn) return;
       

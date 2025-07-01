@@ -434,13 +434,21 @@ CREATE TABLE creator_analysis (
    - Immediate enrichment when tokens cross threshold or AMM creation
    - Background service runs automatically with monitors
 
-4. **Key Improvements**
+4. **AMM Event Enhancement (Session 1 Completed - January 2025)**
+   - **Enhanced Event Parser**: Extracts AMM-specific events (deposits, withdrawals, buy/sell with fees)
+   - **Liquidity Event Handler**: Processes liquidity add/remove operations with value calculations
+   - **Database Schema**: Complete tracking of liquidity events, user positions, and hourly metrics
+   - **Real-time Notifications**: EventBus integration for liquidity events >$10k
+   - **User Position Tracking**: Track LP positions, P&L, and impermanent loss
+
+5. **Key Improvements**
    - AMM tokens now created automatically with $1,000 threshold
    - DexScreener integration provides fallback for stale graduated tokens
    - Complete monitoring script runs all services
    - All tokens above $8,888 market cap automatically get metadata
    - TypeScript build errors fully resolved
    - Proper error handling and type safety
+   - AMM liquidity events fully tracked and stored
 
 ### 🚀 Quick Start
 
@@ -506,6 +514,7 @@ Recovery Flow:
 
 ## Enhancement Roadmap
 
+### Bonding Curve Enhancement Plan
 See `BONDING-CURVE-ENHANCEMENT-PLAN.md` for the complete 6-phase enhancement plan:
 - **Phase 1**: ✅ Core Infrastructure & Parser Upgrade (COMPLETED)
 - **Phase 2**: ✅ Advanced Subscription & Filtering (COMPLETED)
@@ -513,6 +522,18 @@ See `BONDING-CURVE-ENHANCEMENT-PLAN.md` for the complete 6-phase enhancement pla
 - **Phase 4**: Failed Transaction & MEV Analysis
 - **Phase 5**: Advanced State Tracking & Analytics
 - **Phase 6**: Performance Optimization & Production Features
+
+### AMM Enhancement Strategy
+See `AMM-ENHANCEMENT-STRATEGY.md` for AMM-specific enhancements:
+- **Session 1**: ✅ AMM Event Enhancement (COMPLETED - January 2025)
+  - Liquidity event tracking (deposits/withdrawals)
+  - Fee event monitoring
+  - LP position tracking
+- **Session 2**: Fee Tracking System
+- **Session 3**: LP Token & Position Tracking
+- **Session 4**: Advanced Pool Analytics
+- **Session 5**: Enhanced Price Impact & Slippage
+- **Session 6**: Dashboard & API Enhancements
 
 # important-instruction-reminders
 - Do what has been asked; nothing more, nothing less.

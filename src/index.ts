@@ -30,6 +30,9 @@ interface SystemStats {
   tokensDiscovered: number;
   tokensEnriched: number;
   graduations: number;
+  liquidityDeposits: number;
+  liquidityWithdrawals: number;
+  totalLiquidityUsd: number;
   errors: number;
   lastError: string | null;
   lastErrorTime: Date | null;
@@ -45,6 +48,9 @@ const stats: SystemStats = {
   tokensDiscovered: 0,
   tokensEnriched: 0,
   graduations: 0,
+  liquidityDeposits: 0,
+  liquidityWithdrawals: 0,
+  totalLiquidityUsd: 0,
   errors: 0,
   lastError: null,
   lastErrorTime: null,
@@ -66,12 +72,12 @@ function displayStats() {
   const seconds = runtime % 60;
   const runtimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   
-  // Clear previous stats display (6 lines)
-  moveCursor(6);
+  // Clear previous stats display (7 lines)
+  moveCursor(7);
   
-  console.log(chalk.gray('─'.repeat(60)));
+  console.log(chalk.gray('─'.repeat(70)));
   console.log(chalk.cyan('📊 System Statistics') + chalk.gray(` | Runtime: ${runtimeStr} | SOL: $${stats.solPrice.toFixed(2)}`));
-  console.log(chalk.gray('─'.repeat(60)));
+  console.log(chalk.gray('─'.repeat(70)));
   
   // First row: Trade stats
   console.log(
@@ -88,7 +94,14 @@ function displayStats() {
     chalk.red(`Errors: ${stats.errors}`)
   );
   
-  // Third row: Monitor status
+  // Third row: Liquidity stats
+  console.log(
+    chalk.blue(`Deposits: ${stats.liquidityDeposits}`) + ' | ' +
+    chalk.yellow(`Withdrawals: ${stats.liquidityWithdrawals}`) + ' | ' +
+    chalk.cyan(`Net Liquidity: $${Math.floor(stats.totalLiquidityUsd).toLocaleString()}`)
+  );
+  
+  // Fourth row: Monitor status
   const monitorStatus = Array.from(stats.activeMonitors).map(m => 
     chalk.green('●') + ' ' + m
   ).join(' | ');
@@ -117,6 +130,7 @@ async function startMonitors() {
     await container.resolve(TOKENS.DatabaseService);
     await container.resolve(TOKENS.SolPriceService);
     await container.resolve(TOKENS.GraduationHandler);
+    await container.resolve(TOKENS.LiquidityEventHandler);
     
     // Initialize StreamManager - this starts the shared stream
     await container.resolve(TOKENS.StreamManager);
@@ -198,6 +212,27 @@ function setupEventListeners(eventBus: EventBus, _logger: Logger) {
     const identifier = data.mintAddress || data.bondingCurveKey || 'Unknown';
     const displayId = identifier.substring(0, 8) + '...';
     console.log(chalk.green(`\n🎓 GRADUATION: ${displayId} graduated to AMM!\n`));
+  });
+  
+  // Liquidity events
+  eventBus.on(EVENTS.LIQUIDITY_PROCESSED, (data) => {
+    if (data.type === 'deposit') {
+      stats.liquidityDeposits++;
+      stats.totalLiquidityUsd += data.valueUsd;
+      
+      // Log significant deposits
+      if (data.valueUsd > 10000) {
+        console.log(chalk.blue(`\n💧 Large deposit: $${data.valueUsd.toLocaleString()} to ${data.mint.substring(0, 8)}...\n`));
+      }
+    } else {
+      stats.liquidityWithdrawals++;
+      stats.totalLiquidityUsd -= data.valueUsd;
+      
+      // Log significant withdrawals
+      if (data.valueUsd > 10000) {
+        console.log(chalk.yellow(`\n💸 Large withdrawal: $${data.valueUsd.toLocaleString()} from ${data.mint.substring(0, 8)}...\n`));
+      }
+    }
   });
   
   // Error handling

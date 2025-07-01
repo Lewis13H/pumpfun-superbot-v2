@@ -41,6 +41,63 @@ export interface PoolCreatedEvent {
   quoteReserves: string;
 }
 
+// AMM-specific event types
+export interface AmmDepositEvent {
+  timestamp: number;
+  pool: string;
+  user: string;
+  lpTokenAmountOut: string;
+  baseAmountIn: string;
+  quoteAmountIn: string;
+  poolBaseReserves: string;
+  poolQuoteReserves: string;
+  lpMintSupply: string;
+  userBaseTokenAccount: string;
+  userQuoteTokenAccount: string;
+  userPoolTokenAccount: string;
+}
+
+export interface AmmWithdrawEvent {
+  timestamp: number;
+  pool: string;
+  user: string;
+  lpTokenAmountIn: string;
+  baseAmountOut: string;
+  quoteAmountOut: string;
+  poolBaseReserves: string;
+  poolQuoteReserves: string;
+  lpMintSupply: string;
+  userBaseTokenAccount: string;
+  userQuoteTokenAccount: string;
+  userPoolTokenAccount: string;
+}
+
+export interface AmmBuyEvent {
+  timestamp: number;
+  pool: string;
+  user: string;
+  baseAmountOut: string;
+  quoteAmountIn: string;
+  poolBaseReserves: string;
+  poolQuoteReserves: string;
+  lpFee: string;
+  protocolFee: string;
+  userQuoteAmountIn: string;
+}
+
+export interface AmmSellEvent {
+  timestamp: number;
+  pool: string;
+  user: string;
+  baseAmountIn: string;
+  quoteAmountOut: string;
+  poolBaseReserves: string;
+  poolQuoteReserves: string;
+  lpFee: string;
+  protocolFee: string;
+  userBaseAmountIn: string;
+}
+
 export class EventParserService {
   private static instance: EventParserService;
   private logger: Logger;
@@ -238,6 +295,129 @@ export class EventParserService {
     }
     
     return tradeEvents;
+  }
+
+  /**
+   * Extract AMM deposit event
+   */
+  extractDepositEvent(events: ParsedEvent[]): AmmDepositEvent | null {
+    for (const event of events) {
+      if (event.name === 'DepositEvent') {
+        const data = event.data;
+        return {
+          timestamp: Number(data.timestamp || Date.now()),
+          pool: data.pool,
+          user: data.user,
+          lpTokenAmountOut: data.lp_token_amount_out || data.lpTokenAmountOut,
+          baseAmountIn: data.base_amount_in || data.baseAmountIn,
+          quoteAmountIn: data.quote_amount_in || data.quoteAmountIn,
+          poolBaseReserves: data.pool_base_token_reserves || data.poolBaseTokenReserves,
+          poolQuoteReserves: data.pool_quote_token_reserves || data.poolQuoteTokenReserves,
+          lpMintSupply: data.lp_mint_supply || data.lpMintSupply,
+          userBaseTokenAccount: data.user_base_token_account || data.userBaseTokenAccount,
+          userQuoteTokenAccount: data.user_quote_token_account || data.userQuoteTokenAccount,
+          userPoolTokenAccount: data.user_pool_token_account || data.userPoolTokenAccount
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Extract AMM withdraw event
+   */
+  extractWithdrawEvent(events: ParsedEvent[]): AmmWithdrawEvent | null {
+    for (const event of events) {
+      if (event.name === 'WithdrawEvent') {
+        const data = event.data;
+        return {
+          timestamp: Number(data.timestamp || Date.now()),
+          pool: data.pool,
+          user: data.user,
+          lpTokenAmountIn: data.lp_token_amount_in || data.lpTokenAmountIn,
+          baseAmountOut: data.base_amount_out || data.baseAmountOut,
+          quoteAmountOut: data.quote_amount_out || data.quoteAmountOut,
+          poolBaseReserves: data.pool_base_token_reserves || data.poolBaseTokenReserves,
+          poolQuoteReserves: data.pool_quote_token_reserves || data.poolQuoteTokenReserves,
+          lpMintSupply: data.lp_mint_supply || data.lpMintSupply,
+          userBaseTokenAccount: data.user_base_token_account || data.userBaseTokenAccount,
+          userQuoteTokenAccount: data.user_quote_token_account || data.userQuoteTokenAccount,
+          userPoolTokenAccount: data.user_pool_token_account || data.userPoolTokenAccount
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Extract AMM buy event
+   */
+  extractBuyEvent(events: ParsedEvent[]): AmmBuyEvent | null {
+    for (const event of events) {
+      if (event.name === 'BuyEvent') {
+        const data = event.data;
+        return {
+          timestamp: Number(data.timestamp || Date.now()),
+          pool: data.pool,
+          user: data.user,
+          baseAmountOut: data.base_amount_out || data.baseAmountOut,
+          quoteAmountIn: data.quote_amount_in || data.quoteAmountIn,
+          poolBaseReserves: data.pool_base_token_reserves || data.poolBaseTokenReserves,
+          poolQuoteReserves: data.pool_quote_token_reserves || data.poolQuoteTokenReserves,
+          lpFee: data.lp_fee || data.lpFee || '0',
+          protocolFee: data.protocol_fee || data.protocolFee || '0',
+          userQuoteAmountIn: data.user_quote_amount_in || data.userQuoteAmountIn
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Extract AMM sell event
+   */
+  extractSellEvent(events: ParsedEvent[]): AmmSellEvent | null {
+    for (const event of events) {
+      if (event.name === 'SellEvent') {
+        const data = event.data;
+        return {
+          timestamp: Number(data.timestamp || Date.now()),
+          pool: data.pool,
+          user: data.user,
+          baseAmountIn: data.base_amount_in || data.baseAmountIn,
+          quoteAmountOut: data.quote_amount_out || data.quoteAmountOut,
+          poolBaseReserves: data.pool_base_token_reserves || data.poolBaseTokenReserves,
+          poolQuoteReserves: data.pool_quote_token_reserves || data.poolQuoteTokenReserves,
+          lpFee: data.lp_fee || data.lpFee || '0',
+          protocolFee: data.protocol_fee || data.protocolFee || '0',
+          userBaseAmountIn: data.user_base_amount_in || data.userBaseAmountIn
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Get all liquidity events from transaction
+   */
+  getLiquidityEvents(tx: VersionedTransactionResponse): (AmmDepositEvent | AmmWithdrawEvent)[] {
+    const events = this.parseTransaction(tx);
+    const liquidityEvents: (AmmDepositEvent | AmmWithdrawEvent)[] = [];
+    
+    for (const event of events) {
+      const deposit = this.extractDepositEvent([event]);
+      if (deposit) {
+        liquidityEvents.push(deposit);
+        continue;
+      }
+      
+      const withdraw = this.extractWithdrawEvent([event]);
+      if (withdraw) {
+        liquidityEvents.push(withdraw);
+      }
+    }
+    
+    return liquidityEvents;
   }
 }
 
