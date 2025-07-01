@@ -174,55 +174,105 @@ const detectMigration = (parsedIx: any) => {
 - [x] Build congestion pattern detector
 - [x] Create failure analytics API endpoints
 
-### Implementation:
+### Implementation Details:
 ```typescript
-// 1. Failed transaction service
+// 1. Created new services ✅
 services/
-├── failed-tx-analyzer.ts       // Analyze failure reasons
-├── mev-detector.ts            // Detect MEV patterns
-├── congestion-monitor.ts      // Network congestion analysis
-└── slippage-analyzer.ts       // Slippage failure patterns
+├── failed-tx-analyzer.ts       // Comprehensive failure analysis
+├── mev-detector.ts            // MEV pattern detection
+├── slippage-analyzer.ts       // Slippage tracking & recommendations
+└── congestion-monitor.ts      // Real-time congestion monitoring
 
-// 2. Failure categories
-enum FailureReason {
-  SLIPPAGE_EXCEEDED = 'slippage_exceeded',
-  INSUFFICIENT_FUNDS = 'insufficient_funds',
-  MEV_FRONTRUN = 'mev_frontrun',
-  PROGRAM_ERROR = 'program_error',
-  NETWORK_CONGESTION = 'network_congestion',
-  ACCOUNT_NOT_FOUND = 'account_not_found'
+// 2. Enhanced failure analysis ✅
+export class FailedTransactionAnalyzer {
+  analyzeFailedTransaction(transaction: any): FailedTransaction {
+    // Determine failure reason from logs and error codes
+    // Build detailed analysis metadata
+    // Track MEV suspicion indicators
+    // Cache results for performance
+  }
 }
 
-// 3. Database schema
+// 3. MEV detection capabilities ✅
+export class MEVDetector {
+  detectSandwichAttack(failedTx: FailedTransaction, slot: bigint): SandwichAttack | null
+  detectFrontrunning(transaction: any): MEVPattern | null
+  detectArbitragePatterns(slot: bigint, transactions: any[]): void
+  trackSuspiciousAddresses(): string[]
+}
+
+// 4. Slippage intelligence ✅
+export class SlippageAnalyzer {
+  analyzeSlippageFailure(failedTx: FailedTransaction): SlippageAnalysis
+  getSlippageRecommendation(mintAddress: string): number
+  getTopVolatileTokens(limit: number): TokenVolatility[]
+}
+
+// 5. Network health monitoring ✅
+export class CongestionMonitor {
+  getCurrentStatus(): CongestionStatus
+  determineCongestionLevel(failureRate: number, tps: number): CongestionLevel
+  getRecommendations(): string[] // Dynamic based on congestion
+  trackSlotMetrics(slot: bigint, totalTxs: number, failedTxs: number): void
+}
+```
+
+### Database Schema:
+```sql
+-- Failed transactions tracking ✅
 CREATE TABLE failed_transactions (
     signature VARCHAR(88) PRIMARY KEY,
     mint_address VARCHAR(64),
-    user_address VARCHAR(64),
-    failure_reason VARCHAR(50),
+    user_address VARCHAR(64) NOT NULL,
+    failure_reason VARCHAR(50) NOT NULL,
     error_message TEXT,
-    intended_action VARCHAR(20), -- 'buy', 'sell', 'graduate'
-    slot BIGINT,
-    block_time TIMESTAMP,
+    intended_action VARCHAR(20),
+    slot BIGINT NOT NULL,
+    block_time TIMESTAMP NOT NULL,
     mev_suspected BOOLEAN DEFAULT FALSE,
     retry_signature VARCHAR(88),
-    analysis_metadata JSONB
+    analysis_metadata JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- MEV events tracking ✅
+CREATE TABLE mev_events (
+    id SERIAL PRIMARY KEY,
+    victim_tx VARCHAR(88),
+    mev_type VARCHAR(20) NOT NULL,
+    attacker_address VARCHAR(64),
+    attacker_txs TEXT[],
+    mint_address VARCHAR(64),
+    slot BIGINT NOT NULL,
+    block_time TIMESTAMP NOT NULL,
+    confidence VARCHAR(10),
+    evidence JSONB,
+    profit_estimate DECIMAL(20, 4),
+    created_at TIMESTAMP DEFAULT NOW()
 );
 ```
 
-### MEV Detection:
+### API Endpoints:
 ```typescript
-// Detect sandwich attacks
-const detectSandwich = (failedTx: Transaction, slot: number) => {
-  // Check for similar successful transactions in same slot
-  const suspiciousPattern = {
-    sameSlot: true,
-    similarAmount: true,
-    frontrunTx: findFrontrunTx(failedTx, slot),
-    backrunTx: findBackrunTx(failedTx, slot)
-  };
-  return suspiciousPattern.frontrunTx && suspiciousPattern.backrunTx;
-};
+// Failure analytics endpoints ✅
+router.get('/failed-transactions/stats')         // Overall failure statistics
+router.get('/failed-transactions/by-reason/:reason') // Failures by specific reason
+router.get('/mev/stats')                         // MEV detection statistics
+router.get('/mev/recent')                        // Recent MEV events
+router.get('/slippage/stats')                    // Slippage statistics
+router.get('/slippage/recommendation/:mint')     // Token-specific recommendations
+router.get('/slippage/high-events')              // High slippage events
+router.get('/congestion/status')                 // Current network status
+router.get('/congestion/stats')                  // Congestion statistics
+router.get('/summary')                           // Comprehensive summary
 ```
+
+### Key Achievements:
+- Real-time failure analysis with categorization
+- MEV pattern detection including sandwich attacks
+- Per-token slippage recommendations
+- Network congestion monitoring and alerts
+- Comprehensive analytics API
 
 ---
 
