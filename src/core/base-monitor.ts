@@ -5,11 +5,22 @@ import { Container, TOKENS } from './container';
 import { EventBus, EVENTS } from './event-bus';
 import { ConfigService } from './config';
 import { Logger, loggers } from './logger';
+import { SubscriptionBuilder } from './subscription-builder';
+import { SlotMonitor } from './slot-monitor';
 
 export interface MonitorOptions {
   programId: string;
   monitorName: string;
   color?: typeof chalk;
+  // Enhanced subscription options
+  includeFailedTxs?: boolean;
+  requiredAccounts?: string[];
+  excludeAccounts?: string[];
+  trackSlots?: boolean;
+  dataSlicing?: boolean;
+  filters?: any[];
+  fromSlot?: string | number;
+  commitment?: 'processed' | 'confirmed' | 'finalized';
 }
 
 export interface MonitorStats {
@@ -31,11 +42,13 @@ export abstract class BaseMonitor {
   protected streamManager: any; // Will be injected
   protected dbService: any; // Will be injected
   protected solPriceService: any; // Will be injected
+  protected slotMonitor?: SlotMonitor; // Optional slot monitor
   
   protected currentSolPrice: number = 180; // Default fallback
   protected isShuttingDown: boolean = false;
   protected displayInterval?: NodeJS.Timeout;
   protected priceUpdateInterval?: NodeJS.Timeout;
+  protected subscriptionBuilder: SubscriptionBuilder;
 
   constructor(options: MonitorOptions, container: Container) {
     this.options = options;
@@ -51,6 +64,9 @@ export abstract class BaseMonitor {
     
     // Create logger
     this.logger = loggers.monitor(options.monitorName, options.color);
+    
+    // Create subscription builder
+    this.subscriptionBuilder = new SubscriptionBuilder();
   }
 
   /**
@@ -62,6 +78,12 @@ export abstract class BaseMonitor {
     this.streamManager = await this.container.resolve(TOKENS.StreamManager);
     this.dbService = await this.container.resolve(TOKENS.DatabaseService);
     this.solPriceService = await this.container.resolve(TOKENS.SolPriceService);
+    
+    // Initialize slot monitor if requested
+    if (this.options.trackSlots) {
+      this.slotMonitor = new SlotMonitor(this.eventBus);
+      this.logger.info('Slot monitoring enabled');
+    }
   }
 
   /**
@@ -88,8 +110,8 @@ export abstract class BaseMonitor {
       // Subscribe to stream data events
       this.setupStreamListener();
       
-      // Register with stream manager using monitor's subscription config
-      const subscriptionConfig = this.buildSubscribeRequest();
+      // Register with stream manager using enhanced subscription config
+      const subscriptionConfig = this.buildEnhancedSubscribeRequest();
       await this.streamManager.subscribeTo(this.options.programId, subscriptionConfig);
       
       // Emit monitor started event
@@ -163,6 +185,7 @@ export abstract class BaseMonitor {
    * Setup listener for stream data
    */
   protected setupStreamListener(): void {
+    // Transaction data listener
     this.eventBus.on(EVENTS.STREAM_DATA, async (data: any) => {
       if (this.isShuttingDown) return;
       
@@ -179,12 +202,32 @@ export abstract class BaseMonitor {
         }
       }
     });
+    
+    // Slot update listener (if slot tracking is enabled)
+    if (this.options.trackSlots && this.slotMonitor) {
+      this.eventBus.on(EVENTS.STREAM_DATA, (data: any) => {
+        if (data.slot) {
+          this.eventBus.emit('slot:update', {
+            slot: BigInt(data.slot),
+            parentSlot: data.parentSlot ? BigInt(data.parentSlot) : undefined,
+            blockHeight: data.blockHeight ? BigInt(data.blockHeight) : undefined,
+            blockTime: data.blockTime,
+            status: data.commitment || 'processed'
+          });
+        }
+      });
+    }
   }
 
   /**
    * Check if data is relevant to this monitor
    */
   protected isRelevantTransaction(data: any): boolean {
+    // Check if this is a failed transaction and we're not including failed txs
+    if (data?.transaction?.meta?.err && !this.options.includeFailedTxs) {
+      return false;
+    }
+    
     // Check if this is account data
     if (data?.account) {
       // For account updates, check if the owner matches our program
@@ -203,11 +246,29 @@ export abstract class BaseMonitor {
       const innerTx = tx?.transaction;
       const accounts = innerTx?.message?.accountKeys || [];
       
-      // Check if our program ID is in the account keys
-      for (const account of accounts) {
-        const accountStr = typeof account === 'string' ? account : bs58.encode(account);
-        if (accountStr === this.options.programId) return true;
+      // Convert accounts to strings for comparison
+      const accountStrs = accounts.map((acc: any) => 
+        typeof acc === 'string' ? acc : bs58.encode(acc)
+      );
+      
+      // Check required accounts
+      if (this.options.requiredAccounts?.length) {
+        const hasAllRequired = this.options.requiredAccounts.every(req => 
+          accountStrs.includes(req)
+        );
+        if (!hasAllRequired) return false;
       }
+      
+      // Check excluded accounts
+      if (this.options.excludeAccounts?.length) {
+        const hasExcluded = this.options.excludeAccounts.some(exc => 
+          accountStrs.includes(exc)
+        );
+        if (hasExcluded) return false;
+      }
+      
+      // Check if our program ID is in the account keys
+      if (accountStrs.includes(this.options.programId)) return true;
       
       // Also check logs for program invocation
       const logs = tx?.meta?.logMessages || [];
@@ -218,7 +279,7 @@ export abstract class BaseMonitor {
   }
 
   /**
-   * Build subscribe request
+   * Build subscribe request (legacy method for compatibility)
    */
   protected buildSubscribeRequest(): SubscribeRequest {
     const request: SubscribeRequest = {
@@ -241,6 +302,83 @@ export abstract class BaseMonitor {
     };
 
     return request;
+  }
+
+  /**
+   * Build enhanced subscribe request with Phase 2 features
+   */
+  protected buildEnhancedSubscribeRequest(): any {
+    // Use subscription builder for enhanced config
+    const builder = new SubscriptionBuilder();
+    
+    // Set commitment level
+    const commitment = this.options.commitment || 'confirmed';
+    builder.setCommitment(commitment);
+    
+    // Set starting slot if provided
+    if (this.options.fromSlot) {
+      builder.setFromSlot(this.options.fromSlot);
+    }
+    
+    // Add transaction subscription
+    const subscriptionKey = this.getSubscriptionKey();
+    builder.addTransactionSubscription(subscriptionKey, {
+      vote: false,
+      failed: this.options.includeFailedTxs ?? false,
+      accountInclude: [this.options.programId],
+      accountRequired: this.options.requiredAccounts ?? [],
+      accountExclude: this.options.excludeAccounts ?? []
+    });
+    
+    // Add account subscription with filters
+    const accountFilters = this.buildAccountFilters();
+    builder.addAccountSubscription(subscriptionKey, {
+      owner: [this.options.programId],
+      filters: accountFilters,
+      nonemptyTxnSignature: true
+    });
+    
+    // Add slot tracking if enabled
+    if (this.options.trackSlots) {
+      builder.addSlotSubscription({ filterByCommitment: true });
+    }
+    
+    // Add data slicing if enabled
+    if (this.options.dataSlicing) {
+      const sliceConfig = this.getDataSliceConfig();
+      if (sliceConfig) {
+        builder.addDataSlice(sliceConfig.offset, sliceConfig.length);
+      }
+    }
+    
+    const config = builder.build();
+    this.logger.debug('Built enhanced subscription', { config });
+    
+    return config;
+  }
+
+  /**
+   * Get subscription key for this monitor
+   */
+  protected getSubscriptionKey(): string {
+    // Override in subclasses for specific keys
+    return 'default';
+  }
+
+  /**
+   * Build account filters
+   */
+  protected buildAccountFilters(): any[] {
+    // Override in subclasses for specific filters
+    return this.options.filters || [];
+  }
+
+  /**
+   * Get data slice configuration
+   */
+  protected getDataSliceConfig(): { offset: string; length: string } | null {
+    // Override in subclasses for specific slicing
+    return null;
   }
 
   /**

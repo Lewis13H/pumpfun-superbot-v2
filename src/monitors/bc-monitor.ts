@@ -4,7 +4,7 @@
  */
 
 import chalk from 'chalk';
-import { BaseMonitor } from '../core/base-monitor';
+import { BaseMonitor, MonitorOptions } from '../core/base-monitor';
 import { Container, TOKENS } from '../core/container';
 import { EventType, TradeType } from '../parsers/types';
 import { UnifiedEventParser } from '../parsers/unified-event-parser';
@@ -12,6 +12,7 @@ import { TradeHandler } from '../handlers/trade-handler';
 import { PUMP_PROGRAM } from '../utils/constants';
 import { EVENTS } from '../core/event-bus';
 import { enableErrorSuppression } from '../utils/parser-error-suppressor';
+// import { FilterFactory } from '../core/filter-factory'; // Uncomment when using filters
 
 interface BCMonitorStats {
   trades: number;
@@ -32,12 +33,21 @@ export class BCMonitor extends BaseMonitor {
   private bcStats: BCMonitorStats;
   private parseTimings: number[] = [];
 
-  constructor(container: Container) {
+  constructor(container: Container, options?: Partial<MonitorOptions>) {
     super(
       {
         programId: PUMP_PROGRAM,
         monitorName: 'Bonding Curve Monitor',
-        color: chalk.yellow as any
+        color: chalk.yellow as any,
+        // Phase 2 enhancements
+        includeFailedTxs: options?.includeFailedTxs ?? false,
+        requiredAccounts: options?.requiredAccounts,
+        excludeAccounts: options?.excludeAccounts,
+        trackSlots: options?.trackSlots ?? false,
+        dataSlicing: options?.dataSlicing ?? false,
+        filters: options?.filters,
+        fromSlot: options?.fromSlot,
+        commitment: options?.commitment ?? 'confirmed'
       },
       container
     );
@@ -58,30 +68,35 @@ export class BCMonitor extends BaseMonitor {
   }
 
   /**
-   * Build subscribe request for BC transactions
+   * Get subscription key for BC monitor
    */
-  protected buildSubscribeRequest(): any {
-    return {
-      commitment: 'confirmed' as const,
-      accountsDataSlice: [],
-      accounts: {},
-      slots: {},
-      transactions: {
-        pumpfun: {
-          vote: false,
-          failed: false,
-          signature: undefined,
-          accountInclude: [this.options.programId],
-          accountExclude: [],
-          accountRequired: []
-        }
-      },
-      transactionsStatus: {},
-      blocks: {},
-      blocksMeta: {},
-      entry: {},
-      ping: undefined
-    };
+  protected getSubscriptionKey(): string {
+    return 'pumpfun';
+  }
+
+  /**
+   * Build account filters for BC monitoring
+   */
+  protected buildAccountFilters(): any[] {
+    const filters = [];
+    
+    // Add custom filters if provided
+    if (this.options.filters) {
+      filters.push(...this.options.filters);
+    }
+    
+    // Example: Monitor only active bonding curves
+    // filters.push(FilterFactory.bondingCurveComplete(false));
+    
+    return filters;
+  }
+
+  /**
+   * Get data slice configuration for BC accounts
+   */
+  protected getDataSliceConfig(): { offset: string; length: string } | null {
+    // Bonding curve account is 165 bytes
+    return { offset: '0', length: '165' };
   }
 
   /**

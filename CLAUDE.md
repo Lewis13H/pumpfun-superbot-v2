@@ -444,11 +444,47 @@ Recovery Flow:
 └── Stale graduated tokens → DexScreener API
 ```
 
+## Phase 2 Enhancements (January 2025) - Advanced Subscriptions
+
+### ✅ New Components Added
+
+1. **Subscription Builder** (`core/subscription-builder.ts`)
+   - Fluent API for building complex subscription configurations
+   - Support for transaction, account, and slot subscriptions
+   - Data slicing for bandwidth optimization
+   - Commitment level configuration
+
+2. **Filter Factory** (`core/filter-factory.ts`)
+   - Create memcmp filters for account field matching
+   - Pre-built filters for bonding curves and AMM pools
+   - Filter validation and optimization utilities
+
+3. **Slot Monitor** (`core/slot-monitor.ts`)
+   - Real-time slot progression tracking
+   - Fork detection and handling
+   - Slot statistics and lag monitoring
+   - Event emission for slot updates
+
+4. **Enhanced BaseMonitor**
+   - Support for failed transaction monitoring
+   - Account filtering with required/excluded accounts
+   - Optional slot tracking
+   - Data slicing configuration
+   - Enhanced subscription builder integration
+
+### 🔧 Key Features
+
+- **Failed Transaction Monitoring**: Analyze failed trades for MEV detection
+- **Account Filters**: Monitor specific accounts or patterns
+- **Slot Tracking**: Detect forks and track blockchain progression
+- **Data Slicing**: Reduce bandwidth with partial account data
+- **Recovery from Slot**: Resume monitoring from specific slot
+
 ## Enhancement Roadmap
 
 See `BONDING-CURVE-ENHANCEMENT-PLAN.md` for the complete 6-phase enhancement plan:
 - **Phase 1**: ✅ Core Infrastructure & Parser Upgrade (COMPLETED)
-- **Phase 2**: Advanced Subscription & Filtering
+- **Phase 2**: ✅ Advanced Subscription & Filtering (COMPLETED)
 - **Phase 3**: New Token & Migration Detection
 - **Phase 4**: Failed Transaction & MEV Analysis
 - **Phase 5**: Advanced State Tracking & Analytics
