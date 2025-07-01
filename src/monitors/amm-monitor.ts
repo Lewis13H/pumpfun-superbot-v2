@@ -121,7 +121,7 @@ export class AMMMonitor extends BaseMonitor {
    * Get subscription key for AMM transactions
    */
   protected getSubscriptionKey(): string {
-    return 'pumpAMM';
+    return 'pumpswap_amm';
   }
 
   /**
@@ -140,7 +140,7 @@ export class AMMMonitor extends BaseMonitor {
       accounts: {},
       slots: {},
       transactions: {
-        pumpAMM: {
+        pumpswap_amm: {
           vote: false,
           failed: false,
           signature: undefined,

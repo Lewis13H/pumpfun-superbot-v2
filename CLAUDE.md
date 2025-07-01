@@ -144,7 +144,8 @@ The system has been refactored to use clean architecture principles:
 #### Critical Fixes (January 2025)
 1. **Monitor Connection Issues**: Fixed gRPC data structure handling
    - Transaction data path: `data.transaction.transaction.transaction`
-   - Proper subscription keys: `pumpfun`, `pumpswap_amm`, `pumpAMM`
+   - Proper subscription keys: `pumpfun`, `pumpswap_amm` (must be consistent!)
+   - **AMM Monitor Fix**: Both AMM monitors must use `pumpswap_amm` as subscription key
    - Fixed gRPC subscription format - must include all fields (even empty ones)
    - Account monitors must override `isRelevantTransaction` to check for account data
 2. **Metadata Enrichment**: Fixed rate limiting and efficiency
