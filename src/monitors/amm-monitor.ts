@@ -332,6 +332,7 @@ export class AMMMonitor extends BaseMonitor {
       
       // Parse events to get pool reserves
       const parsedEvents = eventParserService.parseTransaction(txn);
+      
       for (const event of parsedEvents) {
         if (event.name === 'BuyEvent' || event.name === 'SellEvent') {
           // Extract reserves from the event
@@ -516,7 +517,11 @@ export class AMMMonitor extends BaseMonitor {
         virtualTokenReserves: virtualTokenReserves,  // Already in token units as bigint
         realSolReserves: virtualSolReserves,  // AMM uses same reserves for real and virtual
         realTokenReserves: virtualTokenReserves,
-        poolAddress: swapEvent.pool
+        poolAddress: swapEvent.pool,
+        // Add the calculated price and market cap
+        priceUsd: priceInfo.priceInUsd,
+        marketCapUsd: priceInfo.marketCapUsd,
+        volumeUsd: volumeUsd
       };
       
       // Process trade with enhanced handler (includes price impact calculations)

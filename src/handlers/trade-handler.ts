@@ -52,14 +52,25 @@ export class TradeHandler {
     solPriceUsd: number
   ): Promise<{ saved: boolean; token?: Token }> {
     try {
-      // Calculate price info
-      const reserves: ReserveInfo = {
-        solReserves: event.virtualSolReserves,
-        tokenReserves: event.virtualTokenReserves,
-        isVirtual: true
-      };
-      
-      const priceInfo = this.priceCalculator.calculatePrice(reserves, solPriceUsd);
+      // Use pre-calculated prices if available (for AMM trades), otherwise calculate
+      let priceInfo;
+      if (event.priceUsd !== undefined && event.marketCapUsd !== undefined) {
+        // Use the pre-calculated values from AMM monitor
+        priceInfo = {
+          priceInSol: event.priceUsd / solPriceUsd,
+          priceInUsd: event.priceUsd,
+          marketCapUsd: event.marketCapUsd,
+          priceInLamports: (event.priceUsd / solPriceUsd) * 1e9
+        };
+      } else {
+        // Calculate price info from reserves (for BC trades)
+        const reserves: ReserveInfo = {
+          solReserves: event.virtualSolReserves,
+          tokenReserves: event.virtualTokenReserves,
+          isVirtual: true
+        };
+        priceInfo = this.priceCalculator.calculatePrice(reserves, solPriceUsd);
+      }
       
       // Create trade record
       const trade: Trade = {
@@ -73,7 +84,7 @@ export class TradeHandler {
         priceSol: priceInfo.priceInSol,
         priceUsd: priceInfo.priceInUsd,
         marketCapUsd: priceInfo.marketCapUsd,
-        volumeUsd: Number(event.solAmount) / 1e9 * solPriceUsd,
+        volumeUsd: event.volumeUsd || (Number(event.solAmount) / 1e9 * solPriceUsd),
         virtualSolReserves: event.virtualSolReserves,
         virtualTokenReserves: event.virtualTokenReserves,
         slot: event.slot,

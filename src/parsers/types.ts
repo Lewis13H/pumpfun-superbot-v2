@@ -42,6 +42,10 @@ export interface TradeEvent extends BaseEvent {
   destinationType?: 'amm_pool' | 'raydium' | 'unknown';
   poolCreated?: boolean;
   poolAddress?: string;
+  // Price calculations (added for AMM fix)
+  priceUsd?: number;
+  marketCapUsd?: number;
+  volumeUsd?: number;
 }
 
 export interface BCTradeEvent extends TradeEvent {
