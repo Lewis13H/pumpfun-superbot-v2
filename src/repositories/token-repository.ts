@@ -84,37 +84,73 @@ export class TokenRepository extends BaseRepository<Token> {
    * Save or update token
    */
   async save(token: Token): Promise<Token> {
-    // Map currentPrice* fields to latest_price* in database
-    const fieldMapping: { [key: string]: string } = {
-      currentPriceSol: 'latest_price_sol',
-      currentPriceUsd: 'latest_price_usd',
-      currentMarketCapUsd: 'latest_market_cap_usd'
-    };
-    
-    const columns = Object.keys(token).map(key => {
-      // Use mapping if exists, otherwise convert camelCase to snake_case
-      if (fieldMapping[key]) {
-        return fieldMapping[key];
-      }
-      return key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-    });
-    
-    const values = Object.values(token);
-    const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
-    
-    const updateSet = columns
-      .filter(col => col !== 'mint_address' && col !== 'created_at')
-      .map(col => `${col} = EXCLUDED.${col}`)
-      .join(', ');
-
+    // Use explicit query with columns that match the database schema
     const query = `
-      INSERT INTO tokens_unified (${columns.join(', ')})
-      VALUES (${placeholders})
+      INSERT INTO tokens_unified (
+        mint_address, symbol, name, description, image_uri, uri, decimals, supply,
+        creator, total_supply, bonding_curve_key,
+        first_price_sol, first_price_usd, first_market_cap_usd,
+        latest_price_sol, latest_price_usd, latest_market_cap_usd,
+        threshold_crossed_at, graduated_to_amm, graduation_at, graduation_slot,
+        price_source, metadata_source, first_program, first_seen_slot,
+        last_price_update, last_metadata_update, first_seen_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+        $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28
+      )
       ON CONFLICT (mint_address) DO UPDATE SET
-        ${updateSet},
+        symbol = EXCLUDED.symbol,
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        image_uri = EXCLUDED.image_uri,
+        uri = EXCLUDED.uri,
+        decimals = EXCLUDED.decimals,
+        supply = EXCLUDED.supply,
+        latest_price_sol = EXCLUDED.latest_price_sol,
+        latest_price_usd = EXCLUDED.latest_price_usd,
+        latest_market_cap_usd = EXCLUDED.latest_market_cap_usd,
+        graduated_to_amm = EXCLUDED.graduated_to_amm,
+        graduation_at = EXCLUDED.graduation_at,
+        graduation_slot = EXCLUDED.graduation_slot,
+        price_source = EXCLUDED.price_source,
+        metadata_source = EXCLUDED.metadata_source,
+        last_price_update = EXCLUDED.last_price_update,
+        last_metadata_update = EXCLUDED.last_metadata_update,
+        threshold_crossed_at = COALESCE(tokens_unified.threshold_crossed_at, EXCLUDED.threshold_crossed_at),
         updated_at = NOW()
       RETURNING *
     `;
+
+    const values = [
+      token.mintAddress,
+      token.symbol || null,
+      token.name || null,
+      token.description || null,
+      token.image || null,
+      token.uri || null,
+      token.decimals || null,
+      token.supply || null,
+      token.creator || null,
+      token.totalSupply || null,
+      token.bondingCurveKey || null,
+      token.firstPriceSol || 0,
+      token.firstPriceUsd || 0,
+      token.firstMarketCapUsd || 0,
+      token.currentPriceSol || token.firstPriceSol || 0,
+      token.currentPriceUsd || token.firstPriceUsd || 0,
+      token.currentMarketCapUsd || token.firstMarketCapUsd || 0,
+      token.thresholdCrossedAt || null,
+      token.graduatedToAmm || false,
+      token.graduationAt || null,
+      token.graduationSlot ? token.graduationSlot.toString() : null,
+      token.priceSource || 'unknown',
+      token.metadataSource || null,
+      token.firstProgram || null,
+      token.firstSeenSlot || null,
+      token.lastPriceUpdate || null,
+      token.lastMetadataUpdate || null,
+      token.createdAt || new Date()  // first_seen_at
+    ];
 
     const result = await this.queryOne<Token>(query, values);
     
