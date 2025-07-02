@@ -121,7 +121,7 @@ app.get('/api/status', async (_req, res) => {
   try {
     // Get latest SOL price
     const priceResult = await pool.query(
-      'SELECT price, source, created_at FROM sol_prices ORDER BY created_at DESC LIMIT 1'
+      'SELECT price_usd as price, source, created_at FROM sol_prices ORDER BY created_at DESC LIMIT 1'
     );
     
     // Get system stats

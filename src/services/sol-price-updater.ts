@@ -298,7 +298,7 @@ export class SolPriceUpdater {
       // Try with old schema
       try {
         await db.query(
-          "DELETE FROM sol_prices WHERE timestamp < NOW() - INTERVAL '24 hours'"
+          "DELETE FROM sol_prices WHERE created_at < NOW() - INTERVAL '24 hours'"
         );
       } catch (fallbackError) {
         console.error('Failed to cleanup old prices:', fallbackError);

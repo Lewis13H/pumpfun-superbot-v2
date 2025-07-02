@@ -24,7 +24,7 @@ app.get('/api/tokens', async (_req, res) => {
         SELECT DISTINCT ON (t.address) 
           t.address as token,
           COALESCE(t.last_price_usd, p.price_usd) as price_usd,
-          COALESCE(t.last_price_usd / NULLIF((SELECT price FROM sol_prices ORDER BY timestamp DESC LIMIT 1), 0), p.price_sol) as price_sol,
+          COALESCE(t.last_price_usd / NULLIF((SELECT price_usd FROM sol_prices ORDER BY created_at DESC LIMIT 1), 0), p.price_sol) as price_sol,
           COALESCE(t.last_price_usd * 1000000000, p.market_cap_usd) as market_cap_usd,
           CASE WHEN t.graduated THEN 100 ELSE COALESCE(p.progress, 0) END as progress,
           COALESCE(t.last_updated, p.time) as last_update,
@@ -154,7 +154,7 @@ app.get('/api/tokens/graduated', async (_req, res) => {
         SELECT DISTINCT ON (t.address) 
           t.address as token,
           COALESCE(t.last_price_usd, p.price_usd) as price_usd,
-          COALESCE(t.last_price_usd / NULLIF((SELECT price FROM sol_prices ORDER BY timestamp DESC LIMIT 1), 0), p.price_sol) as price_sol,
+          COALESCE(t.last_price_usd / NULLIF((SELECT price_usd FROM sol_prices ORDER BY created_at DESC LIMIT 1), 0), p.price_sol) as price_sol,
           COALESCE(t.last_price_usd * 1000000000, p.market_cap_usd) as market_cap_usd,
           COALESCE(t.last_updated, p.time) as last_update
         FROM tokens t
@@ -433,13 +433,13 @@ app.get('/api/status', async (_req, res) => {
     let priceResult;
     try {
       priceResult = await db.query(
-        'SELECT price, source, created_at FROM sol_prices ORDER BY created_at DESC LIMIT 1'
+        'SELECT price_usd as price, source, created_at FROM sol_prices ORDER BY created_at DESC LIMIT 1'
       );
     } catch (error) {
       // Try old schema
       try {
         priceResult = await db.query(
-          'SELECT price, timestamp as created_at FROM sol_prices ORDER BY timestamp DESC LIMIT 1'
+          'SELECT price_usd as price, created_at FROM sol_prices ORDER BY created_at DESC LIMIT 1'
         );
       } catch (fallbackError) {
         priceResult = { rows: [] };
