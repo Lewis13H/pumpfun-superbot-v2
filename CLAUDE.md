@@ -83,6 +83,9 @@ Main tables:
 - ✅ Fixed pool state persistence - reserves now saved to tokens_unified table
 - ✅ Fixed current_program field - now properly set to 'amm_pool' for AMM trades
 - ✅ Token decimal formatting verified - raw values stored, formatted on display
+- ✅ Fixed BC monitor price_sol column error - updated field names to match schema
+- ✅ Implemented bonding curve progress tracking - stored in database and displayed in dashboard
+- ✅ Progress bar shows percentage for BC tokens, "GRAD" for graduated tokens
 
 ### Previous Updates
 - ✅ Dashboard UI improvements (SOL price timestamp, stream indicator)

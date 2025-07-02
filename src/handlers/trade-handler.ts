@@ -207,6 +207,9 @@ export class TradeHandler {
     if (event.type === EventType.BC_TRADE && 'bondingCurveKey' in event) {
       token.bondingCurveKey = (event as any).bondingCurveKey;
     }
+    if (event.type === EventType.BC_TRADE && 'bondingCurveProgress' in event) {
+      token.latestBondingCurveProgress = (event as any).bondingCurveProgress;
+    }
     
     // Check if threshold crossed
     const threshold = this.config.get('monitors').bcSaveThreshold;
@@ -236,9 +239,9 @@ export class TradeHandler {
   ): Promise<void> {
     // Build update data
     const updateData: any = {
-      priceSol: priceInfo.priceInSol,
-      priceUsd: priceInfo.priceInUsd,
-      marketCapUsd: priceInfo.marketCapUsd,
+      currentPriceSol: priceInfo.priceInSol,
+      currentPriceUsd: priceInfo.priceInUsd,
+      currentMarketCapUsd: priceInfo.marketCapUsd,
       priceSource: event.type === EventType.BC_TRADE ? 'bonding_curve' : 'amm'
     };
     
@@ -251,6 +254,9 @@ export class TradeHandler {
         updateData.latestVirtualSolReserves = Number(event.virtualSolReserves) / 1e9;
         updateData.latestVirtualTokenReserves = Number(event.virtualTokenReserves) / 1e6;
       }
+    } else if (event.type === EventType.BC_TRADE && 'bondingCurveProgress' in event) {
+      // Update bonding curve progress for BC trades
+      updateData.latestBondingCurveProgress = (event as any).bondingCurveProgress;
     }
     
     // Update price and program info

@@ -38,6 +38,7 @@ export interface Token {
   lastMetadataUpdate?: Date;
   latestVirtualSolReserves?: number;
   latestVirtualTokenReserves?: number;
+  latestBondingCurveProgress?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
