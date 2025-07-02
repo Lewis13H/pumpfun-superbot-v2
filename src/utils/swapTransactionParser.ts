@@ -69,12 +69,16 @@ export function parseSwapTransactionOutput(parsedInstruction: any, transaction: 
     const amountOut = swapInstruction.name === 'sell'
         ? determineOutAmount()
         : base_amount_in;
+    // Extract pool account from instruction
+    const poolPubkey = swapInstruction.accounts.find((account: any) => account.name === 'pool')?.pubkey || 'unknown';
+    
     const transactionEvent = {
         type: buySellEvent.type,
         user: signerPubkey,
         mint: buySellEvent.mint,
         out_amount: amountOut,
-        in_amount: amountIn, 
+        in_amount: amountIn,
+        pool: poolPubkey
     };
 
 

@@ -94,7 +94,8 @@ export class AmmPoolStateService {
    * Update pool account data
    */
   async updatePoolState(account: AmmPoolAccount): Promise<void> {
-    const mintAddress = account.quoteMint;
+    // For pump.fun AMM, baseMint is the token, quoteMint is SOL
+    const mintAddress = account.baseMint || account.quoteMint;
     
     // Get or create pool state
     let poolState = this.poolStates.get(mintAddress);

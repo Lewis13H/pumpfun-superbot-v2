@@ -146,7 +146,7 @@ export class AMMAccountMonitor extends BaseMonitor {
         pumpswap_amm: {
           account: [],
           filters: [],
-          owner: [PUMP_AMM_PROGRAM_ID.toBase58()]
+          owner: [PUMP_AMM_PROGRAM_ID.toBase58(), 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA']
         }
       },
       transactions: {},
@@ -198,16 +198,16 @@ export class AMMAccountMonitor extends BaseMonitor {
     baseMint: string, 
     quoteMint: string
   ): Promise<void> {
-    // Track the relationship
+    // Track the relationship (baseMint is the token mint for pump.fun AMM)
     this.tokenAccountToPool.set(baseVault, {
       poolAddress,
-      mintAddress: quoteMint,
+      mintAddress: baseMint, // Changed from quoteMint to baseMint
       isBase: true,
     });
     
     this.tokenAccountToPool.set(quoteVault, {
       poolAddress,
-      mintAddress: quoteMint,
+      mintAddress: baseMint, // Changed from quoteMint to baseMint
       isBase: false,
     });
     
@@ -218,54 +218,16 @@ export class AMMAccountMonitor extends BaseMonitor {
       quoteVault,
     });
     
-    this.logger.info('Subscribing to vault accounts', {
+    this.logger.info('Tracking vault accounts', {
       pool: poolAddress.slice(0, 8) + '...',
       baseVault: baseVault.slice(0, 8) + '...',
       quoteVault: quoteVault.slice(0, 8) + '...'
     });
     
-    // Create a new subscription for these specific token accounts
-    const tokenAccountReq: SubscribeRequest = {
-      slots: {},
-      accounts: {
-        [`vault_${poolAddress}`]: {
-          account: [baseVault, quoteVault],
-          filters: [],
-          owner: [],
-        },
-      },
-      transactions: {},
-      transactionsStatus: {},
-      entry: {},
-      blocks: {},
-      blocksMeta: {},
-      accountsDataSlice: [],
-      ping: undefined,
-      commitment: CommitmentLevel.PROCESSED,
-    };
-    
-    // Add to existing subscription
-    const stream = await (this as any).streamClient.getClient().subscribe();
-    
-    stream.on("data", async (data: any) => {
-      if (data?.account) {
-        await this.processTokenAccountUpdate(data);
-      }
-    });
-    
-    // Send subscription
-    await new Promise<void>((resolve, reject) => {
-      stream.write(tokenAccountReq, (err: any) => {
-        if (err === null || err === undefined) {
-          this.ammStats.tokenAccountsTracked.add(baseVault);
-          this.ammStats.tokenAccountsTracked.add(quoteVault);
-          resolve();
-        } else {
-          this.logger.error('Failed to subscribe to token accounts', err);
-          reject(err);
-        }
-      });
-    });
+    // Just track the accounts, don't create a new subscription
+    // The main processStreamData will handle token account updates too
+    this.ammStats.tokenAccountsTracked.add(baseVault);
+    this.ammStats.tokenAccountsTracked.add(quoteVault);
   }
 
   /**
@@ -388,8 +350,25 @@ export class AMMAccountMonitor extends BaseMonitor {
         return;
       }
       
-      // Otherwise, check if it's a pool account
+      // Check if it's a token account (SPL Token Program)
       const owner = accountInfo.owner ? this.convertBase64ToBase58(accountInfo.owner) : '';
+      const TOKEN_PROGRAM_ID = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+      
+      if (owner === TOKEN_PROGRAM_ID) {
+        // This is a token account - check if we're tracking it
+        const accountData = Buffer.from(accountInfo.data, 'base64');
+        const tokenAccount = this.decodeTokenAccount(accountData);
+        
+        if (tokenAccount && this.tokenAccountToPool.has(accountPubkey)) {
+          await this.processTokenAccountUpdate({
+            account: { account: accountInfo },
+            slot: data.slot
+          });
+        }
+        return;
+      }
+      
+      // Otherwise, check if it's a pool account
       if (owner !== PUMP_AMM_PROGRAM_ID.toBase58()) {
         // Debug log once to see what owners we're getting
         if (this.ammStats.accountUpdates <= 5) {
@@ -436,14 +415,14 @@ export class AMMAccountMonitor extends BaseMonitor {
           slot: data.slot || 0,
         };
         
-        // Store pool state
+        // Store pool state (use baseMint as the token mint for pump.fun AMM)
         await this.poolStateService.updatePoolState(poolData);
         
         // Emit pool created event if this is a new pool
         if (!this.knownPools.has(accountPubkey)) {
           this.eventBus.emit(EVENTS.POOL_CREATED, {
             poolAddress: accountPubkey,
-            mintAddress: poolData.quoteMint,
+            mintAddress: poolData.baseMint, // Changed from quoteMint to baseMint
             baseMint: poolData.baseMint,
             quoteMint: poolData.quoteMint,
             lpMint: poolData.lpMint,
@@ -465,7 +444,7 @@ export class AMMAccountMonitor extends BaseMonitor {
         // Only log if not in quiet mode
         if (process.env.DISABLE_MONITOR_STATS !== 'true') {
           this.logger.info('Pool state updated', {
-            mint: poolData.quoteMint,
+            mint: poolData.baseMint, // Changed from quoteMint to baseMint
             pool: accountPubkey,
             lpSupply: poolData.lpSupply.toLocaleString()
           });
