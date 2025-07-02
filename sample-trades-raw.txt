@@ -1,8 +1,0 @@
-                                        signature                                         | trade_type |                 mint_address                 | sol_amount | token_amount  |   price_usd    | market_cap_usd |          created_at           
-------------------------------------------------------------------------------------------+------------+----------------------------------------------+------------+---------------+----------------+----------------+-------------------------------
- 4v1qh31D6yuGMNkZKsXjG4mNQa3oFpaLWPwBTpu57bBJBtZFpU1McEB5rUVcK43yp2Wt3MwecQboLQhkis5mbkeA | buy        | 3ghHhEaEtiWqgvxLpYhE6hoPhJLhTuNMSjk172HPPUMP |  492330305 | 2416400945649 | 0.000000000000 |         0.0000 | 2025-07-02 17:53:29.836312+08
- WDLFiWYs4gBRtZ8PnUf6VwJzgsAcyf15osegj3mpBzWCjdmzN89WobLsTF8ipXSHJYMNRfYLbmX8CivjhzHXX3L  | buy        | HpPi7Hrb4UBFBnpPVm9dt7YcuJbAVijAK9vimuWepump | 6277077508 | 7665203032446 | 0.000000000000 |         0.0000 | 2025-07-02 17:53:29.836312+08
- 33Nozgt7z7ZQLak6tWJoh6kWvaz5M7Df2i273tCLHQa7Med6w4LuMHoVfeh7mjCZvHw1PXhum4bjUDJPEbuWnkWG | buy        | FEjpijhqCSQaPiJPYDDZjUhSiqxEfXmYuMKbe7AmQMRQ | 6747384492 | 8680368066818 | 0.000000000000 |         0.0000 | 2025-07-02 17:53:29.836312+08
- cLSsyF8jcKdbxkTnS8VuDqhiQTuxiuRizECzqYXP2G9dDwg794Ay23GMjs1bPaNfvvRtLo4q6bmbzXPURd7QVzy  | buy        | 3aSVqnrLc7PK9rVCeGuJRqaeLmrQBDGWetYoFAJePUMP | 5428219898 | 7339741393305 | 0.000000000000 |         0.0000 | 2025-07-02 17:53:29.836312+08
-(4 rows)
-

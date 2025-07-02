@@ -1,8 +1,0 @@
-                                        signature                                         | trade_type |                 mint_address                 | sol_amount | token_amount | sol_amount_decimal | token_amount_decimal |   price_usd    | market_cap_usd 
-------------------------------------------------------------------------------------------+------------+----------------------------------------------+------------+--------------+--------------------+----------------------+----------------+----------------
- 5GNLms1EQEotXPRKSoYqRboBpg3fwYQm6VDuim8VybE6fbwaKGFxFcJ45JSnwZ3jtNYrnT2E4Kfn3AshExwecs1  | buy        | EuDU2WLtQxPurHq7d7U2M76xLFNJUTsQ4KwSXWQvuP9d |   82269645 |  21352851667 |        0.082269645 |         21352.851667 | 0.000000000000 |         0.0000
- 5td2gJ976jVcHqfqVXZjJJWf8jtvtmPccCVcXn6QEDgw63tY24af7wkvJVbhspGiMgKdd872Hf4pkp582VQtyPEi | buy        | 9M8DPQF49DxFcBbsnoMk8CqXNVBJxAHJZSGXhtMCJWwW |  422196016 | 154254252042 |        0.422196016 |        154254.252042 | 0.000000000000 |         0.0000
- 3ZFbYXEEciH8CFP7e1aYXEUsnvyrAkXxAPERGS1aHMYbNieHYdoAQpqmrmmTcirWhsd48ibsZqKDhPBYXwDs8jJ8 | sell       | EXgaZEkfdJMGhaK6uMcC7qnsFodEsdaLii8p442ppump |  508070114 | 530621642925 |        0.508070114 |        530621.642925 | 0.000000000000 |         0.0000
- 28dBzaxGJJQLntgK8BUu5NSj1W7hAo5YCr4QpqiBfyy1FUgRLh4bX7EVArrhpDVhF9jCPDCJZQuBaVkEgehfAggo | sell       | F7Tyox5rfAzvXkTC75W6iMQiKGsGTZnRZpL2gPAp6BTT |   62195095 |   9844648831 |        0.062195095 |          9844.648831 | 0.000000000000 |         0.0000
-(4 rows)
-

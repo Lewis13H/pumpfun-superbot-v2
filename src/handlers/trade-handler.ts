@@ -53,13 +53,25 @@ export class TradeHandler {
   ): Promise<{ saved: boolean; token?: Token }> {
     try {
       // Calculate price info
-      const reserves: ReserveInfo = {
-        solReserves: event.virtualSolReserves,
-        tokenReserves: event.virtualTokenReserves,
-        isVirtual: true
-      };
+      let priceInfo: any;
       
-      const priceInfo = this.priceCalculator.calculatePrice(reserves, solPriceUsd);
+      // Use pre-calculated values from AMM monitor if available
+      if (event.priceUsd !== undefined && event.marketCapUsd !== undefined) {
+        priceInfo = {
+          priceInUsd: event.priceUsd,
+          marketCapUsd: event.marketCapUsd,
+          priceInSol: event.priceUsd / solPriceUsd,
+          priceInLamports: (event.priceUsd / solPriceUsd) * 1e9
+        };
+      } else {
+        // Fallback to calculating from reserves
+        const reserves: ReserveInfo = {
+          solReserves: event.virtualSolReserves,
+          tokenReserves: event.virtualTokenReserves,
+          isVirtual: true
+        };
+        priceInfo = this.priceCalculator.calculatePrice(reserves, solPriceUsd);
+      }
       
       // Create trade record
       const trade: Trade = {
@@ -73,7 +85,7 @@ export class TradeHandler {
         priceSol: priceInfo.priceInSol,
         priceUsd: priceInfo.priceInUsd,
         marketCapUsd: priceInfo.marketCapUsd,
-        volumeUsd: Number(event.solAmount) / 1e9 * solPriceUsd,
+        volumeUsd: event.volumeUsd !== undefined ? event.volumeUsd : Number(event.solAmount) / 1e9 * solPriceUsd,
         virtualSolReserves: event.virtualSolReserves,
         virtualTokenReserves: event.virtualTokenReserves,
         slot: event.slot,
@@ -176,10 +188,17 @@ export class TradeHandler {
       graduatedToAmm: event.type === EventType.AMM_TRADE,
       priceSource: event.type === EventType.BC_TRADE ? 'bonding_curve' : 'amm',
       firstProgram: event.type === EventType.BC_TRADE ? 'bonding_curve' : 'amm_pool',
+      currentProgram: event.type === EventType.BC_TRADE ? 'bonding_curve' : 'amm_pool',
       lastPriceUpdate: now,
       firstSeenSlot: Number(event.slot),
       createdAt: now
     };
+    
+    // Add reserves for AMM tokens
+    if (event.type === EventType.AMM_TRADE && event.virtualSolReserves && event.virtualTokenReserves) {
+      token.latestVirtualSolReserves = Number(event.virtualSolReserves) / 1e9;
+      token.latestVirtualTokenReserves = Number(event.virtualTokenReserves) / 1e6;
+    }
 
     // Add pump.fun specific fields if available (from BC trade)
     if (event.type === EventType.BC_TRADE && 'creator' in event) {
@@ -215,19 +234,36 @@ export class TradeHandler {
     priceInfo: any,
     event: TradeEvent
   ): Promise<void> {
-    // Update price if newer
-    await this.tokenRepo.updatePrice(event.mintAddress, {
+    // Build update data
+    const updateData: any = {
       priceSol: priceInfo.priceInSol,
       priceUsd: priceInfo.priceInUsd,
       marketCapUsd: priceInfo.marketCapUsd,
       priceSource: event.type === EventType.BC_TRADE ? 'bonding_curve' : 'amm'
-    });
+    };
+    
+    // Update current_program for AMM trades
+    if (event.type === EventType.AMM_TRADE) {
+      updateData.currentProgram = 'amm_pool';
+      
+      // Update reserves if available
+      if (event.virtualSolReserves && event.virtualTokenReserves) {
+        updateData.latestVirtualSolReserves = Number(event.virtualSolReserves) / 1e9;
+        updateData.latestVirtualTokenReserves = Number(event.virtualTokenReserves) / 1e6;
+      }
+    }
+    
+    // Update price and program info
+    await this.tokenRepo.update(event.mintAddress, updateData);
     
     // Update cache
     token.currentPriceSol = priceInfo.priceInSol;
     token.currentPriceUsd = priceInfo.priceInUsd;
     token.currentMarketCapUsd = priceInfo.marketCapUsd;
     token.lastPriceUpdate = new Date();
+    if (event.type === EventType.AMM_TRADE) {
+      token.currentProgram = 'amm_pool';
+    }
     
     // Check threshold crossing
     const threshold = this.config.get('monitors').bcSaveThreshold;

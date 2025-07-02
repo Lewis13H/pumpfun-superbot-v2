@@ -80,6 +80,9 @@ Main tables:
 - ✅ Created direct event decoder to bypass Anchor IDL compatibility issues
 - ✅ AMM reserves now extracted from events (pool_base_token_reserves, pool_quote_token_reserves)
 - ✅ Price calculation should now work with proper reserve data
+- ✅ Fixed pool state persistence - reserves now saved to tokens_unified table
+- ✅ Fixed current_program field - now properly set to 'amm_pool' for AMM trades
+- ✅ Token decimal formatting verified - raw values stored, formatted on display
 
 ### Previous Updates
 - ✅ Dashboard UI improvements (SOL price timestamp, stream indicator)
@@ -111,6 +114,7 @@ Main tables:
 ### Known Issues
 - GraphQL metadata disabled (schema issues)
 - Shyft gRPC connection limits may cause "Maximum connection count reached" errors
+- AMM account monitor may fail with DNS resolution errors - retry usually fixes this
 
 ### AMM Event Parsing Fix
 The AMM monitor was not extracting pool reserves due to an Anchor IDL compatibility issue. This has been fixed by:

@@ -32,9 +32,12 @@ export interface Token {
   priceSource?: string;
   metadataSource?: string;
   firstProgram?: 'bonding_curve' | 'amm_pool';
+  currentProgram?: 'bonding_curve' | 'amm_pool';
   firstSeenSlot?: number;
   lastPriceUpdate?: Date;
   lastMetadataUpdate?: Date;
+  latestVirtualSolReserves?: number;
+  latestVirtualTokenReserves?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }

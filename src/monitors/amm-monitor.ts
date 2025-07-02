@@ -270,14 +270,17 @@ export class AMMMonitor extends BaseMonitor {
       if (!data.transaction) return;
       
       // Format transaction using Shyft formatter
+      // Use blockTime from transaction if available, otherwise use current time in seconds
+      const blockTimeSeconds = data.transaction.blockTime || Math.floor(Date.now() / 1000);
       const txn = this.txnFormatter.formTransactionFromJson(
         data.transaction,
-        Date.now()
+        blockTimeSeconds
       );
       
       const signature = txn.transaction.signatures[0];
       const slot = txn.slot || 0;
       const blockTime = new Date((txn.blockTime || Math.floor(Date.now() / 1000)) * 1000);
+      const txnBlockTimeSeconds = txn.blockTime || Math.floor(Date.now() / 1000);
       
       if (slot > this.ammStats.lastSlot) {
         this.ammStats.lastSlot = slot;
@@ -568,12 +571,27 @@ export class AMMMonitor extends BaseMonitor {
         });
       }
       
-      // Calculate price using the price calculator with reserves
-      let priceInfo = { priceInSol: 0, priceInUsd: 0, marketCapUsd: 0, priceInLamports: 0 };
+      // Calculate price from trade amounts (more accurate for individual trades)
+      const priceInSol = tokenAmount > 0 ? solAmount / tokenAmount : 0;
+      let priceInfo = {
+        priceInSol,
+        priceInUsd: priceInSol * this.currentSolPrice,
+        marketCapUsd: priceInSol * this.currentSolPrice * 1e9, // Assume 1B supply
+        priceInLamports: priceInSol * Number(LAMPORTS_PER_SOL)
+      };
       
+      this.logger.debug('Calculated price from trade amounts', {
+        mint: swapEvent.mint.slice(0, 8) + '...',
+        solAmount,
+        tokenAmount,
+        priceInSol,
+        priceInUsd: priceInfo.priceInUsd,
+        marketCapUsd: priceInfo.marketCapUsd
+      });
+      
+      // Also log reserve-based price for comparison if reserves available
       if (virtualSolReserves > 0n && virtualTokenReserves > 0n) {
-        // Use price calculator to get accurate price and market cap
-        priceInfo = this.priceCalculator.calculatePrice(
+        const reservePriceInfo = this.priceCalculator.calculatePrice(
           {
             solReserves: virtualSolReserves,
             tokenReserves: virtualTokenReserves,
@@ -582,25 +600,11 @@ export class AMMMonitor extends BaseMonitor {
           this.currentSolPrice
         );
         
-        this.logger.debug('Calculated price from reserves', {
+        this.logger.debug('Reserve-based price (for comparison)', {
           mint: swapEvent.mint.slice(0, 8) + '...',
-          priceInSol: priceInfo.priceInSol,
-          priceInUsd: priceInfo.priceInUsd,
-          marketCapUsd: priceInfo.marketCapUsd
-        });
-      } else {
-        // Fallback to simple price calculation from trade amounts
-        const priceInSol = tokenAmount > 0 ? solAmount / tokenAmount : 0;
-        priceInfo = {
-          priceInSol,
-          priceInUsd: priceInSol * this.currentSolPrice,
-          marketCapUsd: priceInSol * this.currentSolPrice * 1e9, // Assume 1B supply
-          priceInLamports: priceInSol * Number(LAMPORTS_PER_SOL)
-        };
-        
-        this.logger.warn('Using fallback price calculation from trade amounts', {
-          mint: swapEvent.mint.slice(0, 8) + '...',
-          priceInUsd: priceInfo.priceInUsd
+          reservePriceUsd: reservePriceInfo.priceInUsd,
+          tradePriceUsd: priceInfo.priceInUsd,
+          priceDifference: Math.abs(reservePriceInfo.priceInUsd - priceInfo.priceInUsd) / priceInfo.priceInUsd * 100
         });
       }
       
@@ -649,7 +653,7 @@ export class AMMMonitor extends BaseMonitor {
         type: EventType.AMM_TRADE,
         signature,
         slot: BigInt(slot),
-        blockTime: Date.now(),
+        blockTime: txnBlockTimeSeconds, // Use actual block time from transaction
         programId: PUMP_AMM_PROGRAM_ID.toBase58(),
         tradeType: swapEvent.type === 'Buy' ? TradeType.BUY : TradeType.SELL,
         mintAddress: swapEvent.mint,
