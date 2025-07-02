@@ -157,6 +157,9 @@ export const TOKENS = {
   AmmFeeService: 'AmmFeeService' as ServiceToken<any>,
   LpPositionCalculator: 'LpPositionCalculator' as ServiceToken<any>,
   AmmPoolAnalytics: 'AmmPoolAnalytics' as ServiceToken<any>,
+  
+  // Graduation services
+  GraduationFixerService: 'GraduationFixerService' as ServiceToken<any>,
 } as const;
 
 // Global container instance (can be replaced for testing)

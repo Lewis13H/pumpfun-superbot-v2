@@ -16,7 +16,7 @@
             <nav class="nav-links">
                 <a href="#" class="nav-link active" data-view="tokens">Tokens</a>
                 <a href="/amm-dashboard.html" class="nav-link">AMM Analytics</a>
-                <a href="/streaming-metrics.html" class="nav-link">Streaming Metrics</a>
+                <a href="/streaming-metrics.html" class="nav-link">Stream</a>
             </nav>
             <div class="header-right">
                 <div class="sol-price-display">
@@ -61,17 +61,6 @@
                     </div>
                 </div>
 
-                <div class="filter-section">
-                    <h3 class="filter-title">Price Change %</h3>
-                    <div class="filter-pills">
-                        <div class="filter-pill" data-filter="price-change" data-value="all">All</div>
-                        <div class="filter-pill active" data-filter="price-change" data-value="gainers">Gainers</div>
-                        <div class="filter-pill" data-filter="price-change" data-value="losers">Losers</div>
-                        <div class="filter-pill" data-filter="price-change" data-value="+10">+10%</div>
-                        <div class="filter-pill" data-filter="price-change" data-value="+50">+50%</div>
-                        <div class="filter-pill" data-filter="price-change" data-value="+100">+100%</div>
-                    </div>
-                </div>
 
                 <div class="filter-section">
                     <h3 class="filter-title">Age</h3>
@@ -131,10 +120,6 @@
                         <span class="stat-label">Showing:</span>
                         <span class="stat-value" data-stat="token-count">0 tokens</span>
                     </div>
-                    <div class="stat-pill">
-                        <span class="stat-label">Total Vol 24h:</span>
-                        <span class="stat-value" data-stat="total-volume">$0</span>
-                    </div>
                 </div>
             </div>
 
@@ -147,12 +132,10 @@
                             <th style="width: 200px">Token</th>
                             <th class="sortable sorted-desc" style="width: 110px; text-align: right" data-sort="latest_market_cap_usd">Market Cap</th>
                             <th class="sortable" style="width: 100px; text-align: right" data-sort="latest_price_usd">Price USD</th>
-                            <th class="sortable" style="width: 80px; text-align: right" data-sort="price_change_24h">24h %</th>
                             <th class="sortable" style="width: 60px" data-sort="age_seconds">Age</th>
                             <th class="sortable" style="width: 100px; text-align: right" data-sort="liquidity">Liquidity</th>
-                            <th class="sortable" style="width: 120px; text-align: right" data-sort="volume_24h_usd">Volume 24h</th>
                             <th style="width: 120px">Progress</th>
-                            <th style="width: 80px; text-align: center" data-sort="holder_count">Holders</th>
+                            <th style="width: 80px; text-align: center">Links</th>
                         </tr>
                     </thead>
                     <tbody id="tokenTableBody">

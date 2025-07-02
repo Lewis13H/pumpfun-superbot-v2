@@ -13,7 +13,6 @@ let filters = {
     platform: 'all',
     mcapMin: 8888,
     mcapMax: null,
-    priceChange: 'all',
     age: 'all',
     liquidityMin: null,
     liquidityMax: null,
@@ -27,7 +26,6 @@ let filters = {
 let tokenTableBody;
 let loadingSpinner;
 let tokenCount;
-let totalVolume;
 let searchInput;
 let mcapMinInput;
 let mcapMaxInput;
@@ -38,7 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
     tokenTableBody = document.getElementById('tokenTableBody');
     loadingSpinner = document.getElementById('loadingSpinner');
     tokenCount = document.querySelector('.stat-value[data-stat="token-count"]');
-    totalVolume = document.querySelector('.stat-value[data-stat="total-volume"]');
     searchInput = document.getElementById('searchInput');
     mcapMinInput = document.getElementById('mcapMin');
     mcapMaxInput = document.getElementById('mcapMax');
@@ -101,10 +98,6 @@ function setupEventListeners() {
         checkbox.addEventListener('change', handleFilterChange);
     });
 
-    // Price change pills
-    document.querySelectorAll('.filter-pill[data-filter="price-change"]').forEach(pill => {
-        pill.addEventListener('click', handlePriceChangePill);
-    });
 
     // Age pills
     document.querySelectorAll('.filter-pill[data-filter="age"]').forEach(pill => {
@@ -281,7 +274,7 @@ function renderTokens() {
     if (!tokenTableBody) return;
     
     if (filteredTokens.length === 0) {
-        tokenTableBody.innerHTML = '<tr><td colspan="10" class="no-data">No tokens found</td></tr>';
+        tokenTableBody.innerHTML = '<tr><td colspan="8" class="no-data">No tokens found</td></tr>';
         if (loadingSpinner) loadingSpinner.style.display = 'none';
         return;
     }
@@ -290,8 +283,6 @@ function renderTokens() {
         // Use calculated price if available, otherwise fallback to latest_price_usd
         const priceUsd = parseFloat(token.calculated_price_usd || token.latest_price_usd) || 0;
         const marketCap = parseFloat(token.latest_market_cap_usd) || 0;
-        const volume24h = parseFloat(token.volume_24h_usd) || 0;
-        const priceChange = calculatePriceChange(token);
         // Use actual creation time if available, otherwise fall back to first seen
         // Note: token_created_at is often null, so we mostly see "first seen" time
         const creationTime = token.token_created_at || token.created_at || token.first_seen_at;
@@ -333,20 +324,8 @@ function renderTokens() {
                 <td class="price-cell">
                     <div class="price-value">$${formatPrice(priceUsd)}</div>
                 </td>
-                <td class="price-cell">
-                    <div class="price-change ${priceChange >= 0 ? 'change-positive' : 'change-negative'}">
-                        <span>${priceChange >= 0 ? '↑' : '↓'}</span>
-                        <span>${Math.abs(priceChange).toFixed(2)}%</span>
-                    </div>
-                </td>
                 <td class="age-cell" title="${ageTooltip}">${age}</td>
                 <td class="liquidity-cell">$${formatNumber(marketCap * 0.1)}</td>
-                <td class="volume-cell">
-                    <div class="volume-value">$${formatNumber(volume24h)}</div>
-                    <div class="volume-bar">
-                        <div class="volume-fill" style="width: ${Math.min(100, volume24h / 1000000 * 100)}%;"></div>
-                    </div>
-                </td>
                 <td>
                     <div class="progress-container">
                         <div class="progress-bar">
@@ -358,17 +337,25 @@ function renderTokens() {
                 </td>
                 <td class="actions-cell">
                     <div class="action-buttons">
-                        <span class="holder-count">${token.holder_count || '-'}</span>
                         <a href="https://pump.fun/coin/${token.mint_address}" 
                            target="_blank" 
                            rel="noopener noreferrer" 
-                           class="pump-link"
+                           class="icon-link"
                            title="View on pump.fun">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
+                            <img src="https://pump.fun/_next/image?url=%2Flogo.png&w=96&q=75" 
+                                 alt="pump.fun" 
+                                 width="20" 
+                                 height="20">
+                        </a>
+                        <a href="https://solscan.io/token/${token.mint_address}" 
+                           target="_blank" 
+                           rel="noopener noreferrer" 
+                           class="icon-link"
+                           title="View on Solscan">
+                            <img src="https://solscan.io/_next/static/media/solana-sol-logo.ecf2bf3a.svg" 
+                                 alt="Solscan" 
+                                 width="20" 
+                                 height="20">
                         </a>
                     </div>
                 </td>
@@ -383,13 +370,6 @@ function renderTokens() {
 function updateStats() {
     if (tokenCount) {
         tokenCount.textContent = `${filteredTokens.length} tokens`;
-    }
-    
-    if (totalVolume) {
-        const totalVol = filteredTokens.reduce((sum, token) => 
-            sum + (parseFloat(token.volume_24h_usd) || 0), 0
-        );
-        totalVolume.textContent = `$${formatNumber(totalVol)}`;
     }
     
     // Update token type counters
@@ -454,19 +434,6 @@ function handleFilterChange(e) {
     applyFilters();
 }
 
-function handlePriceChangePill(e) {
-    const pill = e.target;
-    const value = pill.getAttribute('data-value');
-    
-    // Remove active from all price pills
-    document.querySelectorAll('.filter-pill[data-filter="price-change"]').forEach(p => 
-        p.classList.remove('active')
-    );
-    
-    pill.classList.add('active');
-    filters.priceChange = value;
-    applyFilters();
-}
 
 function handleAgePill(e) {
     const pill = e.target;
@@ -535,18 +502,10 @@ function formatAge(timestamp) {
     return `${minutes}m`;
 }
 
-function calculatePriceChange(token) {
-    // Use first price vs current price for now
-    const firstPrice = parseFloat(token.first_price_usd) || 0;
-    const currentPrice = parseFloat(token.calculated_price_usd || token.latest_price_usd) || 0;
-    
-    if (firstPrice === 0) return 0;
-    return ((currentPrice - firstPrice) / firstPrice) * 100;
-}
 
 function showError(message) {
     if (tokenTableBody) {
-        tokenTableBody.innerHTML = `<tr><td colspan="10" class="no-data" style="color: var(--red);">${message}</td></tr>`;
+        tokenTableBody.innerHTML = `<tr><td colspan="8" class="no-data" style="color: var(--red);">${message}</td></tr>`;
     }
     if (loadingSpinner) loadingSpinner.style.display = 'none';
 }

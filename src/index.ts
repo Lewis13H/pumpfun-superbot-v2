@@ -176,6 +176,11 @@ async function startMonitors() {
     stats.activeMonitors.add('StaleDetector');
     logger.debug('Enhanced stale token detector started');
     
+    // Start graduation fixer service
+    await container.resolve(TOKENS.GraduationFixerService);
+    stats.activeMonitors.add('GraduationFixer');
+    logger.debug('Graduation fixer service started');
+    
     clearLine();
     console.log(chalk.green('✅ All systems operational\n'));
     
@@ -194,7 +199,7 @@ async function startMonitors() {
     }, 10000); // Every 10 seconds
     
     // Setup graceful shutdown
-    setupGracefulShutdown(monitors, logger);
+    setupGracefulShutdown(monitors, logger, container);
     
   } catch (error) {
     logger.error('Failed to start system', error as Error);
@@ -238,6 +243,13 @@ function setupEventListeners(eventBus: EventBus, _logger: Logger) {
     const identifier = data.mintAddress || data.bondingCurveKey || 'Unknown';
     const displayId = identifier.substring(0, 8) + '...';
     console.log(chalk.green(`\n🎓 GRADUATION: ${displayId} graduated to AMM!\n`));
+  });
+  
+  // Graduation fix events
+  eventBus.on(EVENTS.GRADUATION_FIXED, (data) => {
+    stats.graduations++;
+    const displayId = data.mintAddress.substring(0, 8) + '...';
+    console.log(chalk.magenta(`\n🔧 GRADUATION FIXED: ${data.symbol} (${displayId}) marked as graduated\n`));
   });
   
   // Error handling
@@ -284,7 +296,7 @@ function setupEventListeners(eventBus: EventBus, _logger: Logger) {
 /**
  * Setup graceful shutdown
  */
-function setupGracefulShutdown(monitors: any[], logger: Logger) {
+function setupGracefulShutdown(monitors: any[], logger: Logger, container?: any) {
   let isShuttingDown = false;
   
   const shutdown = async () => {
@@ -302,6 +314,19 @@ function setupGracefulShutdown(monitors: any[], logger: Logger) {
         }
       } catch (error) {
         logger.error(`Error stopping ${monitor.constructor.name}`, error as Error);
+      }
+    }
+    
+    // Stop graduation fixer service
+    if (container) {
+      try {
+        const graduationFixer = await container.resolve(TOKENS.GraduationFixerService);
+        if (graduationFixer && typeof graduationFixer.shutdown === 'function') {
+          await graduationFixer.shutdown();
+          console.log(chalk.yellow('Graduation fixer service stopped'));
+        }
+      } catch (error) {
+        logger.error('Error stopping graduation fixer', error as Error);
       }
     }
     

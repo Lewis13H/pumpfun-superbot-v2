@@ -205,6 +205,7 @@ export const EVENTS = {
   TOKEN_METADATA_UPDATED: 'token:metadata_updated',
   BONDING_CURVE_CREATED: 'bonding_curve:created',
   GRADUATION_PROCESSED: 'graduation:processed',
+  GRADUATION_FIXED: 'graduation:fixed',
   
   // Pool events
   POOL_CREATED: 'pool:created',

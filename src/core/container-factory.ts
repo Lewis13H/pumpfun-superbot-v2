@@ -215,6 +215,18 @@ export async function createContainer(): Promise<Container> {
     return enricher;
   });
   
+  // Register graduation fixer service
+  container.registerSingleton(TOKENS.GraduationFixerService, async () => {
+    const { GraduationFixerService } = await import('../services/graduation-fixer-service');
+    const tokenRepo = await container.resolve(TOKENS.TokenRepository);
+    const eventBus = await container.resolve(TOKENS.EventBus);
+    
+    const service = new GraduationFixerService(tokenRepo, eventBus);
+    await service.initialize();
+    
+    return service;
+  });
+  
   // Initialize critical services
   const config = await container.resolve(TOKENS.ConfigService);
   
