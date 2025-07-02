@@ -213,6 +213,7 @@ export const EVENTS = {
   // AMM events
   LIQUIDITY_ADDED: 'liquidity:added',
   LIQUIDITY_REMOVED: 'liquidity:removed',
+  LIQUIDITY_PROCESSED: 'liquidity:processed',
   FEE_COLLECTED: 'fee:collected',
   PROTOCOL_FEE_COLLECTED: 'protocol_fee:collected',
   

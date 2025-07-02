@@ -78,6 +78,31 @@ export async function createContainer(): Promise<Container> {
     });
   });
   
+  // Register AMM Enhancement Services
+  container.registerSingleton(TOKENS.LiquidityEventHandler, async () => {
+    const { LiquidityEventHandler } = await import('../handlers/liquidity-event-handler');
+    const eventBus = await container.resolve(TOKENS.EventBus);
+    const dbService = await container.resolve(TOKENS.DatabaseService);
+    const poolStateService = await container.resolve(TOKENS.PoolStateService);
+    
+    return new LiquidityEventHandler(eventBus, dbService, poolStateService);
+  });
+  
+  container.registerSingleton(TOKENS.AmmFeeService, async () => {
+    const { AmmFeeService } = await import('../services/amm-fee-service');
+    return AmmFeeService.getInstance();
+  });
+  
+  container.registerSingleton(TOKENS.LpPositionCalculator, async () => {
+    const { LpPositionCalculator } = await import('../services/lp-position-calculator');
+    return LpPositionCalculator.getInstance();
+  });
+  
+  container.registerSingleton(TOKENS.AmmPoolAnalytics, async () => {
+    const { AmmPoolAnalytics } = await import('../services/amm-pool-analytics');
+    return AmmPoolAnalytics.getInstance();
+  });
+  
   // Register calculators
   container.registerSingleton(TOKENS.PriceCalculator, async () => {
     const { PriceCalculator } = await import('../services/price-calculator');

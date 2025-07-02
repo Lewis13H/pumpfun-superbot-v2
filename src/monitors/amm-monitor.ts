@@ -61,8 +61,7 @@ export class AMMMonitor extends BaseMonitor {
       {
         programId: PUMP_AMM_PROGRAM_ID.toBase58(),
         monitorName: 'AMM Pool Monitor',
-        color: chalk.cyan as any,
-        subscriptionKey: 'pumpswap_amm'  // Add this critical configuration
+        color: chalk.cyan as any
       },
       container
     );
@@ -91,17 +90,6 @@ export class AMMMonitor extends BaseMonitor {
     };
     this.pumpAmmEventParser = new SolanaEventParser([], silentConsole);
     this.pumpAmmEventParser.addParserFromIdl(PUMP_AMM_PROGRAM_ID.toBase58(), pumpAmmIdl as any);
-  }
-
-  /**
-   * Get subscription configuration for StreamManager
-   */
-  public getSubscriptionConfig() {
-    return {
-      programId: this.options.programId,
-      subscriptionKey: 'pumpswap_amm',
-      monitorName: this.options.monitorName
-    };
   }
 
   /**

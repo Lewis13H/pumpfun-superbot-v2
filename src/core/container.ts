@@ -143,6 +143,7 @@ export const TOKENS = {
   
   // Pool State Service
   PoolStateService: 'PoolStateService' as ServiceToken<any>,
+  AmmPoolStateService: 'AmmPoolStateService' as ServiceToken<any>,
   
   // WebSocket
   WebSocketServer: 'WebSocketServer' as ServiceToken<any>,
@@ -150,6 +151,12 @@ export const TOKENS = {
   // Enrichment
   MetadataEnricher: 'MetadataEnricher' as ServiceToken<any>,
   PriceRecovery: 'PriceRecovery' as ServiceToken<any>,
+  
+  // AMM Enhancement services
+  LiquidityEventHandler: 'LiquidityEventHandler' as ServiceToken<any>,
+  AmmFeeService: 'AmmFeeService' as ServiceToken<any>,
+  LpPositionCalculator: 'LpPositionCalculator' as ServiceToken<any>,
+  AmmPoolAnalytics: 'AmmPoolAnalytics' as ServiceToken<any>,
 } as const;
 
 // Global container instance (can be replaced for testing)
