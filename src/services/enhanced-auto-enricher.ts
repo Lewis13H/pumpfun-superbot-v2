@@ -7,6 +7,7 @@
 import { db } from '../database';
 import { HeliusService } from './helius';
 import { ShyftMetadataService } from './shyft-metadata-service';
+import { ShyftDASService } from './shyft-das-service';
 // import { graphqlMetadataEnricher } from './graphql-metadata-enricher';
 import chalk from 'chalk';
 
@@ -25,6 +26,7 @@ export class EnhancedAutoEnricher {
   private static instance: EnhancedAutoEnricher;
   private heliusService: HeliusService;
   private shyftService: ShyftMetadataService;
+  private shyftDASService: ShyftDASService;
   private isRunning = false;
   private enrichmentQueue: Set<string> = new Set();
   private enrichmentInterval: NodeJS.Timeout | null = null;
@@ -46,6 +48,7 @@ export class EnhancedAutoEnricher {
   private constructor() {
     this.heliusService = HeliusService.getInstance();
     this.shyftService = ShyftMetadataService.getInstance();
+    this.shyftDASService = ShyftDASService.getInstance();
   }
   
   static getInstance(): EnhancedAutoEnricher {
@@ -161,53 +164,56 @@ export class EnhancedAutoEnricher {
       await new Promise(resolve => setTimeout(resolve, this.MIN_ENRICHMENT_DELAY - timeSinceLastEnrichment));
     }
     
-    const batch = Array.from(this.enrichmentQueue).slice(0, this.BATCH_SIZE);
+    // Get tokens with market caps for prioritization
+    const tokensWithPriority = await this.getTokensWithPriority(Array.from(this.enrichmentQueue));
+    const batch = tokensWithPriority.slice(0, this.BATCH_SIZE);
     
     console.log(chalk.cyan(`🔄 Processing batch of ${batch.length} tokens...`));
     
-    // Skip GraphQL since it doesn't have the required tables
-    // Go directly to Shyft API
     try {
-      console.log(chalk.blue('🔹 Fetching metadata from Shyft API...'));
-      const shyftBulkResults = await this.shyftService.getBulkMetadata(batch);
+      // Use DAS service with priority for comprehensive metadata
+      console.log(chalk.blue('🔹 Fetching metadata from Shyft DAS API...'));
+      const dasBulkResults = await this.shyftDASService.getBulkMetadataWithPriority(batch);
       
-      // Process Shyft API results
+      // Process DAS results
       const stillNeedEnrichment: string[] = [];
-      let shyftSuccessCount = 0;
+      let dasSuccessCount = 0;
       
-      for (const mint of batch) {
-        const shyftData = shyftBulkResults.get(mint);
-        if (shyftData && (shyftData.name || shyftData.symbol)) {
-          // Update with Shyft data
-          const result: EnrichmentResult = {
-            mintAddress: mint,
-            symbol: shyftData.symbol,
-            name: shyftData.name,
-            description: shyftData.description,
-            image: shyftData.image,
-            uri: shyftData.uri,
-            source: 'shyft',
-            enrichedAt: new Date()
-          };
+      for (const req of batch) {
+        const dasData = dasBulkResults.get(req.mintAddress);
+        if (dasData && (dasData.name || dasData.symbol)) {
+          // Update database with comprehensive metadata
+          await this.shyftDASService.updateDatabaseMetadata(dasData);
           
-          await this.updateTokenMetadata(result);
           this.stats.shyftSuccess++;
           this.stats.totalEnriched++;
-          shyftSuccessCount++;
+          dasSuccessCount++;
           
           console.log(
             chalk.green('✅'),
-            chalk.white(`${mint.slice(0, 8)}...`),
+            chalk.white(`${req.mintAddress.slice(0, 8)}...`),
             chalk.gray('→'),
-            chalk.cyan(result.symbol || 'N/A'),
-            chalk.gray('(shyft api)')
+            chalk.cyan(dasData.symbol || 'N/A'),
+            chalk.gray(`(DAS) Score: ${dasData.metadata_score}`)
           );
+          
+          // Log additional extracted data
+          if (dasData.current_holder_count) {
+            console.log(chalk.gray(`     Holders: ${dasData.current_holder_count}`));
+          }
+          if (dasData.twitter || dasData.telegram || dasData.discord) {
+            const socials = [];
+            if (dasData.twitter) socials.push('Twitter');
+            if (dasData.telegram) socials.push('Telegram');
+            if (dasData.discord) socials.push('Discord');
+            console.log(chalk.gray(`     Socials: ${socials.join(', ')}`));
+          }
         } else {
-          stillNeedEnrichment.push(mint);
+          stillNeedEnrichment.push(req.mintAddress);
         }
       }
       
-      console.log(chalk.green(`   ✅ Shyft API enriched ${shyftSuccessCount} tokens`));
+      console.log(chalk.green(`   ✅ Shyft DAS enriched ${dasSuccessCount} tokens`));
       
       // Process remaining tokens with Helius (if configured)
       if (stillNeedEnrichment.length > 0 && process.env.HELIUS_API_KEY) {
@@ -229,7 +235,7 @@ export class EnhancedAutoEnricher {
     }
     
     // Remove processed tokens from queue
-    batch.forEach(mint => this.enrichmentQueue.delete(mint));
+    batch.forEach(req => this.enrichmentQueue.delete(req.mintAddress));
     this.stats.queueSize = this.enrichmentQueue.size;
     this.lastEnrichmentTime = Date.now();
   }
@@ -245,41 +251,72 @@ export class EnhancedAutoEnricher {
     };
     
     try {
-      // Try Shyft first (more cost-effective)
-      const shyftMetadata = await this.shyftService.getTokenMetadata(mintAddress);
-      if (shyftMetadata && (shyftMetadata.name || shyftMetadata.symbol)) {
+      // Try Shyft DAS first (comprehensive metadata with holder counts)
+      const dasMetadata = await this.shyftDASService.getTokenInfoDAS(mintAddress);
+      if (dasMetadata && (dasMetadata.name || dasMetadata.symbol)) {
+        // Update database with comprehensive metadata
+        await this.shyftDASService.updateDatabaseMetadata(dasMetadata);
+        
         result = {
           mintAddress,
-          symbol: shyftMetadata.symbol,
-          name: shyftMetadata.name,
-          description: shyftMetadata.description,
-          image: shyftMetadata.image,
-          uri: shyftMetadata.uri,
+          symbol: dasMetadata.symbol,
+          name: dasMetadata.name,
+          description: dasMetadata.description,
+          image: dasMetadata.image,
+          uri: dasMetadata.uri,
           source: 'shyft',
           enrichedAt: new Date()
         };
         this.stats.shyftSuccess++;
-      } else if (process.env.HELIUS_API_KEY) {
-        // Fallback to Helius only if API key is configured
-        const heliusMetadata = await this.heliusService.getTokenMetadata(mintAddress);
-        if (heliusMetadata && (heliusMetadata.name || heliusMetadata.symbol)) {
-          result = {
-            mintAddress,
-            symbol: heliusMetadata.symbol,
-            name: heliusMetadata.name,
-            description: heliusMetadata.description,
-            image: heliusMetadata.image,
-            uri: heliusMetadata.image, // Helius uses 'image' field
-            source: 'helius',
-            enrichedAt: new Date()
-          };
-          this.stats.heliusSuccess++;
-        } else {
-          this.stats.failures++;
+        
+        // Log additional data extracted
+        if (dasMetadata.current_holder_count) {
+          console.log(chalk.gray(`     Holders: ${dasMetadata.current_holder_count}`));
+        }
+        if (dasMetadata.twitter || dasMetadata.telegram || dasMetadata.discord) {
+          const socials = [];
+          if (dasMetadata.twitter) socials.push('Twitter');
+          if (dasMetadata.telegram) socials.push('Telegram');
+          if (dasMetadata.discord) socials.push('Discord');
+          console.log(chalk.gray(`     Socials: ${socials.join(', ')}`));
         }
       } else {
-        // No Helius API key configured
-        this.stats.failures++;
+        // Fallback to regular Shyft API
+        const shyftMetadata = await this.shyftService.getTokenMetadata(mintAddress);
+        if (shyftMetadata && (shyftMetadata.name || shyftMetadata.symbol)) {
+          result = {
+            mintAddress,
+            symbol: shyftMetadata.symbol,
+            name: shyftMetadata.name,
+            description: shyftMetadata.description,
+            image: shyftMetadata.image,
+            uri: shyftMetadata.uri,
+            source: 'shyft',
+            enrichedAt: new Date()
+          };
+          this.stats.shyftSuccess++;
+        } else if (process.env.HELIUS_API_KEY) {
+          // Fallback to Helius only if API key is configured
+          const heliusMetadata = await this.heliusService.getTokenMetadata(mintAddress);
+          if (heliusMetadata && (heliusMetadata.name || heliusMetadata.symbol)) {
+            result = {
+              mintAddress,
+              symbol: heliusMetadata.symbol,
+              name: heliusMetadata.name,
+              description: heliusMetadata.description,
+              image: heliusMetadata.image,
+              uri: heliusMetadata.image, // Helius uses 'image' field
+              source: 'helius',
+              enrichedAt: new Date()
+            };
+            this.stats.heliusSuccess++;
+          } else {
+            this.stats.failures++;
+          }
+        } else {
+          // No Helius API key configured
+          this.stats.failures++;
+        }
       }
       
       // Update database if we got metadata
@@ -443,6 +480,41 @@ export class EnhancedAutoEnricher {
     // Process immediately if not already running
     if (!this.isRunning) {
       await this.processQueue();
+    }
+  }
+  
+  /**
+   * Get tokens with market cap priority for enrichment
+   */
+  private async getTokensWithPriority(mintAddresses: string[]): Promise<Array<{ mintAddress: string; priority: number }>> {
+    try {
+      // Get market caps for prioritization
+      const result = await db.query(`
+        SELECT mint_address, latest_market_cap_usd
+        FROM tokens_unified
+        WHERE mint_address = ANY($1::varchar[])
+      `, [mintAddresses]);
+      
+      // Create priority map
+      const priorityMap = new Map<string, number>();
+      for (const row of result.rows) {
+        const marketCap = parseFloat(row.latest_market_cap_usd || '0');
+        // Higher market cap = higher priority
+        priorityMap.set(row.mint_address, marketCap);
+      }
+      
+      // Sort by priority (highest market cap first)
+      return mintAddresses
+        .map(mintAddress => ({
+          mintAddress,
+          priority: priorityMap.get(mintAddress) || 0
+        }))
+        .sort((a, b) => b.priority - a.priority);
+        
+    } catch (error) {
+      console.error(chalk.red('Error getting token priorities:'), error);
+      // Return unsorted if error
+      return mintAddresses.map(mintAddress => ({ mintAddress, priority: 0 }));
     }
   }
 }
