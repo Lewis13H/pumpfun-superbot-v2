@@ -8,6 +8,7 @@ import { db } from '../database';
 import { HeliusService } from './helius';
 import { ShyftMetadataService } from './shyft-metadata-service';
 import { ShyftDASService } from './shyft-das-service';
+import { TokenCreationTimeService } from './token-creation-time-service';
 // import { graphqlMetadataEnricher } from './graphql-metadata-enricher';
 import chalk from 'chalk';
 
@@ -27,6 +28,7 @@ export class EnhancedAutoEnricher {
   private heliusService: HeliusService;
   private shyftService: ShyftMetadataService;
   private shyftDASService: ShyftDASService;
+  private creationTimeService: TokenCreationTimeService;
   private isRunning = false;
   private enrichmentQueue: Set<string> = new Set();
   private enrichmentInterval: NodeJS.Timeout | null = null;
@@ -49,6 +51,7 @@ export class EnhancedAutoEnricher {
     this.heliusService = HeliusService.getInstance();
     this.shyftService = ShyftMetadataService.getInstance();
     this.shyftDASService = ShyftDASService.getInstance();
+    this.creationTimeService = TokenCreationTimeService.getInstance();
   }
   
   static getInstance(): EnhancedAutoEnricher {
@@ -331,6 +334,17 @@ export class EnhancedAutoEnricher {
           chalk.cyan(result.symbol || 'N/A'),
           chalk.gray(`(${result.source})`)
         );
+        
+        // Also fetch and update creation time
+        try {
+          const creationInfo = await this.creationTimeService.getTokenCreationTime(mintAddress);
+          if (creationInfo) {
+            await this.creationTimeService.updateTokenCreationTime(mintAddress, creationInfo);
+            console.log(chalk.gray(`     Created: ${creationInfo.creationTime.toLocaleString()} (${creationInfo.source})`));
+          }
+        } catch (error) {
+          console.error(chalk.yellow(`     Failed to fetch creation time: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        }
       }
       
     } catch (error) {

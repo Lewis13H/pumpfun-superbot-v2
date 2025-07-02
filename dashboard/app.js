@@ -7,6 +7,7 @@ let tokens = [];
 let filteredTokens = [];
 let sortColumn = 'latest_market_cap_usd';
 let sortDirection = 'desc';
+let tokenView = 'new'; // 'new' or 'graduated'
 let filters = {
     search: '',
     platform: 'all',
@@ -58,9 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Set up event listeners
     setupEventListeners();
-    
-    // Set up navigation
-    setupNavigation();
 });
 
 // Sidebar toggle
@@ -118,6 +116,11 @@ function setupEventListeners() {
         th.addEventListener('click', handleSort);
     });
 
+    // Token type toggle
+    document.querySelectorAll('.token-type-option').forEach(button => {
+        button.addEventListener('click', handleTokenTypeToggle);
+    });
+
     // Keyboard shortcut (Ctrl/Cmd + B)
     document.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
@@ -156,13 +159,28 @@ async function loadStatus() {
             headerSolPrice.textContent = `$${data.sol_price.price.toFixed(2)}`;
         }
         
+        // Update SOL price timestamp
+        const headerSolTimestamp = document.getElementById('header-sol-timestamp');
+        if (headerSolTimestamp && data.sol_price.timestamp) {
+            const timestamp = new Date(data.sol_price.timestamp);
+            const now = new Date();
+            const diffSeconds = Math.floor((now - timestamp) / 1000);
+            
+            let timeText = '';
+            if (diffSeconds < 60) {
+                timeText = `${diffSeconds}s ago`;
+            } else if (diffSeconds < 3600) {
+                timeText = `${Math.floor(diffSeconds / 60)}m ago`;
+            } else {
+                timeText = `${Math.floor(diffSeconds / 3600)}h ago`;
+            }
+            
+            headerSolTimestamp.textContent = timeText;
+            headerSolTimestamp.title = `Last updated: ${timestamp.toLocaleTimeString()}`;
+        }
+        
         // Update connection status
         updateConnectionStatus(true);
-        
-        // Also check BC Monitor status if available
-        if (window.bcMonitor && window.bcMonitor.isConnected) {
-            updateConnectionStatus(true, 'BC Monitor Connected');
-        }
     } catch (error) {
         console.error('Error loading status:', error);
         updateConnectionStatus(false);
@@ -194,6 +212,10 @@ function updateConnectionStatus(isConnected, text = null) {
 // Apply filters
 function applyFilters() {
     filteredTokens = tokens.filter(token => {
+        // First filter by token view (new vs graduated)
+        if (tokenView === 'new' && token.graduated_to_amm) return false;
+        if (tokenView === 'graduated' && !token.graduated_to_amm) return false;
+        
         // Search filter
         if (filters.search) {
             const searchTerm = filters.search.toLowerCase();
@@ -210,13 +232,13 @@ function applyFilters() {
             return false;
         }
         
-        // Platform filter
+        // Platform filter - now redundant with tokenView but keeping for compatibility
         if (filters.platform !== 'all') {
             if (filters.platform === 'pump' && token.graduated_to_amm) return false;
             if (filters.platform === 'amm' && !token.graduated_to_amm) return false;
         }
         
-        // Quick filters
+        // Quick filters - adjust for token view
         if (filters.recentlyGraduated && !token.graduated_to_amm) return false;
         if (filters.nearGraduation && (token.graduated_to_amm || token.latest_bonding_curve_progress < 90)) return false;
         if (filters.highVolume && token.volume_24h_usd < 100000) return false;
@@ -271,7 +293,12 @@ function renderTokens() {
         const volume24h = parseFloat(token.volume_24h_usd) || 0;
         const priceChange = calculatePriceChange(token);
         // Use actual creation time if available, otherwise fall back to first seen
-        const age = formatAge(token.token_created_at || token.first_seen_at);
+        // Note: token_created_at is often null, so we mostly see "first seen" time
+        const creationTime = token.token_created_at || token.created_at || token.first_seen_at;
+        const age = formatAge(creationTime);
+        const ageTooltip = token.token_created_at 
+            ? 'Token age since blockchain creation' 
+            : 'Time since first detected by monitor (actual creation time not available)';
         const progress = parseFloat(token.latest_bonding_curve_progress) || 0;
         const isGraduated = token.graduated_to_amm;
         const program = isGraduated ? 'amm_pool' : 'bonding_curve';
@@ -312,7 +339,7 @@ function renderTokens() {
                         <span>${Math.abs(priceChange).toFixed(2)}%</span>
                     </div>
                 </td>
-                <td class="age-cell" title="${token.token_created_at ? 'Token age since creation' : 'Time since first detected by monitor'}">${age}</td>
+                <td class="age-cell" title="${ageTooltip}">${age}</td>
                 <td class="liquidity-cell">$${formatNumber(marketCap * 0.1)}</td>
                 <td class="volume-cell">
                     <div class="volume-value">$${formatNumber(volume24h)}</div>
@@ -367,6 +394,23 @@ function updateStats() {
 }
 
 // Event Handlers
+function handleTokenTypeToggle(e) {
+    const button = e.target;
+    const type = button.getAttribute('data-type');
+    
+    // Update active state
+    document.querySelectorAll('.token-type-option').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    button.classList.add('active');
+    
+    // Update view state
+    tokenView = type;
+    
+    // Re-apply filters
+    applyFilters();
+}
+
 function handleFilterChange(e) {
     const checkbox = e.target;
     const filterName = checkbox.getAttribute('data-filter');
@@ -499,44 +543,3 @@ function debounce(func, wait) {
     };
 }
 
-// Navigation setup
-function setupNavigation() {
-    const navLinks = document.querySelectorAll('.nav-link[data-view]');
-    const tokenListContainer = document.querySelector('.token-list-container');
-    const bcMonitorSection = document.getElementById('bc-monitor-section');
-    
-    navLinks.forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            
-            // Update active state
-            navLinks.forEach(l => l.classList.remove('active'));
-            link.classList.add('active');
-            
-            // Get view name
-            const view = link.getAttribute('data-view');
-            
-            // Show/hide appropriate sections
-            if (view === 'bc-monitor') {
-                // Show BC Monitor section
-                tokenListContainer.style.display = 'none';
-                if (document.getElementById('sidebar')) {
-                    document.getElementById('sidebar').style.display = 'none';
-                }
-                bcMonitorSection.style.display = 'block';
-                
-                // Initialize BC Monitor client if not already done
-                if (!window.bcMonitor) {
-                    window.bcMonitor = new BCMonitorClient();
-                }
-            } else {
-                // Show tokens view
-                tokenListContainer.style.display = 'flex';
-                if (document.getElementById('sidebar')) {
-                    document.getElementById('sidebar').style.display = 'block';
-                }
-                bcMonitorSection.style.display = 'none';
-            }
-        });
-    });
-}

@@ -9,19 +9,19 @@
  */
 
 import { UnifiedDbServiceV2, UnifiedTokenData, UnifiedTradeData } from '../database/unified-db-service';
-import { BondingCurveTradeEvent } from '../parsers/bc-event-parser';
+import { BCTradeEvent, EventType } from '../parsers/types';
+import { UnifiedEventParser } from '../parsers/unified-event-parser';
 // import { calculateBondingCurveProgress } from '../services/bc-price-calculator';  // Unused import
 
 export interface ProcessedTradeDataV2 {
-  event: BondingCurveTradeEvent;
-  tradeType: 'buy' | 'sell' | 'unknown';
+  event: BCTradeEvent;
   signature: string;
   priceInSol: number;
   priceInUsd: number;
   marketCapUsd: number;
   progress: number;
-  slot?: bigint;
-  blockTime?: Date;
+  slot: bigint;
+  blockTime: Date;
 }
 
 export interface DbHandlerStats {
@@ -48,9 +48,11 @@ export class BondingCurveDbHandlerV2 {
   private discoveredTokens: Map<string, { marketCap: number, attempts: number }> = new Map();
   private stats: DbHandlerStats;
   private config: DbHandlerConfig;
+  private parser: UnifiedEventParser;
   
   constructor(config?: Partial<DbHandlerConfig>) {
     this.dbService = UnifiedDbServiceV2.getInstance();
+    this.parser = new UnifiedEventParser({ useIDLParsing: true });
     this.stats = {
       tokensDiscovered: 0,
       tokensSaved: 0,
@@ -77,7 +79,7 @@ export class BondingCurveDbHandlerV2 {
    * Process a trade event with improved handling
    */
   async processTrade(data: ProcessedTradeDataV2): Promise<void> {
-    const { event, tradeType, signature, priceInSol, priceInUsd, marketCapUsd, progress } = data;
+    const { event, signature, priceInSol, priceInUsd, marketCapUsd, progress } = data;
     this.stats.tradesProcessed++;
     
     // Check if we should save this trade
@@ -86,34 +88,34 @@ export class BondingCurveDbHandlerV2 {
     if (!shouldSaveTrade) {
       this.stats.tradesSkippedBelowThreshold++;
       if (this.config.logVerbose) {
-        console.log(`Skipping trade for ${event.mint} - MC: $${marketCapUsd.toFixed(0)} below threshold`);
+        console.log(`Skipping trade for ${event.mintAddress} - MC: $${marketCapUsd.toFixed(0)} below threshold`);
       }
       return;
     }
     
     // Check if this is a new token discovery
-    const isNewToken = !this.discoveredTokens.has(event.mint);
+    const isNewToken = !this.discoveredTokens.has(event.mintAddress);
     if (isNewToken) {
       await this.handleNewTokenV2(data);
     }
     
     // Prepare trade data
     const tradeData: UnifiedTradeData = {
-      mintAddress: event.mint,
+      mintAddress: event.mintAddress,
       signature: signature,
       program: 'bonding_curve',
-      tradeType: tradeType === 'unknown' ? 'buy' : tradeType,
-      userAddress: event.user || 'unknown',
-      solAmount: event.solAmount || BigInt(0),
-      tokenAmount: event.tokenAmount || BigInt(0),
+      tradeType: event.tradeType,
+      userAddress: event.userAddress,
+      solAmount: event.solAmount,
+      tokenAmount: event.tokenAmount,
       priceSol: priceInSol,
       priceUsd: priceInUsd,
       marketCapUsd: marketCapUsd,
       virtualSolReserves: event.virtualSolReserves,
       virtualTokenReserves: event.virtualTokenReserves,
       bondingCurveProgress: progress,
-      slot: data.slot || BigInt(0),
-      blockTime: data.blockTime || new Date()
+      slot: data.slot,
+      blockTime: data.blockTime
     };
     
     // Process through database service with retry logic
@@ -144,7 +146,7 @@ export class BondingCurveDbHandlerV2 {
     const { event, priceInSol, priceInUsd, marketCapUsd } = data;
     
     this.stats.tokensDiscovered++;
-    this.discoveredTokens.set(event.mint, { marketCap: marketCapUsd, attempts: 0 });
+    this.discoveredTokens.set(event.mintAddress, { marketCap: marketCapUsd, attempts: 0 });
     
     // Check if we should save this token
     const shouldSaveToken = this.config.saveAllTokens || marketCapUsd >= this.config.thresholdUsd;
@@ -152,19 +154,19 @@ export class BondingCurveDbHandlerV2 {
     if (!shouldSaveToken) {
       this.stats.tokensSkippedBelowThreshold++;
       if (this.config.logVerbose) {
-        console.log(`🔽 Token below threshold: ${event.mint} MC: $${marketCapUsd.toFixed(0)}`);
+        console.log(`🔽 Token below threshold: ${event.mintAddress} MC: $${marketCapUsd.toFixed(0)}`);
       }
       return;
     }
     
     // Prepare token data
     const tokenData: UnifiedTokenData = {
-      mintAddress: event.mint,
+      mintAddress: event.mintAddress,
       symbol: undefined, // Will be enriched later
       name: undefined,   // Will be enriched later
       uri: undefined,    // Will be enriched later
       firstProgram: 'bonding_curve',
-      firstSeenSlot: data.slot || BigInt(0),
+      firstSeenSlot: data.slot,
       firstPriceSol: priceInSol,
       firstPriceUsd: priceInUsd,
       firstMarketCapUsd: marketCapUsd
@@ -174,13 +176,13 @@ export class BondingCurveDbHandlerV2 {
     try {
       await this.dbService.processTokenDiscovery(tokenData);
       this.stats.tokensSaved++;
-      console.log(`✅ New token saved: ${event.mint} MC: $${marketCapUsd.toFixed(0)}`);
+      console.log(`✅ New token saved: ${event.mintAddress} MC: $${marketCapUsd.toFixed(0)}`);
     } catch (error) {
       this.handleSaveError('token', error);
       this.stats.tokensFailedToSave++;
       
       // Update attempts counter
-      const tokenInfo = this.discoveredTokens.get(event.mint);
+      const tokenInfo = this.discoveredTokens.get(event.mintAddress);
       if (tokenInfo) {
         tokenInfo.attempts++;
         
@@ -191,9 +193,9 @@ export class BondingCurveDbHandlerV2 {
               await this.dbService.processTokenDiscovery(tokenData);
               this.stats.tokensSaved++;
               this.stats.tokensFailedToSave--;
-              console.log(`✅ Token saved on retry: ${event.mint}`);
+              console.log(`✅ Token saved on retry: ${event.mintAddress}`);
             } catch (retryError: any) {
-              console.error(`Failed to save token after retry: ${event.mint}`, retryError.message);
+              console.error(`Failed to save token after retry: ${event.mintAddress}`, retryError.message);
             }
           }, 500 * tokenInfo.attempts); // Exponential backoff
         }
@@ -292,5 +294,34 @@ export class BondingCurveDbHandlerV2 {
     }
     
     return failed;
+  }
+
+  /**
+   * Parse gRPC data into ProcessedTradeDataV2 using UnifiedEventParser
+   */
+  parseGrpcData(grpcData: any, priceInSol: number, priceInUsd: number, marketCapUsd: number, progress: number): ProcessedTradeDataV2 | null {
+    // Create parse context from gRPC data
+    const context = UnifiedEventParser.createContext(grpcData);
+    
+    // Parse the event
+    const event = this.parser.parse(context);
+    
+    // Check if it's a BC trade event
+    if (!event || event.type !== EventType.BC_TRADE) {
+      return null;
+    }
+    
+    const bcEvent = event as BCTradeEvent;
+    
+    return {
+      event: bcEvent,
+      signature: bcEvent.signature,
+      priceInSol,
+      priceInUsd,
+      marketCapUsd,
+      progress,
+      slot: bcEvent.slot,
+      blockTime: new Date((bcEvent.blockTime || Date.now() / 1000) * 1000)
+    };
   }
 }

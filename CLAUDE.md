@@ -14,6 +14,15 @@ npm run dashboard    # Web dashboard (http://localhost:3001)
 npm run build       # Build TypeScript
 ```
 
+## Recent Updates (January 2025)
+
+### Dashboard Improvements
+- Added SOL price timestamp display (shows when price was last updated)
+- Added streaming indicator icon with pulse animation when connected
+- New Tokens/Graduated toggle in sub-header for filtering token views
+- Removed unnecessary navigation items (BC Monitor, New Pairs, Gainers, etc.)
+- Token age now shows actual blockchain creation time when available
+
 ## Architecture
 
 ### Core Components
@@ -65,8 +74,18 @@ Main tables:
 
 ## Recent Updates (January 2025)
 
-### Completed
-- ✅ Fixed AMM price calculation with fallback
+### Latest Changes (Jan 2)
+- ✅ Fixed AMM event parsing issue - events now extracted correctly
+- ✅ Fixed decimal conversion error in TradeRepository
+- ✅ Created direct event decoder to bypass Anchor IDL compatibility issues
+- ✅ AMM reserves now extracted from events (pool_base_token_reserves, pool_quote_token_reserves)
+- ✅ Price calculation should now work with proper reserve data
+
+### Previous Updates
+- ✅ Dashboard UI improvements (SOL price timestamp, stream indicator)
+- ✅ Token creation time tracking with blockchain accuracy
+- ✅ New Tokens/Graduated toggle for better token filtering
+- ✅ Enhanced metadata enrichment with creation time fetching
 - ✅ Integrated all AMM enhancement sessions
 - ✅ Fixed TypeScript build errors
 - ✅ Shared stream manager for efficiency
@@ -79,9 +98,25 @@ Main tables:
 4. **Session 4**: ✅ Pool analytics
 5. **Session 5**: ✅ Enhanced price impact
 
+### Token Creation Time Service
+- New `TokenCreationTimeService` fetches actual blockchain creation timestamps
+- Uses multiple sources: Shyft TX history, Helius metadata, RPC signatures
+- Automatically integrated into enrichment process
+- Scripts available to backfill existing tokens:
+  ```bash
+  npx tsx src/scripts/update-top-tokens-creation-times.ts  # Top tokens only
+  npx tsx src/scripts/update-token-creation-times.ts       # All tokens
+  ```
+
 ### Known Issues
-- AMM monitor shows 0 trades (subscription issue being debugged)
 - GraphQL metadata disabled (schema issues)
+- Shyft gRPC connection limits may cause "Maximum connection count reached" errors
+
+### AMM Event Parsing Fix
+The AMM monitor was not extracting pool reserves due to an Anchor IDL compatibility issue. This has been fixed by:
+1. Creating a direct event decoder (`src/utils/amm-event-decoder.ts`) that bypasses Anchor
+2. Adding fallback mechanism in AMM monitor when Anchor parser fails
+3. Correcting the BuyEvent discriminator (was [103,244,82,31,44,181,119,119] not [103,244,82,31,44,245,119,119])
 
 ## Common Issues & Solutions
 
@@ -102,3 +137,5 @@ npm run test:coverage     # Coverage report
 - BC threshold: $8,888, AMM threshold: $1,000
 - All monitors use DI container
 - Events drive cross-component communication
+- Dashboard filters: "New Tokens" = un-graduated only, "Graduated" = graduated only
+- Token age shows blockchain creation time when available, falls back to first detection

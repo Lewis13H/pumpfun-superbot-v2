@@ -24,6 +24,7 @@ import { EnhancedTradeHandler } from '../handlers/enhanced-trade-handler';
 import { TradeEvent, EventType, TradeType } from '../parsers/types';
 import { PriceCalculator } from '../services/price-calculator';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { extractAmmEventsFromLogs } from '../utils/amm-event-decoder';
 
 // Constants
 const PUMP_AMM_PROGRAM_ID = new PublicKey('pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA');
@@ -82,13 +83,13 @@ export class AMMMonitor extends BaseMonitor {
     this.pumpAmmIxParser = new SolanaParser([]);
     this.pumpAmmIxParser.addParserFromIdl(PUMP_AMM_PROGRAM_ID.toBase58(), pumpAmmIdl as any);
     
-    // Create silent console for parser
-    const silentConsole = {
+    // Create console for parser - show errors in debug mode
+    const parserConsole = process.env.DEBUG_AMM === 'true' ? console : {
       ...console,
       warn: () => {},
       error: () => {},
     };
-    this.pumpAmmEventParser = new SolanaEventParser([], silentConsole);
+    this.pumpAmmEventParser = new SolanaEventParser([], parserConsole);
     this.pumpAmmEventParser.addParserFromIdl(PUMP_AMM_PROGRAM_ID.toBase58(), pumpAmmIdl as any);
   }
 
@@ -204,13 +205,60 @@ export class AMMMonitor extends BaseMonitor {
 
       if (pumpAmmIxs.length === 0) return;
       
-      const events = this.pumpAmmEventParser.parseEvent(tx);
+      // Debug: Check if logs exist
+      if (process.env.DEBUG_AMM === 'true') {
+        this.logger.debug('Transaction logs check', {
+          hasLogs: !!tx.meta?.logMessages,
+          logCount: tx.meta?.logMessages?.length || 0,
+          firstFewLogs: tx.meta?.logMessages?.slice(0, 5) || [],
+          signature: tx.transaction.signatures[0].slice(0, 8) + '...'
+        });
+      }
+      
+      let events = this.pumpAmmEventParser.parseEvent(tx);
+      
+      // If Anchor event parser fails (returns empty), try direct decoder
+      if (events.length === 0 && tx.meta?.logMessages) {
+        if (process.env.DEBUG_AMM === 'true') {
+          this.logger.debug('Anchor event parser returned no events, trying direct decoder');
+        }
+        events = extractAmmEventsFromLogs(tx.meta.logMessages);
+      }
+      
+      if (process.env.DEBUG_AMM === 'true') {
+        this.logger.debug('Event parsing result', {
+          eventsFound: events.length,
+          eventNames: events.map((e: any) => e.name),
+          firstEventData: events[0]?.data ? Object.keys(events[0].data) : null,
+          signature: tx.transaction.signatures[0].slice(0, 8) + '...'
+        });
+      }
+      
       const result = { instructions: { pumpAmmIxs, events }, inner_ixs: pump_amm_inner_ixs };
+      
+      if (process.env.DEBUG_AMM === 'true' && events.length > 0) {
+        this.logger.debug('Before bnLayoutFormatter', {
+          firstEventFields: events[0]?.data ? Object.keys(events[0].data) : null,
+          pool_base_token_reserves: events[0]?.data?.pool_base_token_reserves,
+          pool_quote_token_reserves: events[0]?.data?.pool_quote_token_reserves
+        });
+      }
+      
       bnLayoutFormatter(result);
+      
+      if (process.env.DEBUG_AMM === 'true' && result.instructions.events.length > 0) {
+        this.logger.debug('After bnLayoutFormatter', {
+          firstEventFields: result.instructions.events[0]?.data ? Object.keys(result.instructions.events[0].data) : null,
+          pool_base_token_reserves: result.instructions.events[0]?.data?.pool_base_token_reserves,
+          pool_quote_token_reserves: result.instructions.events[0]?.data?.pool_quote_token_reserves
+        });
+      }
       
       return result;
     } catch (err) {
-      // Silently ignore parse errors
+      if (process.env.DEBUG_AMM === 'true') {
+        this.logger.error('Error decoding pump AMM transaction', err as Error);
+      }
     }
   }
 
@@ -274,10 +322,10 @@ export class AMMMonitor extends BaseMonitor {
       }
       
       // Check for fee collection events
-      const feeEvents = eventParserService.getFeeEvents(txn);
+      const parsedFeeEvents = eventParserService.getFeeEvents(txn);
       
       // Process fee events
-      for (const feeEvent of feeEvents) {
+      for (const feeEvent of parsedFeeEvents) {
         if ('recipient' in feeEvent) {
           // Creator fee event
           this.eventBus.emit(EVENTS.FEE_COLLECTED, {
@@ -316,6 +364,16 @@ export class AMMMonitor extends BaseMonitor {
       const parsedTxn = this.decodePumpAmmTxn(txn);
       if (!parsedTxn) return;
       
+      // Debug: Log the structure to understand event location
+      if (process.env.DEBUG_AMM === 'true') {
+        this.logger.debug('Parsed transaction structure', {
+          hasInstructions: !!parsedTxn.instructions,
+          hasEvents: !!(parsedTxn.instructions?.events),
+          eventCount: parsedTxn.instructions?.events?.length || 0,
+          eventNames: parsedTxn.instructions?.events?.map((e: any) => e.name) || []
+        });
+      }
+      
       // Parse swap output
       const formattedSwapTxn = parseSwapTransactionOutput(parsedTxn, txn);
       if (!formattedSwapTxn) return;
@@ -330,52 +388,91 @@ export class AMMMonitor extends BaseMonitor {
       let virtualTokenReserves = 0n;
       let eventFound = false;
       
-      // Parse events to get pool reserves
-      const parsedEvents = eventParserService.parseTransaction(txn);
-      
-      for (const event of parsedEvents) {
-        if (event.name === 'BuyEvent' || event.name === 'SellEvent') {
-          // Extract reserves from the event
-          const eventData = event.data;
+      // Try to get reserves from the parsed pump AMM events
+      if (parsedTxn?.instructions?.events && parsedTxn.instructions.events.length > 0) {
+        if (process.env.DEBUG_AMM === 'true') {
+          this.logger.debug('Found events to process', {
+            count: parsedTxn.instructions.events.length,
+            names: parsedTxn.instructions.events.map((e: any) => e.name),
+            signature: signature.slice(0, 8) + '...'
+          });
+        }
+        
+        for (const event of parsedTxn.instructions.events) {
+          if (event.name === 'BuyEvent' || event.name === 'SellEvent') {
+            // Extract reserves from the event data
+            // For pump.fun AMM: base = token, quote = SOL
+            try {
+              // The event data contains the pool reserves after the trade
+              const eventData = event.data;
+              
+              // Try different field names that might contain the reserves
+              // Note: Shyft examples use snake_case field names
+              const tokenReservesRaw = eventData?.pool_base_token_reserves || 
+                                      eventData?.poolBaseTokenReserves || 
+                                      eventData?.baseTokenReserves ||
+                                      eventData?.token_reserves ||
+                                      eventData?.tokenReserves;
+                                      
+              const solReservesRaw = eventData?.pool_quote_token_reserves || 
+                                    eventData?.poolQuoteTokenReserves || 
+                                    eventData?.quoteTokenReserves ||
+                                    eventData?.sol_reserves ||
+                                    eventData?.solReserves;
+              
+              if (tokenReservesRaw && solReservesRaw) {
+                // Convert to BigInt - these are already in smallest units
+                virtualTokenReserves = BigInt(tokenReservesRaw.toString());
+                virtualSolReserves = BigInt(solReservesRaw.toString());
+                eventFound = true;
+                
+                this.logger.info('✅ Extracted reserves from AMM event', {
+                  eventName: event.name,
+                  tokenReserves: virtualTokenReserves.toString(),
+                  solReserves: virtualSolReserves.toString(),
+                  tokenReservesFormatted: (Number(virtualTokenReserves) / Math.pow(10, TOKEN_DECIMALS)).toLocaleString(),
+                  solReservesFormatted: (Number(virtualSolReserves) / LAMPORTS_PER_SOL).toFixed(9),
+                  mint: swapEvent.mint.slice(0, 8) + '...'
+                });
+                
+                // Update pool state service with new reserves
+                if (virtualSolReserves > 0n && virtualTokenReserves > 0n) {
+                  await this.poolStateService.updatePoolReserves(
+                    swapEvent.mint,
+                    Number(virtualSolReserves) / LAMPORTS_PER_SOL,
+                    Number(virtualTokenReserves) / Math.pow(10, TOKEN_DECIMALS),
+                    slot
+                  );
+                }
+              } else {
+                // Log the actual event structure to debug
+                this.logger.warn('❌ No reserves found in event', {
+                  eventName: event.name,
+                  fields: Object.keys(eventData || {}),
+                  tokenReservesRaw,
+                  solReservesRaw,
+                  eventData: JSON.stringify(eventData).slice(0, 200)
+                });
+              }
+            } catch (error) {
+              this.logger.warn('Failed to parse reserves from event', {
+                eventName: event.name,
+                error: error instanceof Error ? error.message : 'Unknown error'
+              });
+            }
           
-          // The events contain pool_base_token_reserves and pool_quote_token_reserves
-          // For pump.fun AMM, quote is always SOL, base is the token
-          // These values are already in their smallest units (lamports for SOL, token units with decimals)
-          try {
-            virtualTokenReserves = BigInt(eventData.pool_base_token_reserves || eventData.poolBaseTokenReserves || '0');
-            virtualSolReserves = BigInt(eventData.pool_quote_token_reserves || eventData.poolQuoteTokenReserves || '0');
-            eventFound = true;
             
-            this.logger.debug('Extracted reserves from AMM event', {
-              eventName: event.name,
-              tokenReserves: virtualTokenReserves.toString(),
-              solReserves: virtualSolReserves.toString(),
-              mint: swapEvent.mint.slice(0, 8) + '...'
-            });
-          } catch (error) {
-            this.logger.warn('Failed to parse reserves from event', {
-              eventName: event.name,
-              error: error instanceof Error ? error.message : 'Unknown error'
-            });
+            break; // We found our event, no need to continue
           }
-          
-          // Also check for fees
-          const feeEvent = eventParserService.extractFeesFromTrade(event.data);
-          if (feeEvent) {
-            this.eventBus.emit(EVENTS.AMM_TRADE, {
-              event: event.data,
-              signature,
-              slot,
-              blockTime
-            });
-            
-            // Track fee stats
-            this.ammStats.feesCollected++;
-            const feeValueUsd = Number(feeEvent.pcAmount) / 1e6 * this.currentSolPrice; // Simplified calculation
-            this.ammStats.totalFeesUsd += feeValueUsd;
-          }
-          
-          break; // We found our event, no need to continue
+        }
+      } else {
+        if (process.env.DEBUG_AMM === 'true') {
+          this.logger.warn('No events found in parsed transaction', {
+            hasInstructions: !!parsedTxn?.instructions,
+            hasEvents: !!parsedTxn?.instructions?.events,
+            eventCount: parsedTxn?.instructions?.events?.length || 0,
+            signature: signature.slice(0, 8) + '...'
+          });
         }
       }
       if (swapEvent.type === 'Buy') {
@@ -384,7 +481,37 @@ export class AMMMonitor extends BaseMonitor {
         this.ammStats.sells++;
       }
       
-      // If we didn't find reserves in events, try pool state service as fallback
+      this.ammStats.uniqueTokens.add(swapEvent.mint);
+      
+      // Also check fees in the transaction
+      const tradeFeeEvents = eventParserService.getFeeEvents(txn);
+      for (const feeEvent of tradeFeeEvents) {
+        this.ammStats.feesCollected++;
+        const feeValueUsd = ('pcAmount' in feeEvent ? Number(feeEvent.pcAmount) : 0) / LAMPORTS_PER_SOL * this.currentSolPrice;
+        this.ammStats.totalFeesUsd += feeValueUsd;
+      }
+      
+      // If we didn't find reserves in events, try a simpler approach like Shyft example
+      if (!eventFound && parsedTxn?.instructions?.events?.length > 0) {
+        try {
+          const firstEventData = parsedTxn.instructions.events[0]?.data;
+          if (firstEventData?.pool_base_token_reserves && firstEventData?.pool_quote_token_reserves) {
+            virtualTokenReserves = BigInt(firstEventData.pool_base_token_reserves.toString());
+            virtualSolReserves = BigInt(firstEventData.pool_quote_token_reserves.toString());
+            eventFound = true;
+            
+            this.logger.info('✅ Extracted reserves from first event (Shyft pattern)', {
+              tokenReserves: virtualTokenReserves.toString(),
+              solReserves: virtualSolReserves.toString(),
+              mint: swapEvent.mint.slice(0, 8) + '...'
+            });
+          }
+        } catch (error) {
+          this.logger.debug('Failed to extract reserves using Shyft pattern', { error });
+        }
+      }
+      
+      // If we still didn't find reserves, try pool state service as fallback
       if (!eventFound || virtualSolReserves === 0n || virtualTokenReserves === 0n) {
         // Get pool reserves from pool state service
         let poolState = this.poolStateService.getPoolState(swapEvent.mint);
@@ -395,14 +522,16 @@ export class AMMMonitor extends BaseMonitor {
         }
         
         if (poolState && poolState.reserves) {
-          // Convert cached reserves to bigint
-          virtualSolReserves = BigInt(poolState.reserves.virtualSolReserves || 0);
-          virtualTokenReserves = BigInt(poolState.reserves.virtualTokenReserves || 0);
+          // Pool state stores reserves in SOL/token units, convert back to lamports/raw units
+          virtualSolReserves = BigInt(Math.floor((poolState.reserves.virtualSolReserves || 0) * LAMPORTS_PER_SOL));
+          virtualTokenReserves = BigInt(Math.floor((poolState.reserves.virtualTokenReserves || 0) * Math.pow(10, TOKEN_DECIMALS)));
           
           this.logger.debug('Using cached pool reserves (fallback)', {
             mint: swapEvent.mint.slice(0, 8) + '...',
             solReserves: virtualSolReserves.toString(),
-            tokenReserves: virtualTokenReserves.toString()
+            tokenReserves: virtualTokenReserves.toString(),
+            solReservesSOL: (Number(virtualSolReserves) / LAMPORTS_PER_SOL).toFixed(9),
+            tokenReservesFormatted: (Number(virtualTokenReserves) / Math.pow(10, TOKEN_DECIMALS)).toLocaleString()
           });
         } else if (!eventFound) {
           // Only log warning if we didn't find event data

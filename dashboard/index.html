@@ -15,11 +15,6 @@
             </a>
             <nav class="nav-links">
                 <a href="#" class="nav-link active" data-view="tokens">Tokens</a>
-                <a href="#" class="nav-link" data-view="bc-monitor">BC Monitor</a>
-                <a href="#" class="nav-link" data-view="new-pairs">New Pairs</a>
-                <a href="#" class="nav-link" data-view="gainers">Gainers</a>
-                <a href="#" class="nav-link" data-view="watchlist">Watchlist</a>
-                <a href="#" class="nav-link" data-view="portfolio">Portfolio</a>
                 <a href="/amm-dashboard.html" class="nav-link">AMM Analytics</a>
                 <a href="/streaming-metrics.html" class="nav-link">Streaming Metrics</a>
             </nav>
@@ -27,9 +22,17 @@
                 <div class="sol-price-display">
                     <span class="sol-price-label">SOL</span>
                     <span class="sol-price-value" id="header-sol-price">$0.00</span>
+                    <span class="sol-price-timestamp" id="header-sol-timestamp" title="Last updated"></span>
                 </div>
                 <div class="connection-status" id="connection-status">
                     <div class="status-dot" id="status-dot"></div>
+                    <span class="stream-icon" id="stream-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
                     <span class="status-text" id="status-text">Disconnected</span>
                 </div>
             </div>
@@ -47,18 +50,7 @@
             <div class="filter-content">
                 <input type="text" class="search-box" placeholder="Search tokens..." id="searchInput">
                 
-                <div class="filter-section">
-                    <h3 class="filter-title">Platform</h3>
-                    <label class="filter-option">
-                        <input type="checkbox" checked data-filter="platform-all"> All Platforms
-                    </label>
-                    <label class="filter-option">
-                        <input type="checkbox" data-filter="platform-pump"> Pump.fun
-                    </label>
-                    <label class="filter-option">
-                        <input type="checkbox" data-filter="platform-amm"> Pump.swap (AMM)
-                    </label>
-                </div>
+                <!-- Platform filter removed - now using toggle in toolbar -->
 
                 <div class="filter-section">
                     <h3 class="filter-title">Market Cap</h3>
@@ -125,13 +117,9 @@
             <!-- Toolbar -->
             <div class="toolbar">
                 <div class="toolbar-left">
-                    <div class="view-toggle">
-                        <div class="view-option active">Table</div>
-                        <div class="view-option">Cards</div>
-                        <div class="view-option">Charts</div>
-                    </div>
-                    <div class="sort-dropdown">
-                        <span>Sort: Market Cap ↓</span>
+                    <div class="token-type-toggle">
+                        <button class="token-type-option active" data-type="new">New Tokens</button>
+                        <button class="token-type-option" data-type="graduated">Graduated</button>
                     </div>
                 </div>
                 <div class="toolbar-right">
@@ -174,67 +162,7 @@
         </div>
     </div>
 
-    <!-- BC Monitor Section (initially hidden) -->
-    <div id="bc-monitor-section" class="bc-monitor-container" style="display: none;">
-        <div class="bc-monitor-header">
-            <h2>🚀 Bonding Curve Monitor - Live Feed</h2>
-            <div class="bc-monitor-stats">
-                <div class="stat-box">
-                    <div class="stat-label">Total Trades</div>
-                    <div class="stat-value" id="bc-stats-trades">0</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-label">TX/s</div>
-                    <div class="stat-value" id="bc-stats-tps">0.0</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-label">New Tokens</div>
-                    <div class="stat-value" id="bc-stats-new-tokens">0</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-label">Graduations</div>
-                    <div class="stat-value" id="bc-stats-graduations">0</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-label">Parse Rate</div>
-                    <div class="stat-value" id="bc-stats-parse-rate">0%</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-label">Uptime</div>
-                    <div class="stat-value" id="bc-stats-uptime">0s</div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="bc-monitor-content">
-            <!-- Live Trades Feed -->
-            <div class="bc-panel">
-                <h3>📊 Live Trades</h3>
-                <div id="bc-trades-feed" class="bc-feed">
-                    <!-- Trades will be inserted here -->
-                </div>
-            </div>
-            
-            <!-- New Tokens Feed -->
-            <div class="bc-panel">
-                <h3>🆕 New Tokens</h3>
-                <div id="bc-new-tokens-feed" class="bc-feed">
-                    <!-- New tokens will be inserted here -->
-                </div>
-            </div>
-            
-            <!-- Performance Graphs -->
-            <div class="bc-panel">
-                <h3>📈 Performance</h3>
-                <div id="bc-performance-graphs" class="bc-graphs">
-                    <canvas id="bc-graph-tps" width="400" height="200"></canvas>
-                    <canvas id="bc-graph-parse-rate" width="400" height="200"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <script src="app.js"></script>
-    <script src="bc-monitor-client.js"></script>
 </body>
 </html>

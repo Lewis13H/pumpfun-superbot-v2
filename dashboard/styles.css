@@ -284,6 +284,35 @@ body {
     align-items: center;
 }
 
+.token-type-toggle {
+    display: flex;
+    background: var(--bg-hover);
+    border-radius: 6px;
+    padding: 2px;
+}
+
+.token-type-option {
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.token-type-option:hover {
+    color: var(--text-primary);
+}
+
+.token-type-option.active {
+    background: var(--bg-selected);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
 .view-toggle {
     display: flex;
     background: var(--bg-hover);
@@ -689,6 +718,12 @@ td {
     font-weight: 700;
 }
 
+.sol-price-timestamp {
+    color: var(--text-dim);
+    font-size: 11px;
+    margin-left: 8px;
+}
+
 /* Connection Status */
 .connection-status {
     display: flex;
@@ -718,6 +753,39 @@ td {
     color: var(--text-secondary);
     font-size: 13px;
     font-weight: 500;
+}
+
+.stream-icon {
+    display: flex;
+    align-items: center;
+    opacity: 0.5;
+    transition: all 0.3s ease;
+}
+
+.stream-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+.status-dot.connected ~ .stream-icon {
+    opacity: 1;
+    color: var(--green);
+}
+
+.status-dot.connected ~ .stream-icon svg {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.5;
+    }
 }
 
 /* BC Monitor specific status (for BC Monitor page) */

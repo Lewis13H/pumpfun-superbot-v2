@@ -75,14 +75,14 @@ export class TradeRepository extends BaseRepository<Trade> {
       trade.program,
       trade.tradeType,
       trade.userAddress,
-      trade.solAmount.toString(),
-      trade.tokenAmount.toString(),
+      trade.solAmount.toString(),  // Keep as bigint string
+      trade.tokenAmount.toString(),   // Keep as bigint string
       trade.priceSol,
       trade.priceUsd,
       trade.marketCapUsd,
       trade.volumeUsd,
-      trade.virtualSolReserves?.toString(),
-      trade.virtualTokenReserves?.toString(),
+      trade.virtualSolReserves ? trade.virtualSolReserves.toString() : null,
+      trade.virtualTokenReserves ? trade.virtualTokenReserves.toString() : null,
       trade.bondingCurveKey,
       trade.bondingCurveProgress,
       trade.slot.toString(),
@@ -106,21 +106,21 @@ export class TradeRepository extends BaseRepository<Trade> {
     for (const trade of trades) {
       const tradePlaceholders: string[] = [];
       
-      // Add values in order
+      // Add values in order - keep bigints as strings
       values.push(
         trade.signature,
         trade.mintAddress,
         trade.program,
         trade.tradeType,
         trade.userAddress,
-        trade.solAmount.toString(),
-        trade.tokenAmount.toString(),
+        trade.solAmount.toString(),  // Keep as bigint string
+        trade.tokenAmount.toString(),   // Keep as bigint string
         trade.priceSol,
         trade.priceUsd,
         trade.marketCapUsd,
         trade.volumeUsd,
-        trade.virtualSolReserves?.toString(),
-        trade.virtualTokenReserves?.toString(),
+        trade.virtualSolReserves ? trade.virtualSolReserves.toString() : null,
+        trade.virtualTokenReserves ? trade.virtualTokenReserves.toString() : null,
         trade.bondingCurveKey,
         trade.bondingCurveProgress,
         trade.slot.toString(),

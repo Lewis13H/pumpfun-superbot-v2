@@ -144,13 +144,16 @@ async function startMonitors() {
     // Setup event listeners before starting monitors
     setupEventListeners(eventBus, logger);
     
-    // Create monitors
-    const monitors = [
-      new BCMonitor(container),
-      new BCAccountMonitor(container),
-      new AMMMonitor(container),
-      new AMMAccountMonitor(container)
-    ];
+    // Create monitors based on environment settings
+    const monitors = [];
+    
+    if (!process.env.DISABLE_BC_MONITORS) {
+      monitors.push(new BCMonitor(container));
+      monitors.push(new BCAccountMonitor(container));
+    }
+    
+    monitors.push(new AMMMonitor(container));
+    monitors.push(new AMMAccountMonitor(container));
     
     // Start all monitors
     // Since we're using StreamManager, we don't need staggered starts
