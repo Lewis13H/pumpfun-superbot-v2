@@ -22,11 +22,12 @@ import { EnhancedAutoEnricher } from '../services/enhanced-auto-enricher';
 import { eventParserService } from '../services/event-parser-service';
 import { EnhancedTradeHandler } from '../handlers/enhanced-trade-handler';
 import { TradeEvent, EventType, TradeType } from '../parsers/types';
+import { PriceCalculator } from '../services/price-calculator';
+import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 
 // Constants
 const PUMP_AMM_PROGRAM_ID = new PublicKey('pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA');
 const TOKEN_DECIMALS = 6;
-const LAMPORTS_PER_SOL = 1e9;
 const MAX_RECENT_TRADES = 20;
 
 interface AMMMonitorStats {
@@ -45,6 +46,7 @@ export class AMMMonitor extends BaseMonitor {
   private poolStateService!: AmmPoolStateService;
   private enricher: EnhancedAutoEnricher | null = null;
   private tradeHandler!: EnhancedTradeHandler;
+  private priceCalculator!: PriceCalculator;
   
   // Parsers from legacy code
   private txnFormatter = new TransactionFormatter();
@@ -104,6 +106,9 @@ export class AMMMonitor extends BaseMonitor {
     
     // Get enhanced trade handler
     this.tradeHandler = await this.container.resolve(TOKENS.EnhancedTradeHandler);
+    
+    // Get price calculator
+    this.priceCalculator = await this.container.resolve(TOKENS.PriceCalculator);
     
     // Initialize auto-enricher if API key is available
     if (process.env.HELIUS_API_KEY || process.env.SHYFT_API_KEY) {
@@ -320,10 +325,40 @@ export class AMMMonitor extends BaseMonitor {
       
       this.ammStats.trades++;
       
-      // Check for fees in the swap event
+      // Extract reserves from pump AMM events
+      let virtualSolReserves = 0n;
+      let virtualTokenReserves = 0n;
+      let eventFound = false;
+      
+      // Parse events to get pool reserves
       const parsedEvents = eventParserService.parseTransaction(txn);
       for (const event of parsedEvents) {
         if (event.name === 'BuyEvent' || event.name === 'SellEvent') {
+          // Extract reserves from the event
+          const eventData = event.data;
+          
+          // The events contain pool_base_token_reserves and pool_quote_token_reserves
+          // For pump.fun AMM, quote is always SOL, base is the token
+          // These values are already in their smallest units (lamports for SOL, token units with decimals)
+          try {
+            virtualTokenReserves = BigInt(eventData.pool_base_token_reserves || eventData.poolBaseTokenReserves || '0');
+            virtualSolReserves = BigInt(eventData.pool_quote_token_reserves || eventData.poolQuoteTokenReserves || '0');
+            eventFound = true;
+            
+            this.logger.debug('Extracted reserves from AMM event', {
+              eventName: event.name,
+              tokenReserves: virtualTokenReserves.toString(),
+              solReserves: virtualSolReserves.toString(),
+              mint: swapEvent.mint.slice(0, 8) + '...'
+            });
+          } catch (error) {
+            this.logger.warn('Failed to parse reserves from event', {
+              eventName: event.name,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            });
+          }
+          
+          // Also check for fees
           const feeEvent = eventParserService.extractFeesFromTrade(event.data);
           if (feeEvent) {
             this.eventBus.emit(EVENTS.AMM_TRADE, {
@@ -338,6 +373,8 @@ export class AMMMonitor extends BaseMonitor {
             const feeValueUsd = Number(feeEvent.pcAmount) / 1e6 * this.currentSolPrice; // Simplified calculation
             this.ammStats.totalFeesUsd += feeValueUsd;
           }
+          
+          break; // We found our event, no need to continue
         }
       }
       if (swapEvent.type === 'Buy') {
@@ -346,34 +383,33 @@ export class AMMMonitor extends BaseMonitor {
         this.ammStats.sells++;
       }
       
-      // Get pool reserves from pool state service
-      // The swap event doesn't contain pool reserves, we need to get them from our cache
-      let poolState = this.poolStateService.getPoolState(swapEvent.mint);
-      
-      // If we don't have pool state, try to get it by pool address
-      if (!poolState && swapEvent.pool) {
-        poolState = this.poolStateService.getPoolStateByAddress(swapEvent.pool);
-      }
-      
-      // Get reserves from pool state or use defaults
-      let virtualSolReserves = 0;
-      let virtualTokenReserves = 0;
-      
-      if (poolState && poolState.reserves) {
-        virtualSolReserves = poolState.reserves.virtualSolReserves || 0;
-        virtualTokenReserves = poolState.reserves.virtualTokenReserves || 0;
+      // If we didn't find reserves in events, try pool state service as fallback
+      if (!eventFound || virtualSolReserves === 0n || virtualTokenReserves === 0n) {
+        // Get pool reserves from pool state service
+        let poolState = this.poolStateService.getPoolState(swapEvent.mint);
         
-        this.logger.debug('Using cached pool reserves', {
-          mint: swapEvent.mint.slice(0, 8) + '...',
-          solReserves: virtualSolReserves,
-          tokenReserves: virtualTokenReserves
-        });
-      } else {
-        // Log warning that we don't have pool state
-        this.logger.warn('No pool state found for trade', {
-          mint: swapEvent.mint.slice(0, 8) + '...',
-          pool: swapEvent.pool ? swapEvent.pool.slice(0, 8) + '...' : 'unknown'
-        });
+        // If we don't have pool state, try to get it by pool address
+        if (!poolState && swapEvent.pool) {
+          poolState = this.poolStateService.getPoolStateByAddress(swapEvent.pool);
+        }
+        
+        if (poolState && poolState.reserves) {
+          // Convert cached reserves to bigint
+          virtualSolReserves = BigInt(poolState.reserves.virtualSolReserves || 0);
+          virtualTokenReserves = BigInt(poolState.reserves.virtualTokenReserves || 0);
+          
+          this.logger.debug('Using cached pool reserves (fallback)', {
+            mint: swapEvent.mint.slice(0, 8) + '...',
+            solReserves: virtualSolReserves.toString(),
+            tokenReserves: virtualTokenReserves.toString()
+          });
+        } else if (!eventFound) {
+          // Only log warning if we didn't find event data
+          this.logger.warn('No reserves found from events or pool state', {
+            mint: swapEvent.mint.slice(0, 8) + '...',
+            pool: swapEvent.pool ? swapEvent.pool.slice(0, 8) + '...' : 'unknown'
+          });
+        }
       }
       
       // Calculate amounts and price
@@ -388,8 +424,42 @@ export class AMMMonitor extends BaseMonitor {
         solAmount = Number(swapEvent.out_amount) / LAMPORTS_PER_SOL;
       }
       
-      const priceInSol = tokenAmount > 0 ? solAmount / tokenAmount : 0;
-      const priceUsd = priceInSol * this.currentSolPrice;
+      // Calculate price using the price calculator with reserves
+      let priceInfo = { priceInSol: 0, priceInUsd: 0, marketCapUsd: 0, priceInLamports: 0 };
+      
+      if (virtualSolReserves > 0n && virtualTokenReserves > 0n) {
+        // Use price calculator to get accurate price and market cap
+        priceInfo = this.priceCalculator.calculatePrice(
+          {
+            solReserves: virtualSolReserves,
+            tokenReserves: virtualTokenReserves,
+            isVirtual: false
+          },
+          this.currentSolPrice
+        );
+        
+        this.logger.debug('Calculated price from reserves', {
+          mint: swapEvent.mint.slice(0, 8) + '...',
+          priceInSol: priceInfo.priceInSol,
+          priceInUsd: priceInfo.priceInUsd,
+          marketCapUsd: priceInfo.marketCapUsd
+        });
+      } else {
+        // Fallback to simple price calculation from trade amounts
+        const priceInSol = tokenAmount > 0 ? solAmount / tokenAmount : 0;
+        priceInfo = {
+          priceInSol,
+          priceInUsd: priceInSol * this.currentSolPrice,
+          marketCapUsd: priceInSol * this.currentSolPrice * 1e9, // Assume 1B supply
+          priceInLamports: priceInSol * Number(LAMPORTS_PER_SOL)
+        };
+        
+        this.logger.warn('Using fallback price calculation from trade amounts', {
+          mint: swapEvent.mint.slice(0, 8) + '...',
+          priceInUsd: priceInfo.priceInUsd
+        });
+      }
+      
       const volumeUsd = solAmount * this.currentSolPrice;
       
       this.ammStats.totalVolumeUsd += volumeUsd;
@@ -403,7 +473,7 @@ export class AMMMonitor extends BaseMonitor {
         symbol: undefined,
         solAmount,
         tokenAmount,
-        priceUsd,
+        priceUsd: priceInfo.priceInUsd,
         user: swapEvent.user,
         signature
       });
@@ -412,7 +482,7 @@ export class AMMMonitor extends BaseMonitor {
         this.recentTrades.pop();
       }
       
-      // Emit AMM trade event
+      // Emit AMM trade event with calculated price and market cap
       this.eventBus.emit(EVENTS.AMM_TRADE, {
         trade: {
           signature,
@@ -421,9 +491,9 @@ export class AMMMonitor extends BaseMonitor {
           userAddress: swapEvent.user,
           solAmount,
           tokenAmount,
-          priceUsd,
+          priceUsd: priceInfo.priceInUsd,
           volumeUsd,
-          marketCapUsd: priceUsd * 1e9,
+          marketCapUsd: priceInfo.marketCapUsd,
           program: 'amm_pool' as const,
           slot,
           blockTime: new Date()
@@ -442,10 +512,10 @@ export class AMMMonitor extends BaseMonitor {
         userAddress: swapEvent.user,
         solAmount: BigInt(Math.floor(solAmount * LAMPORTS_PER_SOL)),
         tokenAmount: BigInt(Math.floor(tokenAmount * Math.pow(10, TOKEN_DECIMALS))),
-        virtualSolReserves: BigInt(Math.floor(virtualSolReserves * LAMPORTS_PER_SOL)),
-        virtualTokenReserves: BigInt(Math.floor(virtualTokenReserves * Math.pow(10, TOKEN_DECIMALS))),
-        realSolReserves: BigInt(Math.floor(virtualSolReserves * LAMPORTS_PER_SOL)),
-        realTokenReserves: BigInt(Math.floor(virtualTokenReserves * Math.pow(10, TOKEN_DECIMALS))),
+        virtualSolReserves: virtualSolReserves,  // Already in lamports as bigint
+        virtualTokenReserves: virtualTokenReserves,  // Already in token units as bigint
+        realSolReserves: virtualSolReserves,  // AMM uses same reserves for real and virtual
+        realTokenReserves: virtualTokenReserves,
         poolAddress: swapEvent.pool
       };
       
@@ -461,7 +531,7 @@ export class AMMMonitor extends BaseMonitor {
             mint: swapEvent.mint.slice(0, 8) + '...',
             solAmount: solAmount.toFixed(4),
             tokenAmount,
-            priceUsd: priceUsd.toFixed(8),
+            priceUsd: priceInfo.priceInUsd.toFixed(8),
             volumeUsd
           });
         }
