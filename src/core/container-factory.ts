@@ -48,7 +48,14 @@ export async function createContainer(): Promise<Container> {
   container.registerSingleton(TOKENS.DatabaseService, () => UnifiedDbServiceV2.getInstance());
   
   // Register price service
-  container.registerSingleton(TOKENS.SolPriceService, () => SolPriceService.getInstance());
+  container.registerSingleton(TOKENS.SolPriceService, async () => {
+    const solPriceService = SolPriceService.getInstance();
+    // Start the price updater
+    const { SolPriceUpdater } = await import('../services/sol-price-updater');
+    const updater = SolPriceUpdater.getInstance();
+    await updater.start();
+    return solPriceService;
+  });
   
   // Register metadata enricher
   container.registerSingleton(TOKENS.MetadataEnricher, () => GraphQLMetadataEnricher.getInstance());

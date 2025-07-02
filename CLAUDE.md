@@ -75,6 +75,16 @@ Main tables:
 ## Recent Updates (January 2025)
 
 ### Latest Changes (Jan 2)
+- ✅ Fixed AMM virtual reserves storage - changed from decimal to bigint to match DB schema
+- ✅ Fixed bonding curve progress tracking - now calculated and stored for all BC trades
+- ✅ Added bondingCurveProgress field to BCTradeEvent type and parsers
+- ✅ Fixed AMM trade counter - stats now properly increment for AMM trades
+- ✅ SOL price updater now starts automatically with container initialization
+- ✅ Dashboard shows token counters for New Tokens and Graduated tabs
+- ✅ All 4 monitors (BC, BCAccount, AMM, AMMAccount) running successfully
+- ✅ System processing ~38 TPS combined (24.5 BC + 13.8 AMM)
+
+### Previous major fixes
 - ✅ Fixed AMM event parsing issue - events now extracted correctly
 - ✅ Fixed decimal conversion error in TradeRepository
 - ✅ Created direct event decoder to bypass Anchor IDL compatibility issues
@@ -84,7 +94,6 @@ Main tables:
 - ✅ Fixed current_program field - now properly set to 'amm_pool' for AMM trades
 - ✅ Token decimal formatting verified - raw values stored, formatted on display
 - ✅ Fixed BC monitor price_sol column error - updated field names to match schema
-- ✅ Implemented bonding curve progress tracking - stored in database and displayed in dashboard
 - ✅ Progress bar shows percentage for BC tokens, "GRAD" for graduated tokens
 
 ### Previous Updates
@@ -118,6 +127,8 @@ Main tables:
 - GraphQL metadata disabled (schema issues)
 - Shyft gRPC connection limits may cause "Maximum connection count reached" errors
 - AMM account monitor may fail with DNS resolution errors - retry usually fixes this
+- Enrichment counter shows 0 in stats but enrichment is working (cosmetic issue)
+- Some tokens at 100% progress not marked as graduated (waiting for graduation event)
 
 ### AMM Event Parsing Fix
 The AMM monitor was not extracting pool reserves due to an Anchor IDL compatibility issue. This has been fixed by:

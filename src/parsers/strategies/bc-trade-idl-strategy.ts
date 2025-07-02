@@ -124,6 +124,11 @@ export class BCTradeIDLStrategy implements ParseStrategy {
       // Get reserves from logs or compute budget
       const reserves = this.extractReservesFromLogs(context.logs);
 
+      // Calculate bonding curve progress
+      const solInCurve = Number(reserves.sol) / 1e9;
+      const GRADUATION_THRESHOLD = 85; // SOL
+      const bondingCurveProgress = Math.min((solInCurve / GRADUATION_THRESHOLD) * 100, 100);
+
       return {
         type: EventType.BC_TRADE,
         signature: context.signature,
@@ -140,6 +145,7 @@ export class BCTradeIDLStrategy implements ParseStrategy {
         vSolInBondingCurve: reserves.sol,
         vTokenInBondingCurve: reserves.token,
         bondingCurveKey: bondingCurve || '',
+        bondingCurveProgress,
         innerInstructions: tx.meta?.innerInstructions?.length || 0
       };
 

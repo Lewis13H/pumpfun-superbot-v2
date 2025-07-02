@@ -256,6 +256,11 @@ export class BCTradeStrategy implements ParseStrategy {
         });
       }
 
+      // Calculate bonding curve progress
+      const solInCurve = Number(vSolInBondingCurve) / 1e9;
+      const GRADUATION_THRESHOLD = 85; // SOL
+      const bondingCurveProgress = Math.min((solInCurve / GRADUATION_THRESHOLD) * 100, 100);
+
       return {
         type: EventType.BC_TRADE,
         signature: context.signature,
@@ -274,7 +279,8 @@ export class BCTradeStrategy implements ParseStrategy {
         virtualTokenReserves: vTokenInBondingCurve,
         realSolReserves,
         realTokenReserves,
-        creator
+        creator,
+        bondingCurveProgress
       };
     } catch (error) {
       logger.debug('Failed to parse event data', { error, dataLength: data.length });

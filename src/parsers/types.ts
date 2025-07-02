@@ -54,6 +54,7 @@ export interface BCTradeEvent extends TradeEvent {
   vSolInBondingCurve: bigint;
   vTokenInBondingCurve: bigint;
   creator?: string; // Creator address from pump.fun bonding curve
+  bondingCurveProgress?: number; // Progress percentage (0-100)
 }
 
 export interface AMMTradeEvent extends TradeEvent {

@@ -674,6 +674,16 @@ export class AMMMonitor extends BaseMonitor {
       // Process trade with enhanced handler (includes price impact calculations)
       await this.tradeHandler.processTrade(tradeEvent, this.currentSolPrice);
       
+      // Update AMM stats
+      this.ammStats.trades++;
+      if (swapEvent.type === 'Buy') {
+        this.ammStats.buys++;
+      } else {
+        this.ammStats.sells++;
+      }
+      this.ammStats.totalVolumeUsd += volumeUsd;
+      this.ammStats.uniqueTokens.add(swapEvent.mint);
+      
       // Log trades with full signature (reduced threshold for testing)
       if (volumeUsd > 10) {
         // Only log if not in quiet mode

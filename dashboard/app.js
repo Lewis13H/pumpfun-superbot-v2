@@ -391,6 +391,26 @@ function updateStats() {
         );
         totalVolume.textContent = `$${formatNumber(totalVol)}`;
     }
+    
+    // Update token type counters
+    updateTokenCounters();
+}
+
+// Update token type counters
+function updateTokenCounters() {
+    const newTokenCount = tokens.filter(token => !token.graduated_to_amm).length;
+    const graduatedCount = tokens.filter(token => token.graduated_to_amm).length;
+    
+    const newTokenCounter = document.getElementById('new-token-count');
+    const graduatedCounter = document.getElementById('graduated-token-count');
+    
+    if (newTokenCounter) {
+        newTokenCounter.textContent = newTokenCount;
+    }
+    
+    if (graduatedCounter) {
+        graduatedCounter.textContent = graduatedCount;
+    }
 }
 
 // Event Handlers
