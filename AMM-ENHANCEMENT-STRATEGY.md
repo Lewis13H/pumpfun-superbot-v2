@@ -1,5 +1,188 @@
 # AMM Monitor Enhancement Strategy
 
+## Complete System Data Parsing Capabilities
+
+### 🎯 Exhaustive List of Parsed Data (All Sessions Completed)
+
+The enhanced AMM monitoring system can now parse and process the following comprehensive data:
+
+#### 📊 Trade Events
+- **Buy/Sell Transactions**
+  - User address
+  - Token mint address
+  - Pool address
+  - Trade direction (buy/sell)
+  - SOL amount (in/out)
+  - Token amount (in/out)
+  - Virtual reserves (SOL and token)
+  - Real reserves (if different from virtual)
+  - Transaction signature
+  - Slot number
+  - Block time
+  - **NEW**: Price impact percentage
+  - **NEW**: Effective fee (including slippage)
+  - **NEW**: Spot price vs execution price
+  - **NEW**: Slippage amount
+  - **NEW**: Minimum received / Maximum sent
+
+#### 💧 Liquidity Events
+- **Deposit Events**
+  - User address
+  - Pool address
+  - LP tokens minted
+  - Token A amount deposited
+  - Token B amount deposited
+  - Pool reserves after deposit
+  - USD value at deposit time
+  - Transaction signature and timestamp
+
+- **Withdrawal Events**
+  - User address
+  - Pool address
+  - LP tokens burned
+  - Token A amount received
+  - Token B amount received
+  - Pool reserves after withdrawal
+  - USD value at withdrawal time
+  - Transaction signature and timestamp
+
+#### 💰 Fee Events
+- **Swap Fees**
+  - Pool address
+  - Fee amount in base token
+  - Fee amount in quote token
+  - Fee tier percentage
+  - Associated trade signature
+
+- **Creator Fees**
+  - Creator address (recipient)
+  - Pool address
+  - Coin amount collected
+  - PC amount collected
+  - Collection timestamp
+
+- **Protocol Fees**
+  - Protocol treasury address
+  - Pool address
+  - Protocol coin fee amount
+  - Protocol PC fee amount
+  - Collection timestamp
+
+#### 🪙 LP Token Data
+- **LP Token Transfers**
+  - From address
+  - To address
+  - LP token amount
+  - Pool address
+  - Transfer type (mint/burn/transfer)
+  - Transaction signature
+
+- **LP Position Tracking**
+  - User address
+  - Pool address
+  - LP token balance
+  - Initial investment (USD)
+  - Current value (USD)
+  - Realized P&L
+  - Unrealized P&L
+  - Impermanent loss percentage
+  - Position open date
+  - Last update timestamp
+
+#### 🏊 Pool State Data
+- **Pool Reserves**
+  - Virtual SOL reserves
+  - Virtual token reserves
+  - Real SOL reserves
+  - Real token reserves
+  - LP token supply
+  - Last update slot
+
+- **Pool Metrics**
+  - Total Value Locked (TVL) in USD
+  - 24h volume in USD
+  - 24h fees collected in USD
+  - Fee APY
+  - Number of liquidity providers
+  - Pool utilization rate
+  - Reserve ratio
+
+#### 📈 Analytics Data
+- **Hourly/Daily Metrics**
+  - TVL snapshots
+  - Volume aggregates
+  - Fee totals
+  - Trade count
+  - Unique traders
+  - Average trade size
+  - Price volatility
+
+- **Liquidity Depth**
+  - Available liquidity at 2% price impact
+  - Available liquidity at 5% price impact
+  - Available liquidity at 10% price impact
+  - Slippage curve data
+
+- **Price Impact Analysis**
+  - Price impact per trade
+  - Average price impact by pool
+  - High impact trade alerts
+  - Slippage tolerance recommendations
+  - Trade simulation results
+
+#### 🔄 Trade Optimization Data
+- **Trade Simulations**
+  - Optimal chunk size for large trades
+  - Expected price impact per chunk
+  - Total execution cost
+  - Recommended execution strategy
+  - Time to execute estimate
+
+- **Historical Slippage**
+  - Average slippage by trade size
+  - Maximum observed slippage
+  - Slippage trends over time
+  - Pool-specific slippage profiles
+
+#### 🎓 Graduation Events
+- **BC to AMM Migration**
+  - Bonding curve address
+  - New AMM pool address
+  - Migration transaction signature
+  - Initial liquidity amounts
+  - Graduation timestamp
+
+#### ⚡ Real-time Events (via EventBus)
+- `AMM_TRADE` - Trade executed with full details
+- `LIQUIDITY_ADDED` - Liquidity deposit detected
+- `LIQUIDITY_REMOVED` - Liquidity withdrawal detected
+- `FEE_COLLECTED` - Fee collection event
+- `PROTOCOL_FEE_COLLECTED` - Protocol fee event
+- `LP_POSITION_UPDATED` - LP position change
+- `POOL_STATE_UPDATED` - Pool reserves updated
+- `POOL_CREATED` - New AMM pool created
+- `HIGH_LIQUIDITY_EVENT` - Large liquidity event (>$10k)
+- `PRICE_IMPACT_CALCULATED` - Price impact computed
+- `HIGH_IMPACT_TRADE_ALERT` - High slippage trade detected
+- `TRADE_SIMULATION_COMPLETED` - Trade optimization complete
+- `POOL_METRICS_UPDATED` - Analytics recalculated
+
+### 💾 Data Storage Mapping
+
+| Data Type | Database Table | Key Fields |
+|-----------|---------------|------------|
+| **Trades** | `trades_unified` | signature, mint_address, price_impact, slippage |
+| **Tokens** | `tokens_unified` | mint_address, symbol, graduated_to_amm |
+| **Liquidity Events** | `liquidity_events` | pool_address, user_address, event_type |
+| **Fee Events** | `amm_fee_events` | pool_address, fee_type, recipient |
+| **LP Positions** | `lp_positions` | user_address, pool_address, pnl |
+| **Pool Metrics** | `amm_pool_metrics_hourly` | pool_address, tvl_usd, volume_usd |
+| **Pool Performance** | `amm_pool_performance` | pool_address, fee_apy, il_percentage |
+| **Liquidity Depth** | `amm_liquidity_depth` | pool_address, depth levels |
+| **Trade Simulations** | `trade_simulations` | pool_address, chunks, price_impact |
+| **Slippage Analysis** | `slippage_analysis` | pool_address, trade size profiles |
+| **Pool State** | `amm_pools` | pool_address, reserves, lp_supply |
+
 ## Overview
 
 This document outlines a comprehensive multi-session implementation strategy to enhance our AMM monitors with advanced features identified from Shyft code examples. This strategy complements the existing BONDING-CURVE-ENHANCEMENT-PLAN.md by focusing specifically on AMM-unique features not covered in the BC roadmap.
