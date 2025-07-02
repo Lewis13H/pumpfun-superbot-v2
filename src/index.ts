@@ -14,6 +14,7 @@ import { EventBus, EVENTS } from './core/event-bus';
 import { Logger, LogLevel } from './core/logger';
 import { ConfigService } from './core/config';
 import { TOKENS } from './core/container';
+import { EnhancedStaleTokenDetector } from './services/enhanced-stale-token-detector';
 
 // Set log level to ERROR for minimal output
 Logger.setGlobalLevel(LogLevel.ERROR);
@@ -35,6 +36,8 @@ interface SystemStats {
   lastErrorTime: Date | null;
   solPrice: number;
   activeMonitors: Set<string>;
+  staleTokens: number;
+  tokensRecovered: number;
 }
 
 const stats: SystemStats = {
@@ -49,7 +52,9 @@ const stats: SystemStats = {
   lastError: null,
   lastErrorTime: null,
   solPrice: 0,
-  activeMonitors: new Set()
+  activeMonitors: new Set(),
+  staleTokens: 0,
+  tokensRecovered: 0
 };
 
 // Terminal utilities
@@ -66,8 +71,8 @@ function displayStats() {
   const seconds = runtime % 60;
   const runtimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   
-  // Clear previous stats display (6 lines)
-  moveCursor(6);
+  // Clear previous stats display (7 lines)
+  moveCursor(7);
   
   console.log(chalk.gray('─'.repeat(60)));
   console.log(chalk.cyan('📊 System Statistics') + chalk.gray(` | Runtime: ${runtimeStr} | SOL: $${stats.solPrice.toFixed(2)}`));
@@ -88,7 +93,14 @@ function displayStats() {
     chalk.red(`Errors: ${stats.errors}`)
   );
   
-  // Third row: Monitor status
+  // Third row: Stale detection stats
+  console.log(
+    chalk.yellow(`Stale: ${stats.staleTokens}`) + ' | ' +
+    chalk.green(`Recovered: ${stats.tokensRecovered}`) + ' | ' +
+    chalk.gray('Auto-removal: ON')
+  );
+  
+  // Fourth row: Monitor status
   const monitorStatus = Array.from(stats.activeMonitors).map(m => 
     chalk.green('●') + ' ' + m
   ).join(' | ');
@@ -147,15 +159,36 @@ async function startMonitors() {
       stats.activeMonitors.add(monitor.constructor.name.replace('Monitor', ''));
     }
     
+    // Start enhanced stale token detector
+    const staleDetector = EnhancedStaleTokenDetector.getInstance({
+      scanIntervalMinutes: 5,
+      enableAutoRemoval: true,
+      softDeleteOnly: true,
+      enableDexScreenerFallback: true,
+      enableDetailedLogging: false, // Reduce noise in production
+      logStaleDetectionRuns: true
+    });
+    
+    await staleDetector.start();
+    stats.activeMonitors.add('StaleDetector');
+    logger.debug('Enhanced stale token detector started');
+    
     clearLine();
     console.log(chalk.green('✅ All systems operational\n'));
     
     // Initial stats display
-    console.log('\n'.repeat(5)); // Make space for stats
+    console.log('\n'.repeat(6)); // Make space for stats (increased for extra line)
     displayStats();
     
     // Update stats every 5 seconds
     setInterval(displayStats, 5000);
+    
+    // Update stale token stats periodically
+    setInterval(() => {
+      const detectorStats = staleDetector.getEnhancedStats();
+      stats.staleTokens = detectorStats.staleTokensFound;
+      stats.tokensRecovered = detectorStats.tokensRecovered;
+    }, 10000); // Every 10 seconds
     
     // Setup graceful shutdown
     setupGracefulShutdown(monitors, logger);

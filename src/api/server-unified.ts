@@ -9,7 +9,8 @@ import { createServer } from 'http';
 // const WebSocket = require('ws'); // Not used
 import bcMonitorEndpoints from './bc-monitor-endpoints';
 import ammEndpoints from './amm-endpoints';
-import { registerPerformanceEndpoints, initPerformanceWebSocket } from './performance-metrics-endpoints';
+import { registerPerformanceEndpoints } from './performance-metrics-endpoints';
+import { createStaleTokenEndpoints } from './stale-token-endpoints';
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;
@@ -60,6 +61,9 @@ app.use('/api/bc-monitor', bcMonitorEndpoints);
 
 // AMM API endpoints
 app.use('/api/amm', ammEndpoints);
+
+// Stale token monitoring endpoints
+app.use('/api/stale', createStaleTokenEndpoints(pool));
 
 // Register performance monitoring endpoints
 registerPerformanceEndpoints(app);

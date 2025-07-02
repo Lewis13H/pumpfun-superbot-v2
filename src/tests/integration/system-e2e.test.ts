@@ -5,7 +5,6 @@
 import { createContainer } from '../../core/container-factory';
 import { BCMonitor } from '../../monitors/bc-monitor';
 import { AMMMonitor } from '../../monitors/amm-monitor';
-import { WebSocketServer } from '../../websocket/websocket-server';
 import { createServer } from 'http';
 import { EventBus, EVENTS } from '../../core/event-bus';
 import { Container, TOKENS } from '../../core/container';
@@ -110,7 +109,7 @@ describe('System End-to-End Tests', () => {
   let bcMonitor: BCMonitor;
   let ammMonitor: AMMMonitor;
   let httpServer: any;
-  let wsServer: WebSocketServer;
+  // let wsServer: WebSocketServer;
   let mockStream: MockBlockchainStream;
   let app: express.Application;
   const port = 3457;
@@ -180,9 +179,9 @@ describe('System End-to-End Tests', () => {
     // Create HTTP server
     httpServer = createServer(app);
 
-    // Create WebSocket server
-    wsServer = new WebSocketServer(httpServer, eventBus, await container.resolve(TOKENS.ConfigService));
-    wsServer.startPingInterval();
+    // WebSocket server removed - using REST API only
+    // wsServer = new WebSocketServer(httpServer, eventBus, await container.resolve(TOKENS.ConfigService));
+    // wsServer.startPingInterval();
 
     // Start server
     await new Promise<void>((resolve) => {
@@ -206,7 +205,7 @@ describe('System End-to-End Tests', () => {
     mockStream.stop();
 
     // Shutdown services
-    await wsServer.shutdown();
+    // await wsServer.shutdown();
     await new Promise<void>((resolve) => {
       httpServer.close(() => resolve());
     });

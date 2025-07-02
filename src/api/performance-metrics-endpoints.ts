@@ -1,25 +1,8 @@
 import { Request, Response } from 'express';
 import { performanceMonitor } from '../services/performance-monitor';
-import { WebSocketServer, WebSocket } from 'ws';
+// import { WebSocketServer, WebSocket } from 'ws';
 
-// WebSocket connections for metrics streaming
-const metricsClients = new Set<WebSocket>();
-
-// Initialize performance metrics WebSocket - DISABLED
-export function initPerformanceWebSocket(server: any) {
-  // WebSocket disabled - performance metrics available via REST API
-  console.log('Performance WebSocket disabled - use REST API for metrics');
-}
-
-// Broadcast to all connected metrics clients
-function broadcastToMetricsClients(data: any) {
-  const message = JSON.stringify(data);
-  metricsClients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-    }
-  });
-}
+// WebSocket functionality removed - use REST API for metrics
 
 // API Endpoints
 
@@ -27,7 +10,7 @@ function broadcastToMetricsClients(data: any) {
  * GET /api/v1/performance/metrics
  * Get current performance metrics
  */
-export async function getPerformanceMetrics(req: Request, res: Response) {
+export async function getPerformanceMetrics(_req: Request, res: Response) {
   try {
     const metrics = performanceMonitor.getCurrentMetrics();
     res.json(metrics);
@@ -41,7 +24,7 @@ export async function getPerformanceMetrics(req: Request, res: Response) {
  * GET /api/v1/performance/health
  * Get system health score
  */
-export async function getHealthScore(req: Request, res: Response) {
+export async function getHealthScore(_req: Request, res: Response) {
   try {
     const health = performanceMonitor.getHealthScore();
     const status = health >= 80 ? 'healthy' : health >= 60 ? 'degraded' : 'unhealthy';
@@ -83,7 +66,7 @@ export async function getErrorLogs(req: Request, res: Response) {
  * DELETE /api/v1/performance/errors
  * Clear error logs
  */
-export async function clearErrorLogs(req: Request, res: Response) {
+export async function clearErrorLogs(_req: Request, res: Response) {
   try {
     performanceMonitor.clearErrorLogs();
     res.json({ message: 'Error logs cleared successfully' });
@@ -97,7 +80,7 @@ export async function clearErrorLogs(req: Request, res: Response) {
  * GET /api/v1/performance/recommendations
  * Get optimization recommendations
  */
-export async function getOptimizationRecommendations(req: Request, res: Response) {
+export async function getOptimizationRecommendations(_req: Request, res: Response) {
   try {
     const recommendations = performanceMonitor.getOptimizationRecommendations();
     res.json(recommendations);
@@ -120,7 +103,8 @@ export async function getMonitorDetails(req: Request, res: Response) {
     const stream = metrics.streams.find(s => s.name === name);
     
     if (!monitor) {
-      return res.status(404).json({ error: 'Monitor not found' });
+      res.status(404).json({ error: 'Monitor not found' });
+      return;
     }
     
     res.json({

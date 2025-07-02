@@ -19,6 +19,8 @@
     "dashboard": "tsx src/api/server-unified.ts",
     "sol-price-updater": "tsx src/scripts/sol-price-updater.ts",
     "startup-recovery": "tsx src/scripts/startup-recovery.ts",
+    "test-migration": "tsx scripts/test-migration.ts",
+    "test-enhanced-stale-detection": "tsx scripts/test-enhanced-stale-detection.ts",
     "test": "jest",
     "test:integration": "jest src/tests/integration",
     "test:unit": "jest src/tests/unit",

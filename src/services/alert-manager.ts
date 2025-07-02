@@ -70,10 +70,10 @@ export class AlertManager extends EventEmitter {
     },
     {
       type: AlertType.PARSE_RATE_LOW,
-      condition: (metrics) => metrics.monitors.some(m => m.parseRate < 0.9),
+      condition: (metrics) => metrics.monitors.some((m: any) => m.parseRate < 0.9),
       severity: AlertSeverity.ERROR,
       message: (metrics) => {
-        const monitor = metrics.monitors.find(m => m.parseRate < 0.9);
+        const monitor = metrics.monitors.find((m: any) => m.parseRate < 0.9);
         return `Parse rate low for ${monitor.name}: ${(monitor.parseRate * 100).toFixed(1)}%`;
       },
       autoResolve: true,
@@ -81,10 +81,10 @@ export class AlertManager extends EventEmitter {
     },
     {
       type: AlertType.STREAM_LAG_HIGH,
-      condition: (metrics) => metrics.streams.some(s => s.streamLag > 2000),
+      condition: (metrics) => metrics.streams.some((s: any) => s.streamLag > 2000),
       severity: AlertSeverity.ERROR,
       message: (metrics) => {
-        const stream = metrics.streams.find(s => s.streamLag > 2000);
+        const stream = metrics.streams.find((s: any) => s.streamLag > 2000);
         return `Stream lag high for ${stream.name}: ${stream.streamLag}ms`;
       },
       autoResolve: true,
@@ -92,10 +92,10 @@ export class AlertManager extends EventEmitter {
     },
     {
       type: AlertType.MONITOR_DISCONNECTED,
-      condition: (metrics) => metrics.monitors.some(m => m.status === 'disconnected'),
+      condition: (metrics) => metrics.monitors.some((m: any) => m.status === 'disconnected'),
       severity: AlertSeverity.CRITICAL,
       message: (metrics) => {
-        const monitor = metrics.monitors.find(m => m.status === 'disconnected');
+        const monitor = metrics.monitors.find((m: any) => m.status === 'disconnected');
         return `Monitor ${monitor.name} is disconnected`;
       },
       autoResolve: true,
@@ -103,10 +103,10 @@ export class AlertManager extends EventEmitter {
     },
     {
       type: AlertType.ERROR_RATE_HIGH,
-      condition: (metrics) => metrics.monitors.some(m => m.errors24h > 100),
+      condition: (metrics) => metrics.monitors.some((m: any) => m.errors24h > 100),
       severity: AlertSeverity.WARNING,
       message: (metrics) => {
-        const monitor = metrics.monitors.find(m => m.errors24h > 100);
+        const monitor = metrics.monitors.find((m: any) => m.errors24h > 100);
         return `High error rate for ${monitor.name}: ${monitor.errors24h} errors in 24h`;
       },
       autoResolve: false,

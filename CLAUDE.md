@@ -319,10 +319,24 @@ CREATE TABLE tokens_unified (
     last_rpc_update TIMESTAMP,
     last_dexscreener_update TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- Pump.fun specific columns (NEW)
+    -- Pump.fun specific columns
     creator VARCHAR(64),
     total_supply BIGINT,
-    bonding_curve_key VARCHAR(64)
+    bonding_curve_key VARCHAR(64),
+    -- Metadata columns (via migration)
+    description TEXT,
+    image_uri TEXT,
+    uri TEXT,
+    metadata_source VARCHAR(20),
+    metadata_updated_at TIMESTAMP,
+    -- Missing columns (exist in code but not DB schema)
+    -- latest_price_sol DECIMAL(20,12),
+    -- latest_price_usd DECIMAL(20,4),
+    -- latest_market_cap_usd DECIMAL(20,4),
+    -- latest_bonding_curve_progress DECIMAL(5,2),
+    -- last_trade_at TIMESTAMP,
+    -- volume_24h_usd DECIMAL(20,4),
+    -- holder_count INTEGER
 );
 
 -- Trades with efficient indexing
@@ -534,6 +548,61 @@ The system provides comprehensive REST APIs:
    - State reconstruction
    - Historical liquidity
    - Fork information
+
+## Token Enrichment & Stale Data Handling
+
+### Current Enrichment Service
+The system uses multiple sources for token metadata enrichment:
+
+1. **Primary Source: Shyft REST API** (`/sol/v1/token/get_info`)
+   - Token metadata: name, symbol, description, image
+   - Token properties: supply, decimals, authorities
+   - Rate limit: 200ms between requests, 100 requests/minute
+
+2. **Fallback: Helius DAS API** (if API key configured)
+   - Comprehensive asset data including metadata
+   - Batch support up to 100 tokens
+   - More expensive but reliable
+
+3. **Price Recovery Sources**:
+   - **Stale Token Detector**: Automatic detection and recovery
+   - **DexScreener API**: For graduated tokens only
+   - **GraphQL Recovery**: Currently disabled due to schema issues
+
+### Stale Token Problem
+Tokens can show incorrect market caps when:
+- No trades occur for extended periods (30+ minutes)
+- Monitors are down and miss price updates
+- Token crashes but no sells are executed
+
+**Current Behavior**: A token at $44k market cap stays on dashboard even if actual price is $5k
+
+### Planned Improvements
+
+1. **Database Schema Updates** (Week 1)
+   ```sql
+   ALTER TABLE tokens_unified 
+   ADD COLUMN latest_price_sol DECIMAL(20,12),
+   ADD COLUMN latest_price_usd DECIMAL(20,4),
+   ADD COLUMN latest_market_cap_usd DECIMAL(20,4),
+   ADD COLUMN last_trade_at TIMESTAMP,
+   ADD COLUMN is_stale BOOLEAN DEFAULT FALSE;
+   ```
+
+2. **Enhanced Stale Detection** (Week 2)
+   - Mark tokens stale after 30 minutes no trades
+   - Auto-remove tokens below $5k after 1 hour
+   - Different thresholds by market cap tier
+
+3. **Better Data Extraction** (Week 3)
+   - Use Shyft DAS for holder counts
+   - Extract creator from BC events
+   - Add social links from metadata
+
+4. **Historical Recovery** (Week 4)
+   - Query missed trades during downtime
+   - Backfill price history
+   - Mark data source for transparency
 
 ## Current System Status (January 2025)
 
@@ -890,6 +959,34 @@ See `BONDING-CURVE-ENHANCEMENT-PLAN.md` for the complete 6-phase enhancement pla
 - Deleted `src/websocket/` directory
 - Deleted unused server files: `server.ts`, `server-refactored.ts`, `open-dashboard.ts`, `basic-ws.ts`
 - Deleted WebSocket implementations: `simple-websocket.ts`, `mock-websocket.js`
+
+### Token Enrichment Sessions 1 & 2 Completed (January 2025)
+Successfully implemented the first two sessions of the Token Enrichment Plan:
+
+#### Session 1: Database Schema Updates
+- Added essential columns for stale token tracking: `last_trade_at`, `is_stale`, `should_remove`, `liquidity_usd`, `bonding_curve_key`, `total_supply`
+- Implemented automatic price update trigger `update_token_latest_prices()` 
+- Created supporting tables: `recovery_progress`, `stale_detection_runs`
+- Added indexes for efficient stale token queries
+- Migration completed successfully, identified 58 stale tokens on first run
+
+#### Session 2: Enhanced Stale Token Detection
+- Implemented tier-based detection system with 5 market cap tiers:
+  - Critical: >$50k (stale: 15min, remove: 60min)
+  - High: $20k-$50k (stale: 30min, remove: 120min)
+  - Medium: $10k-$20k (stale: 45min, remove: 180min)
+  - Low: $5k-$10k (stale: 60min, remove: 240min)
+  - Micro: <$5k (stale: 120min, remove: 360min)
+- Created `EnhancedStaleTokenDetector` service with auto-removal logic
+- Added REST API endpoints for monitoring and management
+- Integrated with main monitoring system for automatic operation
+- Performed immediate cleanup of 57 overdue tokens
+
+### Current System Status
+- All TypeScript build errors resolved
+- Enhanced stale token detection running automatically with monitors
+- Dashboard shows stale token statistics
+- REST API provides full control over stale token management
 
 # important-instruction-reminders
 - Do what has been asked; nothing more, nothing less.

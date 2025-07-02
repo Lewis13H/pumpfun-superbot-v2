@@ -54,7 +54,7 @@ export class PerformanceMonitor extends EventEmitter {
   private monitorMetrics: Map<string, MonitorMetrics> = new Map();
   private errorLogs: ErrorLog[] = [];
   private maxErrorLogs = 1000;
-  private metricsInterval: NodeJS.Timeout;
+  private metricsInterval: NodeJS.Timeout | null = null;
   private startTime = Date.now();
   
   // Performance thresholds
