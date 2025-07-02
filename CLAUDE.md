@@ -52,8 +52,9 @@ src/
 ├── monitors/
 │   ├── bc-monitor.ts               # Bonding curve trade monitor (refactored with DI)
 │   ├── bc-account-monitor.ts       # BC account state monitor (refactored with DI)
-│   ├── amm-monitor.ts              # AMM pool trade monitor (wrapped legacy with DI)
-│   └── amm-account-monitor.ts      # AMM account state monitor (wrapped legacy with DI)
+│   ├── amm-monitor.ts              # AMM pool trade monitor (enhanced with price impact)
+│   ├── amm-account-monitor.ts      # AMM account state monitor (wrapped legacy with DI)
+│   └── lp-token-monitor.ts         # LP token position monitor (Session 3)
 ├── services/                        # 20+ essential services
 │   ├── sol-price.ts                # Binance API integration
 │   ├── sol-price-updater.ts        # Automatic price updates
@@ -73,7 +74,14 @@ src/
 │   ├── recovery-queue.ts           # Recovery queue management (NEW)
 │   ├── idl-parser-service.ts       # Anchor IDL parsing (Phase 1)
 │   ├── event-parser-service.ts     # Event extraction from logs (Phase 1)
-│   └── inner-ix-parser.ts          # Inner instruction analysis (Phase 1)
+│   ├── inner-ix-parser.ts          # Inner instruction analysis (Phase 1)
+│   ├── amm-fee-service.ts          # AMM fee analytics (Session 2)
+│   ├── lp-position-calculator.ts   # LP position P&L calculations (Session 3)
+│   ├── amm-pool-analytics.ts       # Pool TVL/APY analytics (Session 4)
+│   ├── liquidity-depth-calculator.ts # Liquidity depth analysis (Session 4)
+│   ├── amm-metrics-aggregator.ts   # Scheduled metrics jobs (Session 4)
+│   ├── enhanced-amm-price-calculator.ts # Price impact analysis (Session 5)
+│   └── trade-simulation-service.ts # Trade optimization (Session 5)
 ├── api/
 │   ├── server-unified.ts           # Main API server
 │   ├── server-refactored.ts        # Refactored API server
@@ -93,7 +101,12 @@ src/
 │   └── types.ts                    # Parser types with Phase 1 enhancements
 ├── handlers/
 │   ├── trade-handler.ts            # Unified trade handler
-│   └── graduation-handler.ts       # Graduation event handler
+│   ├── graduation-handler.ts       # Graduation event handler
+│   ├── liquidity-event-handler.ts  # Liquidity events (Session 1)
+│   ├── fee-event-handler.ts        # Fee collection events (Session 2)
+│   ├── lp-position-handler.ts      # LP position updates (Session 3)
+│   ├── pool-analytics-handler.ts   # Pool analytics coordinator (Session 4)
+│   └── enhanced-trade-handler.ts   # Trade handler with price impact (Session 5)
 ├── repositories/                    # Data access layer
 │   ├── base-repository.ts          # Base repository pattern
 │   ├── token-repository.ts         # Token data access
@@ -352,6 +365,78 @@ CREATE TABLE creator_analysis (
     last_seen TIMESTAMP,
     analyzed_at TIMESTAMP DEFAULT NOW()
 );
+
+-- AMM Enhancement Tables (Sessions 1-5)
+-- Session 1: Liquidity Events
+CREATE TABLE liquidity_events (
+    id SERIAL PRIMARY KEY,
+    signature VARCHAR(88) NOT NULL,
+    pool_address VARCHAR(64) NOT NULL,
+    user_address VARCHAR(64) NOT NULL,
+    event_type VARCHAR(20) NOT NULL,
+    lp_token_amount BIGINT NOT NULL,
+    token_a_amount BIGINT,
+    token_b_amount BIGINT,
+    timestamp TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Session 2: Fee Tracking
+CREATE TABLE amm_fee_events (
+    id SERIAL PRIMARY KEY,
+    signature VARCHAR(88) NOT NULL,
+    pool_address VARCHAR(64) NOT NULL,
+    fee_type VARCHAR(20) NOT NULL,
+    recipient VARCHAR(64),
+    coin_amount BIGINT,
+    pc_amount BIGINT,
+    timestamp TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Session 3: LP Positions
+CREATE TABLE lp_positions (
+    id SERIAL PRIMARY KEY,
+    user_address VARCHAR(64) NOT NULL,
+    pool_address VARCHAR(64) NOT NULL,
+    lp_token_balance BIGINT NOT NULL DEFAULT 0,
+    initial_investment_usd DECIMAL(20, 4),
+    current_value_usd DECIMAL(20, 4),
+    realized_pnl_usd DECIMAL(20, 4) DEFAULT 0,
+    unrealized_pnl_usd DECIMAL(20, 4) DEFAULT 0,
+    impermanent_loss DECIMAL(10, 6),
+    last_updated TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Session 4: Pool Analytics
+CREATE TABLE amm_pool_metrics_hourly (
+    pool_address VARCHAR(64) NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL,
+    tvl_usd DECIMAL(20, 4),
+    volume_usd DECIMAL(20, 4),
+    fees_usd DECIMAL(20, 4),
+    trade_count INTEGER,
+    PRIMARY KEY (pool_address, timestamp)
+);
+
+-- Session 5: Price Impact
+ALTER TABLE trades_unified 
+ADD COLUMN IF NOT EXISTS price_impact DECIMAL(10, 6),
+ADD COLUMN IF NOT EXISTS effective_fee DECIMAL(10, 6),
+ADD COLUMN IF NOT EXISTS spot_price DECIMAL(20, 12),
+ADD COLUMN IF NOT EXISTS execution_price DECIMAL(20, 12),
+ADD COLUMN IF NOT EXISTS slippage DECIMAL(10, 6);
+
+CREATE TABLE trade_simulations (
+    id SERIAL PRIMARY KEY,
+    pool_address VARCHAR(64) NOT NULL,
+    direction VARCHAR(10) NOT NULL,
+    total_input_amount BIGINT NOT NULL,
+    num_chunks INTEGER NOT NULL,
+    total_price_impact DECIMAL(10, 6),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 ```
 
 ## Testing & Debugging
@@ -441,7 +526,31 @@ CREATE TABLE creator_analysis (
    - **Real-time Notifications**: EventBus integration for liquidity events >$10k
    - **User Position Tracking**: Track LP positions, P&L, and impermanent loss
 
-5. **Key Improvements**
+5. **Fee Tracking System (Session 2 Completed - January 2025)**
+   - **Fee Event Extraction**: Identifies creator and protocol fees from events
+   - **AMM Fee Service**: Calculates fee metrics and earnings
+   - **Fee Event Handler**: Processes and stores fee events
+   - **Database Schema**: Tracks all fee collections and analytics
+
+6. **LP Token & Position Tracking (Session 3 Completed - January 2025)**
+   - **LP Token Monitor**: Real-time tracking of LP token movements
+   - **LP Position Calculator**: Calculates P&L, impermanent loss, and rewards
+   - **Position Updates**: Real-time position tracking via EventBus
+   - **Database Schema**: Comprehensive LP position history
+
+7. **Advanced Pool Analytics (Session 4 Completed - January 2025)**
+   - **Pool Analytics Service**: TVL, volume, fees, and APY calculations
+   - **Liquidity Depth Analysis**: Available liquidity at different price impacts
+   - **Metrics Aggregator**: Scheduled jobs for historical analytics
+   - **Performance Tracking**: Comprehensive pool performance metrics
+
+8. **Enhanced Price Impact & Slippage (Session 5 Completed - January 2025)**
+   - **Price Impact Calculator**: Detailed impact analysis for every trade
+   - **Trade Simulation**: Optimize large trades with chunking strategies
+   - **Slippage Analysis**: Historical slippage tracking and recommendations
+   - **Enhanced Trade Handler**: Automatic price impact for all AMM trades
+
+9. **Key Improvements**
    - AMM tokens now created automatically with $1,000 threshold
    - DexScreener integration provides fallback for stale graduated tokens
    - Complete monitoring script runs all services
@@ -535,9 +644,24 @@ See `AMM-ENHANCEMENT-STRATEGY.md` for AMM-specific enhancements:
   - Fee event handler with DI integration
   - Database schema for fee tracking
   - Integration with AMM monitor
-- **Session 3**: LP Token & Position Tracking
-- **Session 4**: Advanced Pool Analytics
-- **Session 5**: Enhanced Price Impact & Slippage
+- **Session 3**: ✅ LP Token & Position Tracking (COMPLETED - January 2025)
+  - LP token monitor for real-time position tracking
+  - LP position calculator with P&L and impermanent loss
+  - LP position handler with DI integration
+  - Database schema for LP positions and rewards
+  - Real-time position updates via EventBus
+- **Session 4**: ✅ Advanced Pool Analytics (COMPLETED - January 2025)
+  - Pool analytics service for TVL, volume, and APY calculations
+  - Liquidity depth calculator for price impact analysis
+  - Metrics aggregator with scheduled jobs using node-cron
+  - Pool analytics handler coordinating all analytics
+  - Database schema for hourly metrics and performance tracking
+- **Session 5**: ✅ Enhanced Price Impact & Slippage (COMPLETED - January 2025)
+  - Enhanced AMM price calculator with detailed impact analysis
+  - Trade simulation service for optimizing large trades
+  - Enhanced trade handler integrating price impact into all AMM trades
+  - Database schema for price impact and slippage tracking
+  - Real-time monitoring of high impact trades
 - **Session 6**: Dashboard & API Enhancements
 
 # important-instruction-reminders
