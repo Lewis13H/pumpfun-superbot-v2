@@ -94,11 +94,11 @@ app.get('/api/tokens', async (_req, res) => {
         -- Calculate age from actual creation time if available, otherwise from first seen
         EXTRACT(EPOCH FROM (NOW() - COALESCE(t.token_created_at, t.first_seen_at))) as age_seconds,
         -- Get SOL price for calculations
-        (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1) as sol_price,
+        (SELECT price_usd FROM sol_prices ORDER BY created_at DESC LIMIT 1) as sol_price,
         -- Calculate USD price from SOL price if needed
         CASE 
           WHEN t.latest_price_usd IS NULL OR t.latest_price_usd = 0 
-          THEN t.latest_price_sol * (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1)
+          THEN t.latest_price_sol * (SELECT price_usd FROM sol_prices ORDER BY created_at DESC LIMIT 1)
           ELSE t.latest_price_usd
         END as calculated_price_usd
       FROM tokens_unified t
