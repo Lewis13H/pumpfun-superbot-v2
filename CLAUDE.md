@@ -110,9 +110,17 @@ Main tables:
   - Removed 24hr % and Volume 24h columns for cleaner layout
   - Renamed "Holders" column to "Links" with pump.fun and Solscan icons
   - Icons link directly to token pages on respective platforms
+  - Fixed token age display - now shows actual blockchain creation time when available
+  - Unified header across all dashboard pages with live SOL price and connection status
+  - Renamed "Streaming Metrics" to "Stream" for cleaner navigation
 - ✅ Fixed graduated tokens detection for 10 tokens including SCAM token
+- ✅ Token creation time improvements:
+  - Dashboard displays actual blockchain creation time when available
+  - Falls back to "first seen" time when creation time unavailable
+  - Tooltip explains the source of the age data
+  - Update script fetches creation times from multiple sources (RPC, Shyft, Helius)
 - ✅ Code cleanup:
-  - Removed test files and backup scripts
+  - Removed .DS_Store files
   - TypeScript compilation verified (no errors)
   - Build process successful
 

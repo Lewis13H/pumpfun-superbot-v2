@@ -113,19 +113,39 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <nav class="navbar">
-            <div class="nav-brand">🚀 Pump Monitor - AMM Analytics</div>
-            <div class="nav-links">
-                <a href="/">Token List</a>
-                <a href="/bc-monitor.html">BC Monitor</a>
-                <a href="/amm-dashboard.html" class="active">AMM Analytics</a>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <a href="/" class="logo">
+                🚀 PumpMonitor
+            </a>
+            <nav class="nav-links">
+                <a href="/" class="nav-link">Tokens</a>
+                <a href="/amm-dashboard.html" class="nav-link active">AMM Analytics</a>
+                <a href="/streaming-metrics.html" class="nav-link">Stream</a>
+            </nav>
+            <div class="header-right">
+                <div class="sol-price-display">
+                    <span class="sol-price-label">SOL</span>
+                    <span class="sol-price-value" id="header-sol-price">$0.00</span>
+                    <span class="sol-price-timestamp" id="header-sol-timestamp" title="Last updated"></span>
+                </div>
+                <div class="connection-status" id="connection-status">
+                    <div class="status-dot" id="status-dot"></div>
+                    <span class="stream-icon" id="stream-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <span class="status-text" id="status-text">Disconnected</span>
+                </div>
             </div>
-            <div class="nav-status">
-                <span id="ws-connection-status" class="disconnected">● Disconnected</span>
-                <span id="sol-price">SOL: $--</span>
-            </div>
-        </nav>
+        </div>
+    </header>
+
+    <div class="container" style="margin-top: 80px;">
 
         <main class="main-content">
             <!-- AMM Statistics Overview -->
@@ -181,6 +201,70 @@
         let ammStats = null;
         let pools = [];
         
+        // Load SOL price and status
+        async function loadStatus() {
+            try {
+                const response = await fetch('/api/status');
+                if (!response.ok) throw new Error('Failed to fetch status');
+                
+                const data = await response.json();
+                
+                // Update SOL price in header
+                const headerSolPrice = document.getElementById('header-sol-price');
+                if (headerSolPrice) {
+                    headerSolPrice.textContent = `$${data.sol_price.price.toFixed(2)}`;
+                }
+                
+                // Update SOL price timestamp
+                const headerSolTimestamp = document.getElementById('header-sol-timestamp');
+                if (headerSolTimestamp && data.sol_price.timestamp) {
+                    const timestamp = new Date(data.sol_price.timestamp);
+                    const now = new Date();
+                    const diffSeconds = Math.floor((now - timestamp) / 1000);
+                    
+                    let timeText = '';
+                    if (diffSeconds < 60) {
+                        timeText = `${diffSeconds}s ago`;
+                    } else if (diffSeconds < 3600) {
+                        timeText = `${Math.floor(diffSeconds / 60)}m ago`;
+                    } else {
+                        timeText = `${Math.floor(diffSeconds / 3600)}h ago`;
+                    }
+                    
+                    headerSolTimestamp.textContent = timeText;
+                    headerSolTimestamp.title = `Last updated: ${timestamp.toLocaleTimeString()}`;
+                }
+                
+                // Update connection status
+                updateConnectionStatus(true);
+            } catch (error) {
+                console.error('Error loading status:', error);
+                updateConnectionStatus(false);
+            }
+        }
+
+        // Update connection status indicator
+        function updateConnectionStatus(isConnected, text = null) {
+            const statusDot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+            
+            if (statusDot) {
+                if (isConnected) {
+                    statusDot.classList.add('connected');
+                } else {
+                    statusDot.classList.remove('connected');
+                }
+            }
+            
+            if (statusText) {
+                if (text) {
+                    statusText.textContent = text;
+                } else {
+                    statusText.textContent = isConnected ? 'Connected' : 'Disconnected';
+                }
+            }
+        }
+        
         // Format currency
         function formatCurrency(value) {
             if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
@@ -212,9 +296,6 @@
                 document.getElementById('buy-sell-ratio').textContent = `Buy/Sell: ${ammStats.trading24h.buySellRatio.toFixed(2)}`;
                 document.getElementById('unique-traders').textContent = formatNumber(ammStats.trading24h.uniqueTraders);
                 document.getElementById('avg-trade-size').textContent = formatCurrency(ammStats.trading24h.avgTradePrice);
-                
-                // Update SOL price
-                document.getElementById('sol-price').textContent = `SOL: $${ammStats.solPrice.toFixed(2)}`;
             } catch (error) {
                 console.error('Failed to fetch AMM stats:', error);
             }
@@ -298,8 +379,12 @@
         });
         
         // Initial load
+        loadStatus();
         updateStats();
         updatePools();
+        
+        // Refresh SOL price every 10 seconds
+        setInterval(loadStatus, 10000);
         
         // Refresh stats every 30 seconds
         setInterval(updateStats, 30000);

@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Streaming Metrics & Health Dashboard</title>
-    <link rel="stylesheet" href="css/modern-styles.css">
+    <title>Stream - Pump Monitor</title>
+    <link rel="stylesheet" href="styles.css">
     <style>
-        /* Streaming metrics specific styles */
+        /* Additional streaming metrics specific styles */
         .metrics-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -299,25 +299,58 @@
             background: #ef4444;
             animation: none;
         }
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 1rem;
+        }
     </style>
 </head>
 <body>
-    <div id="app">
-        <!-- Header with Navigation -->
-        <header class="site-header">
-            <h1>
-                <span class="realtime-indicator"></span>
-                Streaming Metrics & Health Dashboard
-            </h1>
-            <nav>
-                <a href="index.html">Main Dashboard</a>
-                <a href="amm-dashboard.html">AMM Analytics</a>
-                <a href="streaming-metrics.html" class="active">Streaming Metrics</a>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <a href="/" class="logo">
+                🚀 PumpMonitor
+            </a>
+            <nav class="nav-links">
+                <a href="/" class="nav-link">Tokens</a>
+                <a href="/amm-dashboard.html" class="nav-link">AMM Analytics</a>
+                <a href="/streaming-metrics.html" class="nav-link active">Stream</a>
             </nav>
-        </header>
+            <div class="header-right">
+                <div class="sol-price-display">
+                    <span class="sol-price-label">SOL</span>
+                    <span class="sol-price-value" id="header-sol-price">$0.00</span>
+                    <span class="sol-price-timestamp" id="header-sol-timestamp" title="Last updated"></span>
+                </div>
+                <div class="connection-status" id="connection-status">
+                    <div class="status-dot" id="status-dot"></div>
+                    <span class="stream-icon" id="stream-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <span class="status-text" id="status-text">Disconnected</span>
+                </div>
+            </div>
+        </div>
+    </header>
 
-        <!-- Main Content -->
-        <main class="container">
+    <!-- Main Container -->
+    <div class="main-container" style="margin-left: 0; padding: 2rem;">
             <!-- System Health Overview -->
             <div class="system-metrics">
                 <div class="health-score" id="healthScore">--</div>
@@ -377,11 +410,10 @@
                     No errors logged yet.
                 </div>
             </div>
-        </main>
-
-        <!-- Alerts Container -->
-        <div class="alerts-container" id="alertsContainer"></div>
     </div>
+
+    <!-- Alerts Container -->
+    <div class="alerts-container" id="alertsContainer"></div>
 
     <!-- Chart.js for performance graphs -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -747,10 +779,78 @@
             return colors[index % colors.length];
         }
 
+        // Load SOL price and status
+        async function loadStatus() {
+            try {
+                const response = await fetch('/api/status');
+                if (!response.ok) throw new Error('Failed to fetch status');
+                
+                const data = await response.json();
+                
+                // Update SOL price in header
+                const headerSolPrice = document.getElementById('header-sol-price');
+                if (headerSolPrice) {
+                    headerSolPrice.textContent = `$${data.sol_price.price.toFixed(2)}`;
+                }
+                
+                // Update SOL price timestamp
+                const headerSolTimestamp = document.getElementById('header-sol-timestamp');
+                if (headerSolTimestamp && data.sol_price.timestamp) {
+                    const timestamp = new Date(data.sol_price.timestamp);
+                    const now = new Date();
+                    const diffSeconds = Math.floor((now - timestamp) / 1000);
+                    
+                    let timeText = '';
+                    if (diffSeconds < 60) {
+                        timeText = `${diffSeconds}s ago`;
+                    } else if (diffSeconds < 3600) {
+                        timeText = `${Math.floor(diffSeconds / 60)}m ago`;
+                    } else {
+                        timeText = `${Math.floor(diffSeconds / 3600)}h ago`;
+                    }
+                    
+                    headerSolTimestamp.textContent = timeText;
+                    headerSolTimestamp.title = `Last updated: ${timestamp.toLocaleTimeString()}`;
+                }
+                
+                // Update connection status
+                updateConnectionStatus(true);
+            } catch (error) {
+                console.error('Error loading status:', error);
+                updateConnectionStatus(false);
+            }
+        }
+
+        // Update connection status indicator
+        function updateConnectionStatus(isConnected, text = null) {
+            const statusDot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+            
+            if (statusDot) {
+                if (isConnected) {
+                    statusDot.classList.add('connected');
+                } else {
+                    statusDot.classList.remove('connected');
+                }
+            }
+            
+            if (statusText) {
+                if (text) {
+                    statusText.textContent = text;
+                } else {
+                    statusText.textContent = isConnected ? 'Connected' : 'Disconnected';
+                }
+            }
+        }
+
         // Initialize on load
         window.addEventListener('DOMContentLoaded', () => {
             initCharts();
             initPolling(); // This handles loading and polling
+            
+            // Load SOL price
+            loadStatus();
+            setInterval(loadStatus, 10000); // Update every 10 seconds
         });
     </script>
 </body>
