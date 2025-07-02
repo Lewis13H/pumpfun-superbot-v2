@@ -308,43 +308,49 @@ export class AMMAccountMonitor extends BaseMonitor {
         mint: tokenAccount.mint
       });
       
-      // Update reserves in pool state service
-      if (poolInfo.isBase) {
-        // This is the SOL vault
+      // Update pool reserves in the pool state service
+      // We need both base and quote reserves to update
+      // Get the current pool state to check if we have both reserves
+      const poolState = this.poolStateService.getPoolState(poolInfo.mintAddress);
+      
+      if (poolState) {
+        // Update the specific reserve that changed
+        let solReserves = poolState.reserves.virtualSolReserves || 0;
+        let tokenReserves = poolState.reserves.virtualTokenReserves || 0;
+        
+        if (poolInfo.isBase) {
+          // This is the SOL vault (base)
+          solReserves = Number(tokenAccount.amount) / 1e9; // Convert lamports to SOL
+        } else {
+          // This is the token vault (quote)
+          tokenReserves = Number(tokenAccount.amount) / 1e6; // Convert to token units (6 decimals)
+        }
+        
+        // Update reserves in pool state service
         await this.poolStateService.updatePoolReserves(
           poolInfo.mintAddress,
-          Number(tokenAccount.amount),
-          0,
+          solReserves,
+          tokenReserves,
           data.slot || 0
         );
-      } else {
-        // This is the token vault - get the SOL reserves too
-        const poolState = this.poolStateService.getPoolState(poolInfo.mintAddress);
-        if (poolState && poolState.reserves.virtualSolReserves > 0) {
-          await this.poolStateService.updatePoolReserves(
-            poolInfo.mintAddress,
-            poolState.reserves.virtualSolReserves,
-            Number(tokenAccount.amount),
-            data.slot || 0
-          );
-          
-          this.ammStats.reserveUpdates++;
-          
-          // Emit pool state update event
-          this.eventBus.emit(EVENTS.POOL_STATE_UPDATED, {
-            poolAddress: poolInfo.poolAddress,
-            mintAddress: poolInfo.mintAddress,
-            baseReserves: poolState.reserves.virtualSolReserves,
-            quoteReserves: Number(tokenAccount.amount),
-            slot: data.slot || 0
-          });
-          
-          this.logger.info('Pool reserves updated', {
-            mint: poolInfo.mintAddress.slice(0, 8) + '...',
-            sol: (poolState.reserves.virtualSolReserves / 1e9).toFixed(4),
-            tokens: (Number(tokenAccount.amount) / 1e6).toLocaleString()
-          });
-        }
+        
+        this.ammStats.reserveUpdates++;
+        
+        // Emit pool state update event
+        this.eventBus.emit(EVENTS.POOL_STATE_UPDATED, {
+          poolAddress: poolInfo.poolAddress,
+          mintAddress: poolInfo.mintAddress,
+          baseReserves: solReserves,
+          quoteReserves: tokenReserves,
+          slot: data.slot || 0
+        });
+        
+        this.logger.info('Pool reserves updated', {
+          mint: poolInfo.mintAddress.slice(0, 8) + '...',
+          pool: poolInfo.poolAddress.slice(0, 8) + '...',
+          solReserves: solReserves.toFixed(4),
+          tokenReserves: tokenReserves.toLocaleString()
+        });
       }
       
     } catch (error) {

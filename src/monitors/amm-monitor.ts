@@ -346,25 +346,33 @@ export class AMMMonitor extends BaseMonitor {
         this.ammStats.sells++;
       }
       
-      // Update pool reserves from event
-      const poolBaseReserves = Number(swapEvent.pool_base_token_reserves || 0);
-      const poolQuoteReserves = Number(swapEvent.pool_quote_token_reserves || 0);
+      // Get pool reserves from pool state service
+      // The swap event doesn't contain pool reserves, we need to get them from our cache
+      let poolState = this.poolStateService.getPoolState(swapEvent.mint);
       
-      if (poolBaseReserves > 0 && poolQuoteReserves > 0) {
-        await this.poolStateService.updatePoolReserves(
-          swapEvent.mint,
-          poolBaseReserves,
-          poolQuoteReserves,
-          slot
-        );
+      // If we don't have pool state, try to get it by pool address
+      if (!poolState && swapEvent.pool) {
+        poolState = this.poolStateService.getPoolStateByAddress(swapEvent.pool);
+      }
+      
+      // Get reserves from pool state or use defaults
+      let virtualSolReserves = 0;
+      let virtualTokenReserves = 0;
+      
+      if (poolState && poolState.reserves) {
+        virtualSolReserves = poolState.reserves.virtualSolReserves || 0;
+        virtualTokenReserves = poolState.reserves.virtualTokenReserves || 0;
         
-        // Emit pool state update event
-        this.eventBus.emit(EVENTS.POOL_STATE_UPDATED, {
-          poolAddress: swapEvent.pool,
-          mintAddress: swapEvent.mint,
-          baseReserves: poolBaseReserves,
-          quoteReserves: poolQuoteReserves,
-          slot
+        this.logger.debug('Using cached pool reserves', {
+          mint: swapEvent.mint.slice(0, 8) + '...',
+          solReserves: virtualSolReserves,
+          tokenReserves: virtualTokenReserves
+        });
+      } else {
+        // Log warning that we don't have pool state
+        this.logger.warn('No pool state found for trade', {
+          mint: swapEvent.mint.slice(0, 8) + '...',
+          pool: swapEvent.pool ? swapEvent.pool.slice(0, 8) + '...' : 'unknown'
         });
       }
       
@@ -434,10 +442,10 @@ export class AMMMonitor extends BaseMonitor {
         userAddress: swapEvent.user,
         solAmount: BigInt(Math.floor(solAmount * LAMPORTS_PER_SOL)),
         tokenAmount: BigInt(Math.floor(tokenAmount * Math.pow(10, TOKEN_DECIMALS))),
-        virtualSolReserves: BigInt(poolBaseReserves),
-        virtualTokenReserves: BigInt(poolQuoteReserves),
-        realSolReserves: BigInt(poolBaseReserves),
-        realTokenReserves: BigInt(poolQuoteReserves),
+        virtualSolReserves: BigInt(Math.floor(virtualSolReserves * LAMPORTS_PER_SOL)),
+        virtualTokenReserves: BigInt(Math.floor(virtualTokenReserves * Math.pow(10, TOKEN_DECIMALS))),
+        realSolReserves: BigInt(Math.floor(virtualSolReserves * LAMPORTS_PER_SOL)),
+        realTokenReserves: BigInt(Math.floor(virtualTokenReserves * Math.pow(10, TOKEN_DECIMALS))),
         poolAddress: swapEvent.pool
       };
       
