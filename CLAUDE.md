@@ -24,7 +24,7 @@ npm run sol-price-updater     # SOL price updater (runs automatically with monit
 npm run startup-recovery      # Run stale token detection and recovery
 
 # Dashboard & API
-npm run dashboard            # Web dashboard (http://localhost:3001)
+npm run dashboard            # Web dashboard (http://localhost:3002)
 
 # Testing & Building
 npm run test                 # Run all tests
@@ -244,7 +244,7 @@ DATABASE_URL=postgresql://user@localhost:5432/pump_monitor
 # Optional
 HELIUS_API_KEY=your-api-key          # For metadata enrichment (fallback)
 SHYFT_API_KEY=your-api-key           # For Shyft DAS API (primary metadata source)
-API_PORT=3001                        # Dashboard port
+API_PORT=3002                        # Dashboard port (default: 3002)
 
 # BC Monitor Configuration
 BC_SAVE_THRESHOLD=8888               # Market cap threshold for saving tokens
@@ -450,7 +450,7 @@ CREATE TABLE trade_simulations (
 
 1. **Integration Tests**: `npm run test:integration` - Test DI container, monitors, and WebSocket
 2. **Custom threshold testing**: `BC_SAVE_THRESHOLD=1000 npm run bc-monitor`
-3. **Check recent trades**: View dashboard at http://localhost:3001
+3. **Check recent trades**: View dashboard at http://localhost:3002
 4. **Database verification**: `psql $DATABASE_URL -c "SELECT * FROM trades_unified ORDER BY block_time DESC LIMIT 10"`
 
 ## Performance Optimization

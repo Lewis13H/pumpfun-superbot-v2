@@ -41,7 +41,7 @@ This monitor:
 
 ```bash
 # Dashboard
-npm run dashboard          # Web dashboard (http://localhost:3001)
+npm run dashboard          # Web dashboard (http://localhost:3002)
 
 # Database Operations
 npm run view-tokens-unified    # View saved tokens from unified system

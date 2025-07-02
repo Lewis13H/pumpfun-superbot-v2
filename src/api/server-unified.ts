@@ -11,7 +11,7 @@ import bcMonitorEndpoints from './bc-monitor-endpoints';
 import ammEndpoints from './amm-endpoints';
 
 const app = express();
-const PORT = process.env.API_PORT || 3001;
+const PORT = process.env.API_PORT || 3002;
 const server = createServer(app);
 
 // Database connection

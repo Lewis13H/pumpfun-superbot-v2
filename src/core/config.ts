@@ -92,7 +92,7 @@ export class ConfigService {
         keepAliveTimeout: this.parseNumber(process.env.GRPC_KEEPALIVE_TIMEOUT, 5000)
       },
       api: {
-        port: this.parseNumber(process.env.API_PORT, 3001),
+        port: this.parseNumber(process.env.API_PORT, 3002),
         corsOrigins: this.parseArray(process.env.CORS_ORIGINS, ['http://localhost:3000']),
         enableWebSocket: process.env.ENABLE_WEBSOCKET !== 'false',
         webSocketPath: process.env.WEBSOCKET_PATH || '/ws'
