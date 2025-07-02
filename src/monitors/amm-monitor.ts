@@ -420,9 +420,23 @@ export class AMMMonitor extends BaseMonitor {
       if (swapEvent.type === 'Buy') {
         solAmount = Number(swapEvent.in_amount) / LAMPORTS_PER_SOL;
         tokenAmount = Number(swapEvent.out_amount) / Math.pow(10, TOKEN_DECIMALS);
+        
+        this.logger.debug('Buy trade raw amounts', {
+          in_amount_raw: swapEvent.in_amount,
+          out_amount_raw: swapEvent.out_amount,
+          solAmount_calculated: solAmount,
+          tokenAmount_calculated: tokenAmount
+        });
       } else {
         tokenAmount = Number(swapEvent.in_amount) / Math.pow(10, TOKEN_DECIMALS);
         solAmount = Number(swapEvent.out_amount) / LAMPORTS_PER_SOL;
+        
+        this.logger.debug('Sell trade raw amounts', {
+          in_amount_raw: swapEvent.in_amount,
+          out_amount_raw: swapEvent.out_amount,
+          tokenAmount_calculated: tokenAmount,
+          solAmount_calculated: solAmount
+        });
       }
       
       // Calculate price using the price calculator with reserves
@@ -527,17 +541,19 @@ export class AMMMonitor extends BaseMonitor {
       // Process trade with enhanced handler (includes price impact calculations)
       await this.tradeHandler.processTrade(tradeEvent, this.currentSolPrice);
       
-      // Log significant trades
-      if (volumeUsd > 100) {
+      // Log trades with full signature (reduced threshold for testing)
+      if (volumeUsd > 10) {
         // Only log if not in quiet mode
         if (process.env.DISABLE_MONITOR_STATS !== 'true') {
           this.logger.info('AMM trade', {
             type: swapEvent.type,
             mint: swapEvent.mint.slice(0, 8) + '...',
-            solAmount: solAmount.toFixed(4),
-            tokenAmount,
-            priceUsd: priceInfo.priceInUsd.toFixed(8),
-            volumeUsd
+            solAmount: solAmount.toFixed(9), // Full precision like Solscan
+            tokenAmount: tokenAmount.toFixed(6), // Full token precision
+            priceUsd: priceInfo.priceInUsd.toFixed(12), // Full price precision
+            volumeUsd: volumeUsd.toFixed(2), // Match Solscan format
+            signature: signature,
+            solscan: `https://solscan.io/tx/${signature}`
           });
         }
       }
