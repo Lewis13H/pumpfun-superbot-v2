@@ -9,6 +9,7 @@ import { createServer } from 'http';
 // const WebSocket = require('ws'); // Not used
 import bcMonitorEndpoints from './bc-monitor-endpoints';
 import ammEndpoints from './amm-endpoints';
+import { registerPerformanceEndpoints, initPerformanceWebSocket } from './performance-metrics-endpoints';
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;
@@ -22,10 +23,7 @@ const pool = new Pool({
 // Initialize WebSocket servers BEFORE middleware
 // bcWebSocketServer.initialize(server); // Keep BC WebSocket for backward compatibility - COMMENTED: File deleted
 
-// UNIFIED WEBSOCKET DISABLED - Dashboard improvements on hold (see docs/dashboard-improvement-plan.md)
-// The unified WebSocket was causing connection issues and has been temporarily disabled
-// to allow core system enhancements to continue uninterrupted.
-console.log('⚠️  Unified WebSocket server DISABLED - Dashboard improvements on hold');
+// Unified WebSocket disabled - using mock BC WebSocket for dashboard compatibility
 
 // Create a mock unifiedWebSocketServer for monitors that expect it
 (global as any).unifiedWebSocketServer = {
@@ -50,9 +48,6 @@ console.log('⚠️  Unified WebSocket server DISABLED - Dashboard improvements 
   getClientCount: () => 0
 };
 
-// Stub for monitors that import from the module
-const unifiedWss = { close: () => {} };
-
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -65,6 +60,9 @@ app.use('/api/bc-monitor', bcMonitorEndpoints);
 
 // AMM API endpoints
 app.use('/api/amm', ammEndpoints);
+
+// Register performance monitoring endpoints
+registerPerformanceEndpoints(app);
 
 // API endpoint for tokens - unified schema
 app.get('/api/tokens', async (_req, res) => {
@@ -342,8 +340,9 @@ server.listen(PORT, () => {
   const dashboardUrl = `http://localhost:${PORT}`;
   console.log(`🚀 API server (unified) running on ${dashboardUrl}`);
   console.log(`📊 Dashboard available at ${dashboardUrl}`);
-  console.log(`🔌 BC WebSocket available at ws://localhost:${PORT}/ws`);
-  console.log(`🔌 Unified WebSocket available at ws://localhost:${PORT}/ws-unified`);
+  
+  // WebSocket disabled - dashboard works fine without real-time updates
+  console.log(`📊 Dashboard API endpoints available`);
   
   // Log dashboard URL - user can manually open
   console.log('Please open your browser to:', dashboardUrl);
@@ -352,8 +351,6 @@ server.listen(PORT, () => {
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\nShutting down server...');
-  // bcWebSocketServer.shutdown(); // COMMENTED: File deleted
-  unifiedWss.close();
   await pool.end();
   process.exit(0);
 });

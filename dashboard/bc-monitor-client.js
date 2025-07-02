@@ -8,7 +8,7 @@ class BCMonitorClient {
     this.ws = null;
     this.reconnectInterval = 5000;
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 10;
+    this.maxReconnectAttempts = 3; // Reduced attempts
     this.isConnected = false;
     this.callbacks = {
       onTrade: null,
@@ -24,7 +24,9 @@ class BCMonitorClient {
     this.recentNewTokens = [];
     this.currentStats = null;
     
-    this.connect();
+    // WebSocket disabled for now - dashboard works without real-time updates
+    console.log('WebSocket disabled - refresh page for updates');
+    this.updateConnectionStatus(false);
   }
 
   /**
@@ -395,15 +397,11 @@ class BCMonitorClient {
 let bcMonitor = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Check if we're on a page that needs BC Monitor
+  // WebSocket disabled - dashboard works without real-time updates
+  console.log('BC Monitor: WebSocket disabled, use refresh for updates');
+  
+  // Still create the client for UI updates
   if (document.getElementById('bc-monitor-section')) {
     bcMonitor = new BCMonitorClient();
-    
-    // Set up ping interval
-    setInterval(() => {
-      if (bcMonitor) {
-        bcMonitor.sendPing();
-      }
-    }, 30000);
   }
 });

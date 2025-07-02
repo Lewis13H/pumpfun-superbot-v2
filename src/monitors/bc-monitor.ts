@@ -12,6 +12,7 @@ import { TradeHandler } from '../handlers/trade-handler';
 import { PUMP_PROGRAM } from '../utils/constants';
 import { EVENTS } from '../core/event-bus';
 import { enableErrorSuppression } from '../utils/parser-error-suppressor';
+import { performanceMonitor } from '../services/performance-monitor';
 // import { FilterFactory } from '../core/filter-factory'; // Uncomment when using filters
 
 interface BCMonitorStats {
@@ -158,6 +159,9 @@ export class BCMonitor extends BaseMonitor {
     const startTime = Date.now();
     
     try {
+      // Record message received
+      const messageSize = JSON.stringify(data).length;
+      performanceMonitor.recordMessage('BCMonitor', messageSize);
       
       // Skip non-transaction updates
       if (!data.transaction) {
@@ -179,6 +183,10 @@ export class BCMonitor extends BaseMonitor {
       
       // Parse the event
       const event = this.parser.parse(context);
+      
+      // Record parse result
+      const parseTime = Date.now() - startTime;
+      performanceMonitor.recordParse('BCMonitor', !!event, parseTime);
       
       if (!event) {
         this.bcStats.parseErrors++;
@@ -229,6 +237,8 @@ export class BCMonitor extends BaseMonitor {
       this.bcStats.parseErrors++;
       if (this.shouldLogError(error)) {
         this.logger.error('Failed to process transaction', error as Error);
+        // Record error to performance monitor
+        performanceMonitor.recordError('BCMonitor', error as Error);
       }
     } finally {
       // Track parse timing

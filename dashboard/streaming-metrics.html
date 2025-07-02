@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streaming Metrics & Health Dashboard</title>
+    <link rel="stylesheet" href="css/modern-styles.css">
+    <style>
+        /* Streaming metrics specific styles */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .metric-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .metric-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .metric-status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .status-healthy {
+            background: #10b981;
+            color: white;
+        }
+
+        .status-degraded {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .status-unhealthy {
+            background: #ef4444;
+            color: white;
+        }
+
+        .status-disconnected {
+            background: #6b7280;
+            color: white;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #10b981;
+            transition: width 0.3s ease;
+        }
+
+        .progress-fill.warning {
+            background: #f59e0b;
+        }
+
+        .progress-fill.danger {
+            background: #ef4444;
+        }
+
+        .system-metrics {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .health-score {
+            font-size: 4rem;
+            font-weight: 800;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .health-label {
+            text-align: center;
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .error-log {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .error-item {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            transition: background 0.2s ease;
+        }
+
+        .error-item:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .error-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .error-level {
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .error-level.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .error-level.warn {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .error-level.info {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .error-message {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .error-details {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .error-stack {
+            font-family: monospace;
+            font-size: 0.8rem;
+            background: #f3f4f6;
+            padding: 0.5rem;
+            border-radius: 4px;
+            margin-top: 0.5rem;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        .stream-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .recommendations {
+            background: #fef3c7;
+            border: 1px solid #fbbf24;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .recommendation-item {
+            display: flex;
+            align-items: start;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .recommendation-icon {
+            color: #f59e0b;
+            font-size: 1.2rem;
+        }
+
+        .alerts-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            max-width: 400px;
+        }
+
+        .alert-item {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 1rem;
+        }
+
+        .realtime-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.5;
+                transform: scale(1.2);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .disconnected .realtime-indicator {
+            background: #ef4444;
+            animation: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Header with Navigation -->
+        <header class="site-header">
+            <h1>
+                <span class="realtime-indicator"></span>
+                Streaming Metrics & Health Dashboard
+            </h1>
+            <nav>
+                <a href="index.html">Main Dashboard</a>
+                <a href="amm-dashboard.html">AMM Analytics</a>
+                <a href="streaming-metrics.html" class="active">Streaming Metrics</a>
+            </nav>
+        </header>
+
+        <!-- Main Content -->
+        <main class="container">
+            <!-- System Health Overview -->
+            <div class="system-metrics">
+                <div class="health-score" id="healthScore">--</div>
+                <div class="health-label">System Health Score</div>
+                <div class="stream-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="cpuUsage">--</div>
+                        <div class="stat-label">CPU Usage</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="memoryUsage">--</div>
+                        <div class="stat-label">Memory Usage</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="systemUptime">--</div>
+                        <div class="stat-label">Uptime</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monitor Metrics Grid -->
+            <h2>Monitor Status</h2>
+            <div class="metrics-grid" id="monitorMetrics">
+                <!-- Monitor cards will be inserted here dynamically -->
+            </div>
+
+            <!-- Stream Metrics -->
+            <h2>Stream Performance</h2>
+            <div class="metrics-grid" id="streamMetrics">
+                <!-- Stream cards will be inserted here dynamically -->
+            </div>
+
+            <!-- Performance Charts -->
+            <h2>Performance Trends</h2>
+            <div class="metric-card">
+                <div class="metric-header">
+                    <div class="metric-title">Message Rate (per second)</div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="messageRateChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Optimization Recommendations -->
+            <h2>Optimization Recommendations</h2>
+            <div class="recommendations" id="recommendations">
+                <div class="recommendation-item">
+                    <span class="recommendation-icon">💡</span>
+                    <span>No recommendations at this time. System is performing optimally.</span>
+                </div>
+            </div>
+
+            <!-- Error Logs -->
+            <h2>Error Logs</h2>
+            <div class="error-log" id="errorLog">
+                <div style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+                    No errors logged yet.
+                </div>
+            </div>
+        </main>
+
+        <!-- Alerts Container -->
+        <div class="alerts-container" id="alertsContainer"></div>
+    </div>
+
+    <!-- Chart.js for performance graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Global state
+        let messageRateChart;
+        let ws;
+        let reconnectInterval;
+
+        // Use REST API polling instead of WebSocket
+        function initPolling() {
+            console.log('Using REST API polling for metrics');
+            
+            // Update indicator to show polling mode
+            document.querySelector('.realtime-indicator').style.background = '#fbbf24';
+            
+            // Initial load
+            loadMetrics();
+            loadErrors();
+            
+            // Poll every 5 seconds
+            setInterval(() => {
+                loadMetrics();
+            }, 5000);
+            
+            // Poll errors every 10 seconds
+            setInterval(() => {
+                loadErrors();
+            }, 10000);
+        }
+        
+        async function loadMetrics() {
+            try {
+                const response = await fetch('/api/v1/performance/metrics');
+                const metrics = await response.json();
+                updateMetrics(metrics);
+            } catch (error) {
+                console.error('Error loading metrics:', error);
+            }
+        }
+        
+        async function loadErrors() {
+            try {
+                const response = await fetch('/api/v1/performance/errors?limit=10');
+                const errors = await response.json();
+                
+                // Clear and repopulate error log
+                const errorLog = document.getElementById('errorLog');
+                errorLog.innerHTML = '';
+                errors.forEach(error => addErrorLog(error));
+            } catch (error) {
+                console.error('Error loading errors:', error);
+            }
+        }
+
+        // Update metrics display
+        function updateMetrics(metrics) {
+            // Update system health score
+            document.getElementById('healthScore').textContent = metrics.health + '%';
+            
+            // Update system metrics
+            document.getElementById('cpuUsage').textContent = metrics.system.cpuUsage.toFixed(1) + '%';
+            document.getElementById('memoryUsage').textContent = metrics.system.memoryUsage.percentage.toFixed(1) + '%';
+            document.getElementById('systemUptime').textContent = formatUptime(metrics.system.uptime);
+
+            // Update monitor metrics
+            updateMonitorMetrics(metrics.monitors);
+
+            // Update stream metrics
+            updateStreamMetrics(metrics.streams);
+
+            // Update charts
+            updateCharts(metrics);
+        }
+
+        // Update monitor cards
+        function updateMonitorMetrics(monitors) {
+            const container = document.getElementById('monitorMetrics');
+            container.innerHTML = '';
+
+            monitors.forEach(monitor => {
+                const card = createMonitorCard(monitor);
+                container.appendChild(card);
+            });
+        }
+
+        // Create monitor card
+        function createMonitorCard(monitor) {
+            const card = document.createElement('div');
+            card.className = 'metric-card';
+            
+            const statusClass = `status-${monitor.status}`;
+            const parseRateClass = monitor.parseRate < 0.9 ? 'danger' : monitor.parseRate < 0.95 ? 'warning' : '';
+            
+            card.innerHTML = `
+                <div class="metric-header">
+                    <div class="metric-title">${monitor.name}</div>
+                    <div class="metric-status ${statusClass}">${monitor.status}</div>
+                </div>
+                <div class="metric-value">${monitor.messagesPerSecond.toFixed(1)}</div>
+                <div class="metric-label">Messages/sec</div>
+                <div class="stream-stats">
+                    <div class="stat-item">
+                        <div class="stat-value">${(monitor.parseRate * 100).toFixed(1)}%</div>
+                        <div class="stat-label">Parse Rate</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${monitor.averageLatency.toFixed(1)}ms</div>
+                        <div class="stat-label">Avg Latency</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${monitor.errors24h}</div>
+                        <div class="stat-label">Errors (24h)</div>
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill ${parseRateClass}" style="width: ${monitor.parseRate * 100}%"></div>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        // Update stream metrics
+        function updateStreamMetrics(streams) {
+            const container = document.getElementById('streamMetrics');
+            container.innerHTML = '';
+
+            streams.forEach(stream => {
+                const card = createStreamCard(stream);
+                container.appendChild(card);
+            });
+        }
+
+        // Create stream card
+        function createStreamCard(stream) {
+            const card = document.createElement('div');
+            card.className = 'metric-card';
+            
+            const lagClass = stream.streamLag > 1000 ? 'danger' : stream.streamLag > 500 ? 'warning' : '';
+            
+            card.innerHTML = `
+                <div class="metric-header">
+                    <div class="metric-title">${stream.name} Stream</div>
+                </div>
+                <div class="stream-stats">
+                    <div class="stat-item">
+                        <div class="stat-value">${formatBytes(stream.bytesReceived)}</div>
+                        <div class="stat-label">Data Received</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${stream.streamLag}ms</div>
+                        <div class="stat-label">Stream Lag</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${stream.reconnectCount}</div>
+                        <div class="stat-label">Reconnects</div>
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill ${lagClass}" style="width: ${Math.min(100, (stream.streamLag / 2000) * 100)}%"></div>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        // Initialize charts
+        function initCharts() {
+            const ctx = document.getElementById('messageRateChart').getContext('2d');
+            messageRateChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        },
+                        y: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Messages/sec'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update charts with new data
+        function updateCharts(metrics) {
+            if (!messageRateChart) return;
+
+            const now = new Date().toLocaleTimeString();
+            
+            // Add time label if needed
+            if (messageRateChart.data.labels.length > 20) {
+                messageRateChart.data.labels.shift();
+            }
+            messageRateChart.data.labels.push(now);
+
+            // Update or create datasets for each monitor
+            metrics.monitors.forEach((monitor, index) => {
+                let dataset = messageRateChart.data.datasets.find(d => d.label === monitor.name);
+                
+                if (!dataset) {
+                    dataset = {
+                        label: monitor.name,
+                        data: [],
+                        borderColor: getColor(index),
+                        backgroundColor: getColor(index, 0.1),
+                        tension: 0.1
+                    };
+                    messageRateChart.data.datasets.push(dataset);
+                }
+
+                if (dataset.data.length > 20) {
+                    dataset.data.shift();
+                }
+                dataset.data.push(monitor.messagesPerSecond);
+            });
+
+            messageRateChart.update();
+        }
+
+        // Add error log entry
+        function addErrorLog(error) {
+            const container = document.getElementById('errorLog');
+            
+            // Clear placeholder if present
+            if (container.querySelector('div[style*="text-align: center"]')) {
+                container.innerHTML = '';
+            }
+
+            const errorItem = document.createElement('div');
+            errorItem.className = 'error-item';
+            
+            errorItem.innerHTML = `
+                <div class="error-header">
+                    <div>
+                        <span class="error-level ${error.level}">${error.level.toUpperCase()}</span>
+                        <span style="margin-left: 1rem; color: var(--text-secondary);">${error.component}</span>
+                    </div>
+                    <div style="color: var(--text-secondary); font-size: 0.85rem;">
+                        ${new Date(error.timestamp).toLocaleString()}
+                    </div>
+                </div>
+                <div class="error-message">${error.message}</div>
+                ${error.stack ? `<div class="error-stack">${error.stack}</div>` : ''}
+            `;
+
+            container.insertBefore(errorItem, container.firstChild);
+
+            // Limit to 100 errors
+            while (container.children.length > 100) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        // Show alert notification
+        function showAlert(alert) {
+            const container = document.getElementById('alertsContainer');
+            
+            const alertItem = document.createElement('div');
+            alertItem.className = 'alert-item';
+            alertItem.style.borderLeft = `4px solid ${alert.severity === 'error' ? '#ef4444' : '#f59e0b'}`;
+            
+            alertItem.innerHTML = `
+                <div style="font-weight: 600; margin-bottom: 0.5rem;">
+                    ${alert.severity === 'error' ? '⚠️' : '⚡'} ${alert.type.toUpperCase()}
+                </div>
+                <div>${alert.message}</div>
+            `;
+            
+            container.appendChild(alertItem);
+
+            // Auto-remove after 10 seconds
+            setTimeout(() => {
+                alertItem.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => alertItem.remove(), 300);
+            }, 10000);
+        }
+
+        // Load metrics from API
+        async function loadMetrics() {
+            try {
+                const response = await fetch('/api/v1/performance/metrics');
+                const data = await response.json();
+                updateMetrics(data);
+
+                // Load recommendations
+                const recResponse = await fetch('/api/v1/performance/recommendations');
+                const recommendations = await recResponse.json();
+                updateRecommendations(recommendations);
+
+                // Load error logs
+                const errorResponse = await fetch('/api/v1/performance/errors?limit=50');
+                const errors = await errorResponse.json();
+                errors.forEach(error => addErrorLog(error));
+            } catch (error) {
+                console.error('Failed to load metrics:', error);
+            }
+        }
+
+        // Update recommendations
+        function updateRecommendations(recommendations) {
+            const container = document.getElementById('recommendations');
+            
+            if (recommendations.length === 0) {
+                container.innerHTML = `
+                    <div class="recommendation-item">
+                        <span class="recommendation-icon">✅</span>
+                        <span>No recommendations at this time. System is performing optimally.</span>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = recommendations.map(rec => `
+                    <div class="recommendation-item">
+                        <span class="recommendation-icon">💡</span>
+                        <span>${rec}</span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Utility functions
+        function formatUptime(ms) {
+            const hours = Math.floor(ms / 3600000);
+            const minutes = Math.floor((ms % 3600000) / 60000);
+            return `${hours}h ${minutes}m`;
+        }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+            return (bytes / 1073741824).toFixed(1) + ' GB';
+        }
+
+        function getColor(index, alpha = 1) {
+            const colors = [
+                `rgba(59, 130, 246, ${alpha})`,
+                `rgba(16, 185, 129, ${alpha})`,
+                `rgba(245, 158, 11, ${alpha})`,
+                `rgba(239, 68, 68, ${alpha})`,
+                `rgba(139, 92, 246, ${alpha})`
+            ];
+            return colors[index % colors.length];
+        }
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', () => {
+            initCharts();
+            initPolling(); // This handles loading and polling
+        });
+    </script>
+</body>
+</html>
