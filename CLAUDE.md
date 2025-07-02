@@ -123,6 +123,12 @@ Main tables:
   - Removed .DS_Store files
   - TypeScript compilation verified (no errors)
   - Build process successful
+- ✅ Real-time price updates:
+  - Added RealtimePriceCache service for instant price updates
+  - Reduced batch processing delays from 1s to 250ms
+  - Dashboard refresh interval reduced to 3 seconds
+  - New /api/tokens/realtime endpoint bypasses database for fresh prices
+  - Prices now update within seconds instead of minutes
 
 ### Previous Changes (Jan 2)
 - ✅ Fixed AMM virtual reserves storage - changed from decimal to bigint
