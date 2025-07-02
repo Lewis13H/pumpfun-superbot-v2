@@ -11,6 +11,7 @@ import bcMonitorEndpoints from './bc-monitor-endpoints';
 import ammEndpoints from './amm-endpoints';
 import { registerPerformanceEndpoints } from './performance-metrics-endpoints';
 import { createStaleTokenEndpoints } from './stale-token-endpoints';
+import { RealtimePriceCache } from '../services/realtime-price-cache';
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;
@@ -299,6 +300,61 @@ app.get('/api/tokens/near-graduation', async (_req, res) => {
   } catch (error) {
     console.error('Error fetching near-graduation tokens:', error);
     res.status(500).json({ error: 'Failed to fetch near-graduation tokens' });
+  }
+});
+
+// API endpoint for real-time prices
+app.get('/api/tokens/realtime', async (_req, res) => {
+  try {
+    const priceCache = RealtimePriceCache.getInstance();
+    const realtimePrices = priceCache.getAllPrices();
+    
+    // Get token metadata from database for the cached tokens
+    const mintAddresses = realtimePrices.map(p => p.mintAddress);
+    
+    if (mintAddresses.length === 0) {
+      res.json([]);
+      return;
+    }
+    
+    const query = `
+      SELECT 
+        t.mint_address,
+        t.symbol,
+        t.name,
+        t.image_uri,
+        t.graduated_to_amm,
+        t.holder_count,
+        t.token_created_at,
+        t.first_seen_at
+      FROM tokens_unified t
+      WHERE t.mint_address = ANY($1::text[])
+    `;
+    
+    const result = await pool.query(query, [mintAddresses]);
+    const tokenMap = new Map(result.rows.map(row => [row.mint_address, row]));
+    
+    // Merge realtime prices with token metadata
+    const mergedData = realtimePrices.map(price => {
+      const token = tokenMap.get(price.mintAddress) || {};
+      return {
+        ...token,
+        mint_address: price.mintAddress,
+        latest_price_sol: price.priceSol,
+        latest_price_usd: price.priceUsd,
+        latest_market_cap_usd: price.marketCapUsd,
+        latest_bonding_curve_progress: price.bondingCurveProgress,
+        current_program: price.program,
+        last_price_update: price.lastUpdate,
+        calculated_price_usd: price.priceUsd
+      };
+    }).filter(t => t.latest_market_cap_usd >= 8888); // Only return tokens above threshold
+    
+    res.json(mergedData);
+    
+  } catch (error) {
+    console.error('Error fetching realtime prices:', error);
+    res.status(500).json({ error: 'Failed to fetch realtime prices' });
   }
 });
 

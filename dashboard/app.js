@@ -1,6 +1,7 @@
 // Configuration
 const API_BASE = '/api';
-const UPDATE_INTERVAL = 10000; // 10 seconds
+const UPDATE_INTERVAL = 3000; // 3 seconds for more responsive updates
+const USE_REALTIME_PRICES = true; // Toggle to use real-time price endpoint
 
 // State
 let tokens = [];
@@ -126,12 +127,48 @@ function setupEventListeners() {
 // Load tokens from API
 async function loadTokens() {
     try {
-        const response = await fetch(`${API_BASE}/tokens`);
+        // Use real-time endpoint if enabled, otherwise fall back to standard endpoint
+        const endpoint = USE_REALTIME_PRICES ? `${API_BASE}/tokens/realtime` : `${API_BASE}/tokens`;
+        const response = await fetch(endpoint);
         if (!response.ok) throw new Error('Failed to fetch tokens');
         
         const data = await response.json();
-        tokens = data;
+        
+        // If using realtime endpoint, merge with existing token data
+        if (USE_REALTIME_PRICES && tokens.length > 0) {
+            // Create a map of existing tokens
+            const tokenMap = new Map(tokens.map(t => [t.mint_address, t]));
+            
+            // Update with real-time data
+            data.forEach(realtimeToken => {
+                const existing = tokenMap.get(realtimeToken.mint_address);
+                if (existing) {
+                    // Merge real-time price data with existing metadata
+                    tokenMap.set(realtimeToken.mint_address, {
+                        ...existing,
+                        ...realtimeToken,
+                        // Ensure real-time prices take precedence
+                        latest_price_sol: realtimeToken.latest_price_sol,
+                        latest_price_usd: realtimeToken.latest_price_usd,
+                        latest_market_cap_usd: realtimeToken.latest_market_cap_usd,
+                        calculated_price_usd: realtimeToken.calculated_price_usd
+                    });
+                } else {
+                    tokenMap.set(realtimeToken.mint_address, realtimeToken);
+                }
+            });
+            
+            tokens = Array.from(tokenMap.values());
+        } else {
+            tokens = data;
+        }
+        
         applyFilters();
+        
+        // Show real-time indicator if using real-time prices
+        if (USE_REALTIME_PRICES) {
+            updateConnectionStatus(true, 'Real-time');
+        }
     } catch (error) {
         console.error('Error loading tokens:', error);
         showError('Failed to load tokens');

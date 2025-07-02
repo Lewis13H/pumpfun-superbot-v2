@@ -15,6 +15,7 @@ import { Logger, LogLevel } from './core/logger';
 import { ConfigService } from './core/config';
 import { TOKENS } from './core/container';
 import { EnhancedStaleTokenDetector } from './services/enhanced-stale-token-detector';
+import { RealtimePriceCache } from './services/realtime-price-cache';
 
 // Set log level to ERROR for minimal output
 Logger.setGlobalLevel(LogLevel.ERROR);
@@ -133,6 +134,14 @@ async function startMonitors() {
     // Initialize metadata enricher
     await container.resolve(TOKENS.MetadataEnricher);
     logger.debug('Metadata enricher initialized and running');
+    
+    // Initialize real-time price cache with EventBus
+    const priceCache = RealtimePriceCache.getInstance();
+    priceCache.initialize(eventBus);
+    logger.debug('Real-time price cache initialized');
+    
+    // Clean up old entries every hour
+    setInterval(() => priceCache.cleanup(), 3600000);
     
     // Initialize StreamManager - this starts the shared stream
     await container.resolve(TOKENS.StreamManager);

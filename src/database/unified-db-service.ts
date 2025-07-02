@@ -55,8 +55,8 @@ export class UnifiedDbServiceV2 {
   // Batch processing
   private batchQueue: BatchItem[] = [];
   private batchTimer?: NodeJS.Timeout;
-  private readonly BATCH_SIZE = 100;
-  private readonly BATCH_INTERVAL_MS = 1000;
+  private readonly BATCH_SIZE = 50; // Reduced for faster processing
+  private readonly BATCH_INTERVAL_MS = 250; // 4x faster updates
   
   // In-memory cache for performance
   private tokenCache = new Map<string, {
