@@ -193,9 +193,9 @@ export class TokenRepository extends BaseRepository<Token> {
   ): Promise<boolean> {
     const query = `
       UPDATE tokens_unified SET
-        current_price_sol = $2,
-        current_price_usd = $3,
-        first_market_cap_usd = $4,
+        latest_price_sol = $2,
+        latest_price_usd = $3,
+        latest_market_cap_usd = $4,
         price_source = $5,
         last_price_update = NOW(),
         updated_at = NOW()
