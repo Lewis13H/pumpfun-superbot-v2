@@ -41,6 +41,93 @@ export interface PoolCreatedEvent {
   quoteReserves: string;
 }
 
+// AMM-specific event types
+export interface AmmDepositEvent {
+  timestamp: number;
+  pool: string;
+  user: string;
+  lpTokenAmountOut: string;
+  baseAmountIn: string;
+  quoteAmountIn: string;
+  poolBaseReserves: string;
+  poolQuoteReserves: string;
+  lpMintSupply: string;
+  userBaseTokenAccount: string;
+  userQuoteTokenAccount: string;
+  userPoolTokenAccount: string;
+}
+
+export interface AmmWithdrawEvent {
+  timestamp: number;
+  pool: string;
+  user: string;
+  lpTokenAmountIn: string;
+  baseAmountOut: string;
+  quoteAmountOut: string;
+  poolBaseReserves: string;
+  poolQuoteReserves: string;
+  lpMintSupply: string;
+  userBaseTokenAccount: string;
+  userQuoteTokenAccount: string;
+  userPoolTokenAccount: string;
+}
+
+export interface AmmBuyEvent {
+  timestamp: number;
+  pool: string;
+  user: string;
+  baseAmountOut: string;
+  quoteAmountIn: string;
+  poolBaseReserves: string;
+  poolQuoteReserves: string;
+  lpFee: string;
+  protocolFee: string;
+  userQuoteAmountIn: string;
+}
+
+export interface AmmSellEvent {
+  timestamp: number;
+  pool: string;
+  user: string;
+  baseAmountIn: string;
+  quoteAmountOut: string;
+  poolBaseReserves: string;
+  poolQuoteReserves: string;
+  lpFee: string;
+  protocolFee: string;
+  userBaseAmountIn: string;
+}
+
+// Fee event types
+export interface CollectCoinCreatorFeeEvent {
+  timestamp: number;
+  pool: string;
+  recipient: string;
+  coinAmount: string;
+  pcAmount: string;
+  coinMint: string;
+  pcMint: string;
+}
+
+export interface CollectProtocolFeeEvent {
+  timestamp: number;
+  pool: string;
+  poolAddress: string;
+  protocolCoinFee: string;
+  protocolPcFee: string;
+  coinMint: string;
+  pcMint: string;
+}
+
+export interface FeeCollectedEvent {
+  timestamp: number;
+  pool: string;
+  feeType: 'lp' | 'protocol' | 'creator';
+  coinAmount: string;
+  pcAmount: string;
+  totalValueUsd?: number;
+}
+
 export class EventParserService {
   private static instance: EventParserService;
   private logger: Logger;
@@ -238,6 +325,215 @@ export class EventParserService {
     }
     
     return tradeEvents;
+  }
+
+  /**
+   * Extract AMM deposit event
+   */
+  extractDepositEvent(events: ParsedEvent[]): AmmDepositEvent | null {
+    for (const event of events) {
+      if (event.name === 'DepositEvent') {
+        const data = event.data;
+        return {
+          timestamp: Number(data.timestamp || Date.now()),
+          pool: data.pool,
+          user: data.user,
+          lpTokenAmountOut: data.lp_token_amount_out || data.lpTokenAmountOut,
+          baseAmountIn: data.base_amount_in || data.baseAmountIn,
+          quoteAmountIn: data.quote_amount_in || data.quoteAmountIn,
+          poolBaseReserves: data.pool_base_token_reserves || data.poolBaseTokenReserves,
+          poolQuoteReserves: data.pool_quote_token_reserves || data.poolQuoteTokenReserves,
+          lpMintSupply: data.lp_mint_supply || data.lpMintSupply,
+          userBaseTokenAccount: data.user_base_token_account || data.userBaseTokenAccount,
+          userQuoteTokenAccount: data.user_quote_token_account || data.userQuoteTokenAccount,
+          userPoolTokenAccount: data.user_pool_token_account || data.userPoolTokenAccount
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Extract AMM withdraw event
+   */
+  extractWithdrawEvent(events: ParsedEvent[]): AmmWithdrawEvent | null {
+    for (const event of events) {
+      if (event.name === 'WithdrawEvent') {
+        const data = event.data;
+        return {
+          timestamp: Number(data.timestamp || Date.now()),
+          pool: data.pool,
+          user: data.user,
+          lpTokenAmountIn: data.lp_token_amount_in || data.lpTokenAmountIn,
+          baseAmountOut: data.base_amount_out || data.baseAmountOut,
+          quoteAmountOut: data.quote_amount_out || data.quoteAmountOut,
+          poolBaseReserves: data.pool_base_token_reserves || data.poolBaseTokenReserves,
+          poolQuoteReserves: data.pool_quote_token_reserves || data.poolQuoteTokenReserves,
+          lpMintSupply: data.lp_mint_supply || data.lpMintSupply,
+          userBaseTokenAccount: data.user_base_token_account || data.userBaseTokenAccount,
+          userQuoteTokenAccount: data.user_quote_token_account || data.userQuoteTokenAccount,
+          userPoolTokenAccount: data.user_pool_token_account || data.userPoolTokenAccount
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Extract AMM buy event
+   */
+  extractBuyEvent(events: ParsedEvent[]): AmmBuyEvent | null {
+    for (const event of events) {
+      if (event.name === 'BuyEvent') {
+        const data = event.data;
+        return {
+          timestamp: Number(data.timestamp || Date.now()),
+          pool: data.pool,
+          user: data.user,
+          baseAmountOut: data.base_amount_out || data.baseAmountOut,
+          quoteAmountIn: data.quote_amount_in || data.quoteAmountIn,
+          poolBaseReserves: data.pool_base_token_reserves || data.poolBaseTokenReserves,
+          poolQuoteReserves: data.pool_quote_token_reserves || data.poolQuoteTokenReserves,
+          lpFee: data.lp_fee || data.lpFee || '0',
+          protocolFee: data.protocol_fee || data.protocolFee || '0',
+          userQuoteAmountIn: data.user_quote_amount_in || data.userQuoteAmountIn
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Extract AMM sell event
+   */
+  extractSellEvent(events: ParsedEvent[]): AmmSellEvent | null {
+    for (const event of events) {
+      if (event.name === 'SellEvent') {
+        const data = event.data;
+        return {
+          timestamp: Number(data.timestamp || Date.now()),
+          pool: data.pool,
+          user: data.user,
+          baseAmountIn: data.base_amount_in || data.baseAmountIn,
+          quoteAmountOut: data.quote_amount_out || data.quoteAmountOut,
+          poolBaseReserves: data.pool_base_token_reserves || data.poolBaseTokenReserves,
+          poolQuoteReserves: data.pool_quote_token_reserves || data.poolQuoteTokenReserves,
+          lpFee: data.lp_fee || data.lpFee || '0',
+          protocolFee: data.protocol_fee || data.protocolFee || '0',
+          userBaseAmountIn: data.user_base_amount_in || data.userBaseAmountIn
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Get all liquidity events from transaction
+   */
+  getLiquidityEvents(tx: VersionedTransactionResponse): (AmmDepositEvent | AmmWithdrawEvent)[] {
+    const events = this.parseTransaction(tx);
+    const liquidityEvents: (AmmDepositEvent | AmmWithdrawEvent)[] = [];
+    
+    for (const event of events) {
+      const deposit = this.extractDepositEvent([event]);
+      if (deposit) {
+        liquidityEvents.push(deposit);
+        continue;
+      }
+      
+      const withdraw = this.extractWithdrawEvent([event]);
+      if (withdraw) {
+        liquidityEvents.push(withdraw);
+      }
+    }
+    
+    return liquidityEvents;
+  }
+
+  /**
+   * Extract coin creator fee event
+   */
+  extractCoinCreatorFeeEvent(events: ParsedEvent[]): CollectCoinCreatorFeeEvent | null {
+    for (const event of events) {
+      if (event.name === 'CollectCoinCreatorFeeEvent' || event.name === 'CreatorFeeCollected') {
+        const data = event.data;
+        return {
+          timestamp: Number(data.timestamp || Date.now()),
+          pool: data.pool,
+          recipient: data.recipient || data.creator,
+          coinAmount: data.coin_amount || data.coinAmount || '0',
+          pcAmount: data.pc_amount || data.pcAmount || '0',
+          coinMint: data.coin_mint || data.coinMint,
+          pcMint: data.pc_mint || data.pcMint
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Extract protocol fee event
+   */
+  extractProtocolFeeEvent(events: ParsedEvent[]): CollectProtocolFeeEvent | null {
+    for (const event of events) {
+      if (event.name === 'CollectProtocolFeeEvent' || event.name === 'ProtocolFeeCollected') {
+        const data = event.data;
+        return {
+          timestamp: Number(data.timestamp || Date.now()),
+          pool: data.pool,
+          poolAddress: data.pool_address || data.poolAddress || data.pool,
+          protocolCoinFee: data.protocol_coin_fee || data.protocolCoinFee || '0',
+          protocolPcFee: data.protocol_pc_fee || data.protocolPcFee || '0',
+          coinMint: data.coin_mint || data.coinMint,
+          pcMint: data.pc_mint || data.pcMint
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Get all fee events from transaction
+   */
+  getFeeEvents(tx: VersionedTransactionResponse): (CollectCoinCreatorFeeEvent | CollectProtocolFeeEvent)[] {
+    const events = this.parseTransaction(tx);
+    const feeEvents: (CollectCoinCreatorFeeEvent | CollectProtocolFeeEvent)[] = [];
+    
+    for (const event of events) {
+      const creatorFee = this.extractCoinCreatorFeeEvent([event]);
+      if (creatorFee) {
+        feeEvents.push(creatorFee);
+        continue;
+      }
+      
+      const protocolFee = this.extractProtocolFeeEvent([event]);
+      if (protocolFee) {
+        feeEvents.push(protocolFee);
+      }
+    }
+    
+    return feeEvents;
+  }
+
+  /**
+   * Extract fees from buy/sell events
+   */
+  extractFeesFromTrade(event: AmmBuyEvent | AmmSellEvent): FeeCollectedEvent | null {
+    const lpFee = BigInt(event.lpFee || '0');
+    const protocolFee = BigInt(event.protocolFee || '0');
+    
+    if (lpFee > 0n || protocolFee > 0n) {
+      return {
+        timestamp: event.timestamp,
+        pool: event.pool,
+        feeType: lpFee > protocolFee ? 'lp' : 'protocol',
+        coinAmount: '0', // Will be calculated based on trade type
+        pcAmount: (lpFee + protocolFee).toString(),
+        totalValueUsd: undefined // Will be calculated by handler
+      };
+    }
+    
+    return null;
   }
 }
 

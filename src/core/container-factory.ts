@@ -144,6 +144,26 @@ export async function createContainer(): Promise<Container> {
     return handler;
   });
   
+  container.registerTransient(TOKENS.EnhancedTradeHandler, async () => {
+    const { EnhancedTradeHandler } = await import('../handlers/enhanced-trade-handler');
+    const tokenRepo = await container.resolve(TOKENS.TokenRepository);
+    const tradeRepo = await container.resolve(TOKENS.TradeRepository);
+    const priceCalculator = await container.resolve(TOKENS.PriceCalculator);
+    const eventBus = await container.resolve(TOKENS.EventBus);
+    const config = await container.resolve(TOKENS.ConfigService);
+    const solPriceService = await container.resolve(TOKENS.SolPriceService);
+    
+    return new EnhancedTradeHandler({
+      tokenRepo,
+      tradeRepo,
+      priceCalculator,
+      eventBus,
+      config,
+      solPriceService,
+      container
+    });
+  });
+  
   container.registerSingleton(TOKENS.PoolRepository, async () => {
     // TODO: Implement pool repository
     throw new Error('PoolRepository not implemented yet');

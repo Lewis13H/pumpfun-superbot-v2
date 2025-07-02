@@ -56,9 +56,9 @@ src/
 ├── monitors/
 │   ├── bc-monitor.ts               # Bonding curve trade monitor (refactored with DI)
 │   ├── bc-account-monitor.ts       # BC account state monitor (refactored with DI)
-│   ├── amm-monitor.ts              # AMM pool trade monitor (wrapped legacy with DI)
-│   └── amm-account-monitor.ts      # AMM account state monitor (wrapped legacy with DI)
-├── services/                        # 30+ essential services
+│   ├── amm-monitor.ts              # AMM pool trade monitor (enhanced with price fallback)
+│   └── amm-account-monitor.ts      # AMM account state monitor (pool analytics)
+├── services/                        # 35+ essential services
 │   ├── sol-price.ts                # Binance API integration
 │   ├── sol-price-updater.ts        # Automatic price updates
 │   ├── bc-price-calculator.ts      # BC-specific price calculations
@@ -68,6 +68,12 @@ src/
 │   ├── shyft-metadata-service.ts   # Shyft REST API for metadata (primary source)
 │   ├── helius.ts                   # Helius DAS API client (fallback)
 │   ├── amm-pool-state-service.ts   # AMM pool state tracking and caching
+│   ├── enhanced-amm-price-calculator.ts # AMM price calc with fallback (NEW)
+│   ├── liquidity-event-tracker.ts  # Liquidity add/remove tracking (AMM Session 1)
+│   ├── amm-fee-tracker.ts          # Fee collection monitoring (AMM Session 2)
+│   ├── lp-position-tracker.ts      # LP token position tracking (AMM Session 3)
+│   ├── pool-analytics-service.ts   # Hourly pool metrics (AMM Session 4)
+│   ├── price-impact-analyzer.ts    # Trade slippage analysis (AMM Session 5)
 │   ├── graphql-client.ts           # Shyft GraphQL client with retry logic
 │   ├── unified-graphql-price-recovery.ts # Unified BC/AMM price recovery
 │   ├── stale-token-detector.ts     # Automatic stale token detection/recovery
@@ -272,7 +278,9 @@ data.transaction.transaction.signature                       // Signature
 - SOL decimals: 9 (1 SOL = 1e9 lamports)
 - Market cap calculation: Assumes 1B token supply
 - Bonding curve progress: 30 SOL → 85 SOL = 100%
-- Threshold: $8,888 USD market cap
+- BC Threshold: $8,888 USD market cap
+- AMM Threshold: $1,000 USD market cap
+- AMM Fee: 0.25% (25 basis points)
 
 #### Common Issues & Solutions
 
@@ -386,6 +394,68 @@ CREATE TABLE creator_analysis (
     first_seen TIMESTAMP,
     last_seen TIMESTAMP,
     analyzed_at TIMESTAMP DEFAULT NOW()
+);
+
+-- AMM Enhancement Tables (From AMM integration)
+CREATE TABLE liquidity_events (
+    id SERIAL PRIMARY KEY,
+    pool_address VARCHAR(64) NOT NULL,
+    event_type VARCHAR(20) NOT NULL,
+    user_address VARCHAR(64) NOT NULL,
+    sol_amount BIGINT NOT NULL,
+    token_amount BIGINT NOT NULL,
+    lp_tokens_minted BIGINT,
+    lp_tokens_burned BIGINT,
+    pool_sol_balance BIGINT NOT NULL,
+    pool_token_balance BIGINT NOT NULL,
+    slot BIGINT NOT NULL,
+    signature VARCHAR(88) NOT NULL UNIQUE,
+    block_time TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE amm_fee_events (
+    id SERIAL PRIMARY KEY,
+    pool_address VARCHAR(64) NOT NULL,
+    trade_signature VARCHAR(88) NOT NULL,
+    fee_sol_amount BIGINT NOT NULL,
+    fee_token_amount BIGINT NOT NULL,
+    fee_percentage DECIMAL(5,4) NOT NULL,
+    slot BIGINT NOT NULL,
+    block_time TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE lp_positions (
+    id SERIAL PRIMARY KEY,
+    pool_address VARCHAR(64) NOT NULL,
+    user_address VARCHAR(64) NOT NULL,
+    lp_token_balance BIGINT NOT NULL,
+    pool_share_percentage DECIMAL(5,2),
+    last_updated_slot BIGINT NOT NULL,
+    last_updated_at TIMESTAMPTZ NOT NULL,
+    UNIQUE(pool_address, user_address)
+);
+
+CREATE TABLE amm_pool_metrics_hourly (
+    id SERIAL PRIMARY KEY,
+    pool_address VARCHAR(64) NOT NULL,
+    hour_timestamp TIMESTAMPTZ NOT NULL,
+    volume_sol BIGINT NOT NULL DEFAULT 0,
+    trade_count INTEGER NOT NULL DEFAULT 0,
+    liquidity_sol BIGINT NOT NULL,
+    fees_collected_sol BIGINT DEFAULT 0,
+    price_high DECIMAL(20,12),
+    price_low DECIMAL(20,12),
+    UNIQUE(pool_address, hour_timestamp)
+);
+
+CREATE TABLE trade_simulations (
+    id SERIAL PRIMARY KEY,
+    pool_address VARCHAR(64) NOT NULL,
+    trade_type VARCHAR(10) NOT NULL,
+    input_amount BIGINT NOT NULL,
+    output_amount BIGINT NOT NULL,
+    price_impact_percentage DECIMAL(10,6) NOT NULL,
+    effective_price DECIMAL(20,12) NOT NULL
 );
 ```
 
@@ -1016,6 +1086,36 @@ Successfully implemented Historical Data Recovery:
   - `npm run recover-history -- stats`: View recovery statistics
 - Comprehensive error handling and progress reporting
 
+### AMM Enhancement Integration Completed (January 2025)
+Successfully integrated AMM-only features from `feature/amm-enhancements` branch:
+
+#### AMM Features Integrated (7 total)
+1. **AMM Monitor** - Enhanced with critical price calculation fix
+   - Fallback price calculation when reserves unavailable
+   - Improved accuracy for edge cases
+2. **AMM Account Monitor** - Pool state tracking improvements
+3. **Liquidity Event Tracking** - Monitors add/remove liquidity events
+4. **Fee Tracking System** - Tracks trading fees collected by pools
+5. **LP Position Tracking** - Monitors LP token holdings and shares
+6. **Pool Analytics Service** - Hourly metrics and statistics
+7. **Price Impact Analysis** - Calculates slippage for trades
+
+#### Database Enhancements
+Added AMM-specific tables:
+- `liquidity_events` - Liquidity add/remove events
+- `amm_fee_events` - Trading fee collection
+- `lp_positions` - LP token holdings
+- `amm_pool_metrics_hourly` - Hourly pool analytics
+- `trade_simulations` - Price impact simulations
+- `amm_pool_state` - Real-time pool state
+
+#### Integration Results
+- ✅ Build successful - No TypeScript errors
+- ✅ All monitors operational - BC and AMM working together
+- ✅ Price fallback working - Confirmed in live testing
+- ✅ BC features preserved - All Phase 1-6 enhancements intact
+- ✅ Token Enrichment intact - Sessions 1-4 still functional
+
 ### Token Enrichment Plan Progress
 Successfully completed 4 out of 6 sessions:
 1. ✅ **Database Schema Updates** - Added stale tracking columns and triggers
@@ -1034,6 +1134,7 @@ Successfully completed 4 out of 6 sessions:
 - REST API provides full control over stale token management
 - Metadata completeness scoring helps identify high-quality tokens
 - Recovery system can backfill missed trades from multiple sources
+- AMM monitoring fully integrated with enhanced price calculations
 - 67% of Token Enrichment Plan completed (4/6 sessions)
 
 # important-instruction-reminders

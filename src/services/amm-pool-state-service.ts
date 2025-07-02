@@ -94,7 +94,8 @@ export class AmmPoolStateService {
    * Update pool account data
    */
   async updatePoolState(account: AmmPoolAccount): Promise<void> {
-    const mintAddress = account.quoteMint;
+    // For pump.fun AMM, baseMint is the token, quoteMint is SOL
+    const mintAddress = account.baseMint || account.quoteMint;
     
     // Get or create pool state
     let poolState = this.poolStates.get(mintAddress);
@@ -130,6 +131,9 @@ export class AmmPoolStateService {
     
     // Update mapping
     this.poolAddressToMint.set(account.poolAddress, mintAddress);
+    
+    // Save pool to database
+    this.savePoolToDatabase(account.poolAddress, mintAddress, account.lpMint);
     
     // Queue update
     this.queueUpdate({
@@ -231,6 +235,19 @@ export class AmmPoolStateService {
    */
   getAllPools(): Map<string, AmmPoolState> {
     return this.poolStates;
+  }
+  
+  /**
+   * Get pool by LP mint address
+   */
+  getPoolByLpMint(lpMint: string): AmmPoolState | undefined {
+    // Search through all pools to find matching LP mint
+    for (const [, poolState] of this.poolStates) {
+      if (poolState.account.lpMint === lpMint) {
+        return poolState;
+      }
+    }
+    return undefined;
   }
   
   /**
@@ -340,6 +357,26 @@ export class AmmPoolStateService {
     }
   }
   
+
+
+  /**
+   * Save pool to database
+   */
+  private async savePoolToDatabase(poolAddress: string, mintAddress: string, lpMint?: string): Promise<void> {
+    try {
+      await db.query(
+        `INSERT INTO amm_pools (pool_address, mint_address, lp_mint)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (pool_address) DO UPDATE
+         SET mint_address = EXCLUDED.mint_address,
+             lp_mint = EXCLUDED.lp_mint`,
+        [poolAddress, mintAddress, lpMint || null]
+      );
+    } catch (error) {
+      console.error(chalk.red(`Error saving pool to database: ${poolAddress}`), error);
+    }
+  }
+
   /**
    * Get statistics
    */

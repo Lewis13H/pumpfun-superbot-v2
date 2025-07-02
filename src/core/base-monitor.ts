@@ -12,6 +12,7 @@ export interface MonitorOptions {
   programId: string;
   monitorName: string;
   color?: typeof chalk;
+  subscriptionKey?: string;  // Add subscription key for stream registration
   // Enhanced subscription options
   includeFailedTxs?: boolean;
   requiredAccounts?: string[];

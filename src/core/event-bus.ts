@@ -210,6 +210,12 @@ export const EVENTS = {
   POOL_CREATED: 'pool:created',
   POOL_STATE_UPDATED: 'pool:state_updated',
   
+  // AMM events
+  LIQUIDITY_ADDED: 'liquidity:added',
+  LIQUIDITY_REMOVED: 'liquidity:removed',
+  FEE_COLLECTED: 'fee:collected',
+  PROTOCOL_FEE_COLLECTED: 'protocol_fee:collected',
+  
   // Price events
   PRICE_UPDATED: 'price:updated',
   SOL_PRICE_UPDATED: 'sol_price:updated',

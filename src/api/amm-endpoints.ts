@@ -27,7 +27,7 @@ router.get('/trades/recent', async (req, res) => {
         t.price_usd,
         t.market_cap_usd,
         (t.sol_amount::numeric / 1e9 * 
-         (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1)) as volume_usd,
+         (SELECT price_usd FROM sol_prices ORDER BY created_at DESC LIMIT 1)) as volume_usd,
         t.virtual_sol_reserves,
         t.virtual_token_reserves,
         t.slot,
@@ -115,7 +115,7 @@ router.get('/pools', async (req, res) => {
           mint_address,
           COUNT(*) as trades_24h,
           SUM(sol_amount::numeric / 1e9 * 
-            (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1)) as volume_24h,
+            (SELECT price_usd FROM sol_prices ORDER BY created_at DESC LIMIT 1)) as volume_24h,
           COUNT(DISTINCT user_address) as unique_traders_24h,
           AVG(price_usd) as avg_price_24h
         FROM trades_unified
@@ -143,7 +143,7 @@ router.get('/pools', async (req, res) => {
         t.latest_market_cap_usd,
         -- Calculate current liquidity in USD
         (ps.latest_virtual_sol_reserves::numeric / 1e9 * 
-         (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1)) as liquidity_usd
+         (SELECT price_usd FROM sol_prices ORDER BY created_at DESC LIMIT 1)) as liquidity_usd
       FROM tokens_unified t
       INNER JOIN pool_stats ps ON t.mint_address = ps.mint_address
       LEFT JOIN trade_stats ts ON t.mint_address = ts.mint_address
@@ -208,7 +208,7 @@ router.get('/stats', async (_req, res) => {
           COUNT(*) as total_trades,
           COUNT(DISTINCT user_address) as unique_traders,
           SUM(sol_amount::numeric / 1e9 * 
-              (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1)) as total_volume,
+              (SELECT price_usd FROM sol_prices ORDER BY created_at DESC LIMIT 1)) as total_volume,
           AVG(price_usd) as avg_trade_price,
           SUM(CASE WHEN trade_type = 'buy' THEN 1 ELSE 0 END) as total_buys,
           SUM(CASE WHEN trade_type = 'sell' THEN 1 ELSE 0 END) as total_sells
@@ -233,7 +233,7 @@ router.get('/stats', async (_req, res) => {
         o.*,
         t.*,
         l.*,
-        (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1) as sol_price
+        (SELECT price_usd FROM sol_prices ORDER BY created_at DESC LIMIT 1) as sol_price
       FROM amm_overview o
       CROSS JOIN trading_stats t
       CROSS JOIN liquidity_stats l
@@ -314,7 +314,7 @@ router.get('/pools/:mintAddress', async (req, res) => {
           token_amount,
           price_usd,
           (sol_amount::numeric / 1e9 * 
-           (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1)) as volume_usd,
+           (SELECT price_usd FROM sol_prices ORDER BY created_at DESC LIMIT 1)) as volume_usd,
           block_time
         FROM trades_unified
         WHERE mint_address = $1
