@@ -291,6 +291,14 @@ data.transaction.transaction.signature                       // Signature
    - Solution: Override `isRelevantTransaction` to check for account data
    - Monitor now correctly processes hundreds of pool state updates per minute
 
+5. **AMM Price Calculation Issue (CRITICAL - January 2025)**
+   - All AMM trades have `price_usd = 0` and `market_cap_usd = 0`
+   - Root cause: `priceCalculator.calculatePrice()` returns zeros for AMM trades
+   - Impact: No tokens saved to database (don't meet $1,000 threshold)
+   - Impact: Session 5 price impact calculations don't trigger
+   - Status: **NEEDS FIX** - See AMM_MONITOR_TEST_REPORT.md
+   - Workaround: None currently available
+
 ### Database Schema (Unified)
 
 ```sql
@@ -502,9 +510,10 @@ CREATE TABLE trade_simulations (
 1. **Real-time Monitoring**
    - BC Monitor: Captures bonding curve trades with >95% parse rate
    - BC Account Monitor: Detects graduations in real-time
-   - AMM Monitor: Captures AMM trades AND creates token entries automatically
-   - AMM Account Monitor: Tracks pool states and reserves
+   - AMM Monitor: Captures AMM trades BUT price calculation broken (see issue #5)
+   - AMM Account Monitor: Tracks pool states and reserves correctly
    - Shared Stream Manager: Single gRPC connection for all monitors
+   - **CRITICAL ISSUE**: AMM trades have $0 prices, preventing token saves
 
 2. **Price Recovery**
    - GraphQL: Disabled due to schema issues
@@ -549,15 +558,29 @@ CREATE TABLE trade_simulations (
    - **Trade Simulation**: Optimize large trades with chunking strategies
    - **Slippage Analysis**: Historical slippage tracking and recommendations
    - **Enhanced Trade Handler**: Automatic price impact for all AMM trades
+   - **STATUS**: Code complete but not functioning due to price calculation issue #5
 
 9. **Key Improvements**
-   - AMM tokens now created automatically with $1,000 threshold
+   - AMM tokens now created automatically with $1,000 threshold (broken - see issue #5)
    - DexScreener integration provides fallback for stale graduated tokens
    - Complete monitoring script runs all services
    - All tokens above $8,888 market cap automatically get metadata
    - TypeScript build errors fully resolved
    - Proper error handling and type safety
-   - AMM liquidity events fully tracked and stored
+   - AMM liquidity events fully tracked and stored (not detecting events currently)
+
+### ⚠️ Known Issues Requiring Fix
+
+1. **AMM Price Calculation** (Critical)
+   - `priceCalculator.calculatePrice()` returns 0 for all AMM trades
+   - Prevents tokens from being saved (don't meet threshold)
+   - Blocks all Session 5 price impact features
+   - See AMM_MONITOR_TEST_REPORT.md for details
+
+2. **Event Detection**
+   - Liquidity events not being parsed/detected
+   - Fee events not being captured
+   - May be related to price calculation issue
 
 ### 🚀 Quick Start
 
