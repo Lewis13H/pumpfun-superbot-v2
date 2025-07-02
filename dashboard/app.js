@@ -128,8 +128,16 @@ function setupEventListeners() {
 async function loadTokens() {
     try {
         // Use real-time endpoint if enabled, otherwise fall back to standard endpoint
-        const endpoint = USE_REALTIME_PRICES ? `${API_BASE}/tokens/realtime` : `${API_BASE}/tokens`;
-        const response = await fetch(endpoint);
+        let endpoint = USE_REALTIME_PRICES ? `${API_BASE}/tokens/realtime` : `${API_BASE}/tokens`;
+        let response = await fetch(endpoint);
+        
+        // If realtime endpoint fails, fall back to standard endpoint
+        if (!response.ok && USE_REALTIME_PRICES) {
+            console.log('Realtime endpoint not available, falling back to standard endpoint');
+            endpoint = `${API_BASE}/tokens`;
+            response = await fetch(endpoint);
+        }
+        
         if (!response.ok) throw new Error('Failed to fetch tokens');
         
         const data = await response.json();
@@ -165,8 +173,8 @@ async function loadTokens() {
         
         applyFilters();
         
-        // Show real-time indicator if using real-time prices
-        if (USE_REALTIME_PRICES) {
+        // Show real-time indicator only if we actually used the realtime endpoint
+        if (USE_REALTIME_PRICES && endpoint.includes('realtime')) {
             updateConnectionStatus(true, 'Real-time');
         }
     } catch (error) {

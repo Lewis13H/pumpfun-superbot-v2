@@ -163,6 +163,16 @@ Main tables:
 4. **Enrichment counter**: Shows 0 but enrichment is working
    - This is a cosmetic issue only
 
+### CRITICAL: Raydium Graduations Not Monitored
+**Issue**: Pump.fun tokens are graduating to Raydium AMM, not pump.swap AMM
+- Current system only monitors pump.swap (`pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA`)
+- Missing all Raydium graduations (`675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8`)
+- This is why tokens show 100% bonding curve progress but not graduated
+- Example: DIDDY token (7KNGUT...) reached 100% but no AMM trades detected
+
+**Impact**: Most pump.fun graduations are being missed
+**Solution**: Need to implement Raydium AMM monitoring (see shyft-code-examples/temp-repo/Raydium)
+
 ### Data Path Notes
 - gRPC transaction path: `data.transaction.transaction.transaction`
 - Price calculation fallback: Uses trade amounts when reserves unavailable
