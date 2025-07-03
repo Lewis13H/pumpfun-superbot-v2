@@ -6,14 +6,14 @@
  */
 
 import 'dotenv/config';
-import { StaleTokenDetector } from '../services/stale-token-detector';
+import { EnhancedStaleTokenDetector } from '../services/token-management/enhanced-stale-token-detector';
 import { db } from '../database';
 import chalk from 'chalk';
 
 async function performStartupRecovery() {
   console.log(chalk.cyan.bold('\n🚀 Startup Recovery Script\n'));
   
-  const detector = StaleTokenDetector.getInstance({
+  const detector = EnhancedStaleTokenDetector.getInstance({
     enableStartupRecovery: true,
     startupRecoveryThresholdMinutes: 0, // Force recovery regardless of downtime
   });
@@ -41,7 +41,9 @@ async function performStartupRecovery() {
     
     // Perform recovery
     console.log(chalk.blue('\n🔄 Starting full recovery...'));
-    await detector.performStartupRecovery();
+    await detector.start();
+    await detector.scanForStaleTokens();
+    detector.stop();
     
     // Show results
     const stats = detector.getStats();

@@ -11,20 +11,20 @@ import { Container, TOKENS } from '../core/container';
 import { EVENTS } from '../core/event-bus';
 // Removed unused import Idl
 import { SolanaParser } from '@shyft-to/solana-transaction-parser';
-import { SolanaEventParser } from '../utils/event-parser';
+import { SolanaEventParser } from '../utils/parsers/event-parser';
 import pumpAmmIdl from '../idls/pump_amm_0.1.0.json';
-import { TransactionFormatter } from '../utils/transaction-formatter';
-import { bnLayoutFormatter } from '../utils/bn-layout-formatter';
-import { suppressParserWarnings } from '../utils/suppress-parser-warnings';
-import { parseSwapTransactionOutput } from '../utils/swapTransactionParser';
-import { AmmPoolStateService } from '../services/amm-pool-state-service';
-import { EnhancedAutoEnricher } from '../services/enhanced-auto-enricher';
-import { eventParserService } from '../services/event-parser-service';
+import { TransactionFormatter } from '../utils/parsers/transaction-formatter';
+import { bnLayoutFormatter } from '../utils/formatters/bn-layout-formatter';
+import { enableErrorSuppression } from '../utils/parsers/error-suppressor';
+import { parseSwapTransactionOutput } from '../utils/parsers/swap-transaction-parser';
+import { AmmPoolStateService } from '../services/amm/amm-pool-state-service';
+import { EnhancedAutoEnricher } from '../services/metadata/enhanced-auto-enricher';
+import { eventParserService } from '../services/core/event-parser-service';
 import { EnhancedTradeHandler } from '../handlers/enhanced-trade-handler';
 import { TradeEvent, EventType, TradeType } from '../parsers/types';
-import { PriceCalculator } from '../services/price-calculator';
+import { PriceCalculator } from '../services/pricing/price-calculator';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { extractAmmEventsFromLogs } from '../utils/amm-event-decoder';
+import { extractAmmEventsFromLogs } from '../utils/amm/event-decoder';
 
 // Constants
 const PUMP_AMM_PROGRAM_ID = new PublicKey('pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA');
@@ -100,7 +100,7 @@ export class AMMMonitor extends BaseMonitor {
     await super.initializeServices();
     
     // Suppress parser warnings
-    suppressParserWarnings();
+    enableErrorSuppression();
     
     // Get pool state service
     this.poolStateService = await this.container.resolve(TOKENS.PoolStateService);
@@ -664,7 +664,7 @@ export class AMMMonitor extends BaseMonitor {
         virtualTokenReserves: virtualTokenReserves,  // Already in token units as bigint
         realSolReserves: virtualSolReserves,  // AMM uses same reserves for real and virtual
         realTokenReserves: virtualTokenReserves,
-        poolAddress: swapEvent.pool,
+        poolAddress: undefined, // Pool address not available from parser
         // Add the calculated price and market cap
         priceUsd: priceInfo.priceInUsd,
         marketCapUsd: priceInfo.marketCapUsd,

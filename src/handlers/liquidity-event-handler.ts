@@ -6,9 +6,9 @@
 import { EventBus, EVENTS } from '../core/event-bus';
 import { Logger } from '../core/logger';
 import { UnifiedDbServiceV2 } from '../database/unified-db-service';
-import { AmmPoolStateService } from '../services/amm-pool-state-service';
-import { SolPriceService } from '../services/sol-price';
-import { AmmDepositEvent, AmmWithdrawEvent } from '../services/event-parser-service';
+import { AmmPoolStateService } from '../services/amm/amm-pool-state-service';
+import { SolPriceService } from '../services/pricing/sol-price-service';
+import { AmmDepositEvent, AmmWithdrawEvent } from '../services/core/event-parser-service';
 import { db } from '../database';
 
 interface LiquidityEventData {

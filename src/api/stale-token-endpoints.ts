@@ -5,7 +5,7 @@
 
 import { Router } from 'express';
 import { Pool } from 'pg';
-import { EnhancedStaleTokenDetector } from '../services/enhanced-stale-token-detector';
+import { EnhancedStaleTokenDetector } from '../services/token-management/enhanced-stale-token-detector';
 
 export function createStaleTokenEndpoints(pool: Pool): Router {
   const router = Router();

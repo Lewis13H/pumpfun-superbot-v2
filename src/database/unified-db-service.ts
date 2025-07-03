@@ -5,7 +5,7 @@
  */
 
 import { db } from '../database';
-import { EnhancedAutoEnricher } from '../services/enhanced-auto-enricher';
+import { EnhancedAutoEnricher } from '../services/metadata/enhanced-auto-enricher';
 
 export interface UnifiedTokenData {
   mintAddress: string;

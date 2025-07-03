@@ -9,7 +9,7 @@ import * as borsh from '@coral-xyz/borsh';
 // import { PublicKey } from '@solana/web3.js';
 import { BaseMonitor } from '../core/base-monitor';
 import { Container, TOKENS } from '../core/container';
-import { PUMP_PROGRAM } from '../utils/constants';
+import { PUMP_PROGRAM } from '../utils/config/constants';
 import { EVENTS } from '../core/event-bus';
 // Removed unused imports TokenRepository and GraduationHandler
 

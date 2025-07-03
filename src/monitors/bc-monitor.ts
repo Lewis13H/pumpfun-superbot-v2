@@ -9,10 +9,10 @@ import { Container, TOKENS } from '../core/container';
 import { EventType, TradeType } from '../parsers/types';
 import { UnifiedEventParser } from '../parsers/unified-event-parser';
 import { TradeHandler } from '../handlers/trade-handler';
-import { PUMP_PROGRAM } from '../utils/constants';
+import { PUMP_PROGRAM } from '../utils/config/constants';
 import { EVENTS } from '../core/event-bus';
-import { enableErrorSuppression } from '../utils/parser-error-suppressor';
-import { performanceMonitor } from '../services/performance-monitor';
+import { enableErrorSuppression } from '../utils/parsers/error-suppressor';
+import { performanceMonitor } from '../services/monitoring/performance-monitor';
 // import { FilterFactory } from '../core/filter-factory'; // Uncomment when using filters
 
 interface BCMonitorStats {

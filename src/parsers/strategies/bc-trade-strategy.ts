@@ -5,7 +5,7 @@
 
 import bs58 from 'bs58';
 import { ParseStrategy, ParseContext, BCTradeEvent, EventType, TradeType } from '../types';
-import { PUMP_PROGRAM } from '../../utils/constants';
+import { PUMP_PROGRAM } from '../../utils/config/constants';
 import { Logger } from '../../core/logger';
 
 const logger = new Logger({ context: 'BCTradeStrategy' });

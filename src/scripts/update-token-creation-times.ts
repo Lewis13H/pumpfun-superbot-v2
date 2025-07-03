@@ -7,7 +7,7 @@
 import 'dotenv/config';
 import { Pool } from 'pg';
 import chalk from 'chalk';
-import { TokenCreationTimeService } from '../services/token-creation-time-service';
+import { TokenCreationTimeService } from '../services/token-management/token-creation-time-service';
 
 async function updateTokenCreationTimes() {
   const pool = new Pool({

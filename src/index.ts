@@ -14,8 +14,8 @@ import { EventBus, EVENTS } from './core/event-bus';
 import { Logger, LogLevel } from './core/logger';
 import { ConfigService } from './core/config';
 import { TOKENS } from './core/container';
-import { EnhancedStaleTokenDetector } from './services/enhanced-stale-token-detector';
-import { RealtimePriceCache } from './services/realtime-price-cache';
+import { EnhancedStaleTokenDetector } from './services/token-management/enhanced-stale-token-detector';
+import { RealtimePriceCache } from './services/pricing/realtime-price-cache';
 
 // Set log level to ERROR for minimal output
 Logger.setGlobalLevel(LogLevel.ERROR);

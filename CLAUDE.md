@@ -22,17 +22,39 @@ npm run build       # Build TypeScript
 - **Event Bus**: Components communicate via events
 - **DI Container**: Dependency injection for all services
 
-### Key Services
-- `enhanced-auto-enricher.ts` - Metadata enrichment (Shyft/Helius)
+### Key Services (Organized by Directory)
+#### Core Services (`services/core/`)
+- Event parsing, IDL parsing, block tracking
+
+#### Pricing Services (`services/pricing/`)
+- `price-calculator.ts` - Unified price calculator for BC and AMM
+- `sol-price-service.ts` - SOL/USD price tracking (merged sol-price + updater)
+- `realtime-price-cache.ts` - In-memory cache for instant price access
+
+#### Metadata Services (`services/metadata/`)
+- `enhanced-auto-enricher.ts` - Orchestrates metadata enrichment
+- `providers/helius.ts` - Helius API provider
+- `providers/shyft-metadata-service.ts` - Shyft DAS API provider
+
+#### AMM Services (`services/amm/`)
 - `amm-pool-state-service.ts` - Pool state tracking
-- `enhanced-amm-price-calculator.ts` - Price calculations with fallback
-- `liquidity-event-handler.ts` - Liquidity tracking (AMM Session 1)
+- `amm-pool-analytics.ts` - Pool analytics (AMM Session 4)
 - `amm-fee-service.ts` - Fee tracking (AMM Session 2)
 - `lp-position-calculator.ts` - LP positions (AMM Session 3)
-- `amm-pool-analytics.ts` - Pool analytics (AMM Session 4)
-- `graduation-fixer-service.ts` - Auto-fixes tokens that graduated but weren't marked
-- `enhanced-stale-token-detector.ts` - Removes stale tokens with no recent activity
-- `sol-price-service.ts` - Tracks SOL/USD price from multiple sources
+
+#### Token Management (`services/token-management/`)
+- `graduation-fixer-service.ts` - Auto-fixes graduated tokens
+- `enhanced-stale-token-detector.ts` - Removes stale tokens
+- `token-creation-time-service.ts` - Fetches creation timestamps
+
+#### Monitoring Services (`services/monitoring/`)
+- Performance monitoring, stats aggregation, alerts
+
+#### Analysis Services (`services/analysis/`)
+- MEV detection, slippage analysis, fork detection
+
+#### Recovery Services (`services/recovery/`)
+- Recovery queue, pool creation monitoring
 
 ### Key Features
 - ✅ BC & AMM monitoring with >95% parse rate
@@ -100,6 +122,19 @@ Main tables:
 ## Recent Updates (January 2025)
 
 ### Latest Changes (Jan 3)
+- ✅ **Major Code Reorganization**:
+  - Reorganized `src/services/` from 40 files to 28 files in logical subdirectories
+  - Reorganized `src/utils/` from 12 files to 10 files in logical subdirectories
+  - Deleted 15 redundant/unused files
+  - Merged sol-price.ts and sol-price-updater.ts into single sol-price-service.ts
+  - Fixed all import paths throughout codebase
+  - Build completes successfully with no TypeScript errors
+- ✅ **Dashboard Price Display Issue**:
+  - Identified that tokens showing $0.0001 are graduated to Raydium AMM
+  - Current system only monitors pump.swap AMM, missing Raydium graduations
+  - This causes 100% progress tokens to show default price of $0.0001
+  - Workaround: Run `npx tsx src/scripts/fix-graduated-tokens.ts`
+  - Proper fix: Implement Raydium AMM monitoring
 - ✅ Added GraduationFixerService - automatically detects and fixes graduated tokens
   - Runs on startup and every 5 minutes
   - Finds tokens with AMM trades that aren't marked as graduated
@@ -169,8 +204,9 @@ Main tables:
 - Missing all Raydium graduations (`675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8`)
 - This is why tokens show 100% bonding curve progress but not graduated
 - Example: DIDDY token (7KNGUT...) reached 100% but no AMM trades detected
+- **Dashboard shows $0.0001 price for these tokens** (default when no AMM price available)
 
-**Impact**: Most pump.fun graduations are being missed
+**Impact**: Most pump.fun graduations are being missed, prices show as $0.0001
 **Solution**: Need to implement Raydium AMM monitoring (see shyft-code-examples/temp-repo/Raydium)
 
 ### Data Path Notes
@@ -198,6 +234,28 @@ npm run lint         # Check code quality
 npm run typecheck    # TypeScript validation
 ```
 
+## Code Structure
+
+### Directory Organization
+```
+src/
+├── services/          # Business logic services
+│   ├── core/         # Core infrastructure (event parsing, IDL, blocks)
+│   ├── pricing/      # Price calculations and SOL price tracking
+│   ├── metadata/     # Token metadata enrichment
+│   ├── amm/          # AMM-specific services
+│   ├── monitoring/   # System monitoring and stats
+│   ├── token-management/  # Token lifecycle management
+│   ├── analysis/     # MEV, slippage, fork analysis
+│   └── recovery/     # Data recovery services
+├── utils/            # Utility functions
+│   ├── amm/          # AMM utilities (decoders, calculators)
+│   ├── config/       # Constants and configuration
+│   ├── parsers/      # Event and transaction parsers
+│   └── formatters/   # Data formatting utilities
+└── ...
+```
+
 ## Important Notes
 
 - Always use `npm run start` for production
@@ -208,3 +266,4 @@ npm run typecheck    # TypeScript validation
 - Dashboard updates every 10 seconds
 - Token age shows blockchain creation time when available
 - FDV = Market Cap × 10 (pump.fun tokens have 10% circulating supply)
+- **Graduated tokens showing $0.0001**: These graduated to Raydium (not monitored)

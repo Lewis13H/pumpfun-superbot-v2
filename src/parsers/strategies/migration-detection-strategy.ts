@@ -5,7 +5,7 @@
 
 import { ParseContext, ParseStrategy } from './base-strategy';
 import { EventType, ParsedEvent } from '../types';
-import { IDLParserService } from '../../services/idl-parser-service';
+import { IDLParserService } from '../../services/core/idl-parser-service';
 
 export class MigrationDetectionStrategy implements ParseStrategy {
   name = 'MigrationDetection';

@@ -6,8 +6,8 @@
 import { Router, Request, Response } from 'express';
 import { Container } from '../core/container';
 import { Logger } from '../core/logger';
-import { TokenLifecycleService } from '../services/token-lifecycle-service';
-import { MigrationTracker } from '../services/migration-tracker';
+import { TokenLifecycleService } from '../services/token-management/token-lifecycle-service';
+import { MigrationTracker } from '../services/token-management/migration-tracker';
 import { db } from '../database';
 
 export function createMigrationAnalyticsRouter(container: Container): Router {

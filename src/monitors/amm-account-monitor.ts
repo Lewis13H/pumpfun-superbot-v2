@@ -10,8 +10,8 @@ import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
 import { BaseMonitor } from '../core/base-monitor';
 import { Container, TOKENS } from '../core/container';
 import { EVENTS } from '../core/event-bus';
-import { decodePoolAccount, poolAccountToPlain } from '../utils/amm-pool-decoder';
-import { AmmPoolStateService } from '../services/amm-pool-state-service';
+import { decodePoolAccount, poolAccountToPlain } from '../utils/amm/pool-decoder';
+import { AmmPoolStateService } from '../services/amm/amm-pool-state-service';
 import * as borsh from '@coral-xyz/borsh';
 
 // Constants

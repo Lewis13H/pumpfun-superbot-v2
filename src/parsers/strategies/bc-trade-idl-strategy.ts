@@ -5,11 +5,11 @@
 
 import { ParseContext, ParseStrategy } from './base-strategy';
 import { EventType, ParsedEvent, TradeType } from '../types';
-import { IDLParserService } from '../../services/idl-parser-service';
-import { EventParserService } from '../../services/event-parser-service';
-import { InnerInstructionParser } from '../../services/inner-ix-parser';
-import { TransactionFormatter } from '../../utils/transaction-formatter';
-import { PUMP_PROGRAM } from '../../utils/constants';
+import { IDLParserService } from '../../services/core/idl-parser-service';
+import { EventParserService } from '../../services/core/event-parser-service';
+import { InnerInstructionParser } from '../../services/core/inner-ix-parser';
+import { TransactionFormatter } from '../../utils/parsers/transaction-formatter';
+import { PUMP_PROGRAM } from '../../utils/config/constants';
 import bs58 from 'bs58';
 
 export class BCTradeIDLStrategy implements ParseStrategy {

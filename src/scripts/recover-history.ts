@@ -11,7 +11,7 @@
  */
 
 import 'dotenv/config';
-import { HistoricalRecoveryService } from '../services/historical-recovery';
+import { HistoricalRecoveryService } from '../services/recovery/historical-recovery';
 import { db } from '../database';
 import chalk from 'chalk';
 import { parseISO, isValid, format } from 'date-fns';

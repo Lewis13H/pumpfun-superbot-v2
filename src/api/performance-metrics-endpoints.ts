@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { performanceMonitor } from '../services/performance-monitor';
+import { performanceMonitor } from '../services/monitoring/performance-monitor';
 // import { WebSocketServer, WebSocket } from 'ws';
 
 // WebSocket functionality removed - use REST API for metrics

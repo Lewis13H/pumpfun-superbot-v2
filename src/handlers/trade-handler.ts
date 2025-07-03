@@ -6,7 +6,7 @@
 import { TradeEvent, EventType } from '../parsers/types';
 import { TokenRepository, Token } from '../repositories/token-repository';
 import { TradeRepository, Trade } from '../repositories/trade-repository';
-import { PriceCalculator, ReserveInfo } from '../services/price-calculator';
+import { PriceCalculator, ReserveInfo } from '../services/pricing/price-calculator';
 import { EventBus, EVENTS } from '../core/event-bus';
 import { ConfigService } from '../core/config';
 import { Logger } from '../core/logger';

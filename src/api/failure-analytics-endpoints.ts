@@ -5,10 +5,10 @@
 
 import { Router, Request, Response } from 'express';
 import { Container, TOKENS } from '../core/container';
-import { FailedTransactionAnalyzer } from '../services/failed-tx-analyzer';
-import { MEVDetector } from '../services/mev-detector';
-import { SlippageAnalyzer } from '../services/slippage-analyzer';
-import { CongestionMonitor } from '../services/congestion-monitor';
+import { FailedTransactionAnalyzer } from '../services/monitoring/failed-tx-analyzer';
+import { MEVDetector } from '../services/analysis/mev-detector';
+import { SlippageAnalyzer } from '../services/analysis/slippage-analyzer';
+import { CongestionMonitor } from '../services/monitoring/congestion-monitor';
 import { EventBus } from '../core/event-bus';
 import { db } from '../database';
 

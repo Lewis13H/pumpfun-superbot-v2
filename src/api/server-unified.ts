@@ -11,7 +11,7 @@ import bcMonitorEndpoints from './bc-monitor-endpoints';
 import ammEndpoints from './amm-endpoints';
 import { registerPerformanceEndpoints } from './performance-metrics-endpoints';
 import { createStaleTokenEndpoints } from './stale-token-endpoints';
-import { RealtimePriceCache } from '../services/realtime-price-cache';
+import { RealtimePriceCache } from '../services/pricing/realtime-price-cache';
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;

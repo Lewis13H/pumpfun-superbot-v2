@@ -1,4 +1,4 @@
-import { SolPriceUpdater } from '../services/sol-price-updater';
+import { SolPriceUpdater } from '../services/pricing/sol-price-service';
 
 async function main() {
   console.log('🚀 Starting SOL Price Updater Service');

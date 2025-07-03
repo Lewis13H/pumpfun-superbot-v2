@@ -6,11 +6,9 @@ import { Container, TOKENS } from './container';
 import { EventBus } from './event-bus';
 import { ConfigService } from './config';
 import { StreamClient } from '../stream/client';
-import { SolPriceService } from '../services/sol-price';
+import { SolPriceService } from '../services/pricing/sol-price-service';
 import { UnifiedDbServiceV2 } from '../database/unified-db-service';
-import { GraphQLMetadataEnricher } from '../services/graphql-metadata-enricher';
-import { UnifiedGraphQLPriceRecovery } from '../services/unified-graphql-price-recovery';
-import { DexScreenerPriceRecovery } from '../services/dexscreener-price-recovery';
+// Removed imports for missing services: GraphQLMetadataEnricher, UnifiedGraphQLPriceRecovery, DexScreenerPriceRecovery
 
 /**
  * Create and configure the dependency injection container
@@ -51,27 +49,13 @@ export async function createContainer(): Promise<Container> {
   container.registerSingleton(TOKENS.SolPriceService, async () => {
     const solPriceService = SolPriceService.getInstance();
     // Start the price updater
-    const { SolPriceUpdater } = await import('../services/sol-price-updater');
+    const { SolPriceUpdater } = await import('../services/pricing/sol-price-service');
     const updater = SolPriceUpdater.getInstance();
     await updater.start();
     return solPriceService;
   });
   
-  // Register metadata enricher
-  container.registerSingleton(TOKENS.MetadataEnricher, () => GraphQLMetadataEnricher.getInstance());
-  
-  // Register price recovery services
-  container.registerSingleton(TOKENS.PriceRecovery, async () => {
-    const config = await container.resolve(TOKENS.ConfigService);
-    
-    // Return appropriate recovery service based on config
-    if (config.get('services').recoveryInterval > 0) {
-      // For now, return DexScreener recovery as it's the most reliable
-      return DexScreenerPriceRecovery.getInstance();
-    }
-    
-    return UnifiedGraphQLPriceRecovery.getInstance();
-  });
+  // Removed deprecated metadata enricher and price recovery services registration
   
   // Register parsers
   container.registerTransient(TOKENS.EventParser, async () => {
@@ -96,23 +80,23 @@ export async function createContainer(): Promise<Container> {
   });
   
   container.registerSingleton(TOKENS.AmmFeeService, async () => {
-    const { AmmFeeService } = await import('../services/amm-fee-service');
+    const { AmmFeeService } = await import('../services/amm/amm-fee-service');
     return AmmFeeService.getInstance();
   });
   
   container.registerSingleton(TOKENS.LpPositionCalculator, async () => {
-    const { LpPositionCalculator } = await import('../services/lp-position-calculator');
+    const { LpPositionCalculator } = await import('../services/amm/lp-position-calculator');
     return LpPositionCalculator.getInstance();
   });
   
   container.registerSingleton(TOKENS.AmmPoolAnalytics, async () => {
-    const { AmmPoolAnalytics } = await import('../services/amm-pool-analytics');
+    const { AmmPoolAnalytics } = await import('../services/amm/amm-pool-analytics');
     return AmmPoolAnalytics.getInstance();
   });
   
   // Register calculators
   container.registerSingleton(TOKENS.PriceCalculator, async () => {
-    const { PriceCalculator } = await import('../services/price-calculator');
+    const { PriceCalculator } = await import('../services/pricing/price-calculator');
     return new PriceCalculator();
   });
   
@@ -203,13 +187,13 @@ export async function createContainer(): Promise<Container> {
   
   // Register pool state service
   container.registerSingleton(TOKENS.PoolStateService, async () => {
-    const { AmmPoolStateService } = await import('../services/amm-pool-state-service');
+    const { AmmPoolStateService } = await import('../services/amm/amm-pool-state-service');
     return AmmPoolStateService.getInstance();
   });
   
   // Register metadata enricher
   container.registerSingleton(TOKENS.MetadataEnricher, async () => {
-    const { EnhancedAutoEnricher } = await import('../services/enhanced-auto-enricher');
+    const { EnhancedAutoEnricher } = await import('../services/metadata/enhanced-auto-enricher');
     const enricher = EnhancedAutoEnricher.getInstance();
     await enricher.start();
     return enricher;
@@ -217,7 +201,7 @@ export async function createContainer(): Promise<Container> {
   
   // Register graduation fixer service
   container.registerSingleton(TOKENS.GraduationFixerService, async () => {
-    const { GraduationFixerService } = await import('../services/graduation-fixer-service');
+    const { GraduationFixerService } = await import('../services/token-management/graduation-fixer-service');
     const tokenRepo = await container.resolve(TOKENS.TokenRepository);
     const eventBus = await container.resolve(TOKENS.EventBus);
     

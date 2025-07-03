@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { bcMonitorStats } from '../services/bc-monitor-stats-aggregator';
+import { bcMonitorStats } from '../services/monitoring/bc-monitor-stats-aggregator';
 
 const router = Router();
 

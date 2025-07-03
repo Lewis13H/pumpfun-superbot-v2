@@ -4,8 +4,8 @@
  */
 
 import { TradeHandler } from './trade-handler';
-import { enhancedAmmPriceCalculator } from '../services/enhanced-amm-price-calculator';
-import { AmmPoolStateService } from '../services/amm-pool-state-service';
+import { enhancedAmmPriceCalculator } from '../services/pricing/enhanced-amm-price-calculator';
+import { AmmPoolStateService } from '../services/amm/amm-pool-state-service';
 // import { EVENTS } from '../core/event-bus';
 import { TradeEvent, EventType } from '../parsers/types';
 import { Trade } from '../repositories/trade-repository';
