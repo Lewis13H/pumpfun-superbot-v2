@@ -35,7 +35,8 @@ ADD COLUMN IF NOT EXISTS discord VARCHAR(255),
 ADD COLUMN IF NOT EXISTS update_authority VARCHAR(64),
 ADD COLUMN IF NOT EXISTS freeze_authority VARCHAR(64),
 ADD COLUMN IF NOT EXISTS mint_authority VARCHAR(64),
-ADD COLUMN IF NOT EXISTS is_mutable BOOLEAN;
+ADD COLUMN IF NOT EXISTS is_mutable BOOLEAN,
+ADD COLUMN IF NOT EXISTS metadata_score INTEGER DEFAULT 0;
 
 -- =====================================================
 -- STEP 3: Add ALL missing columns to trades_unified
