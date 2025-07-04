@@ -86,7 +86,8 @@ CREATE TABLE tokens_unified (
     total_trades INTEGER,
     unique_traders_24h INTEGER,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    last_trade_at TIMESTAMP WITH TIME ZONE
+    last_trade_at TIMESTAMP WITH TIME ZONE,
+    update_authority VARCHAR(64)
 );
 
 -- Trades table
