@@ -114,6 +114,23 @@ Main tables:
 - **Token Counters**: Shows total count for New Tokens and Graduated tokens
 - **SOL Price**: Real-time SOL/USD price with last update timestamp
 - **Stream Indicator**: Shows gRPC connection status with pulse animation
+- **Clickable Rows**: Click any token to view detailed information
+
+### Token Detail Page (http://localhost:3001/token-detail.html?mint=ADDRESS)
+- **Comprehensive Token Information**:
+  - Basic info: Symbol, name, image, creator address
+  - Price metrics: Current price, 24h change, market cap, FDV
+  - Trading stats: Volume (1h/24h/7d/total), unique traders, total trades
+  - Token age: Shows actual blockchain creation time when available
+  - Pool information: For graduated tokens, displays AMM pool details
+- **Interactive Price Chart**:
+  - Time filters: 1 hour, 24 hours, 7 days
+  - Shows price history with candlestick or line chart
+  - Real-time updates every 10 seconds
+- **Transaction History**:
+  - Recent trades with type (buy/sell), user address, amount, price
+  - Links to view transactions on Solscan
+- **External Links**: Quick access to pump.fun and Solscan token pages
 
 ### Additional Dashboards
 - **AMM Analytics** (http://localhost:3001/amm-dashboard.html): Pool analytics and metrics
@@ -121,7 +138,19 @@ Main tables:
 
 ## Recent Updates (January 2025)
 
-### Latest Changes (Jan 3-4)
+### Latest Changes (Jan 4-5)
+- ✅ **Token Detail Page Implementation**:
+  - Created comprehensive token detail page accessible by clicking tokens in dashboard
+  - Enhanced `/api/tokens/:mintAddress` endpoint with full token data aggregation
+  - Added price history snapshots (24h detailed, 7d hourly)
+  - Implemented interactive price charts using Chart.js with date-fns adapter
+  - Real-time price updates via `/api/tokens/realtime` endpoint
+  - Transaction history table with recent trades
+  - Responsive design matching dashboard theme
+  - Fixed various issues: type conversion errors, chart rendering, image placeholders
+  - Dashboard rows now clickable with hover effects
+
+### Previous Changes (Jan 3-4)
 - ✅ **Major Code Reorganization**:
   - Reorganized `src/services/` from 40 files to 28 files in logical subdirectories
   - Reorganized `src/utils/` from 12 files to 10 files in logical subdirectories
