@@ -15,6 +15,7 @@ DROP TABLE IF EXISTS lp_positions CASCADE;
 DROP TABLE IF EXISTS amm_fee_events CASCADE;
 DROP TABLE IF EXISTS liquidity_events CASCADE;
 DROP TABLE IF EXISTS amm_pool_metrics_hourly CASCADE;
+DROP TABLE IF EXISTS amm_pool_states CASCADE;
 DROP TABLE IF EXISTS trades_unified CASCADE;
 DROP TABLE IF EXISTS bonding_curve_mappings CASCADE;
 DROP TABLE IF EXISTS tokens_unified CASCADE;
@@ -34,7 +35,7 @@ CREATE INDEX idx_sol_prices_created_at ON sol_prices(created_at DESC);
 -- Insert initial SOL price (you can update this)
 INSERT INTO sol_prices (price, source) VALUES (250.00, 'initial');
 
--- Tokens table (WITH MISSING COLUMNS)
+-- Tokens table (WITH ALL COLUMNS)
 CREATE TABLE tokens_unified (
     mint_address VARCHAR(50) PRIMARY KEY,
     symbol VARCHAR(50),
@@ -61,12 +62,23 @@ CREATE TABLE tokens_unified (
     is_enriched BOOLEAN DEFAULT FALSE,
     is_stale BOOLEAN DEFAULT FALSE,
     stale_marked_at TIMESTAMP WITH TIME ZONE,
+    -- Price fields (MISSING)
+    first_price_sol DECIMAL(30, 15),
+    first_price_usd DECIMAL(30, 15),
+    first_market_cap_usd DECIMAL(30, 15),
     latest_price_sol DECIMAL(30, 15),
     latest_price_usd DECIMAL(30, 15),
     latest_market_cap_usd DECIMAL(30, 15),
     latest_bonding_curve_progress DECIMAL(5, 2),
-    latest_virtual_sol_reserves BIGINT,  -- MISSING COLUMN
-    latest_virtual_token_reserves BIGINT, -- MISSING COLUMN
+    latest_virtual_sol_reserves BIGINT,
+    latest_virtual_token_reserves BIGINT,
+    -- Additional fields (MISSING)
+    price_source VARCHAR(50),
+    first_seen_slot BIGINT,
+    bonding_curve_key VARCHAR(100),
+    last_price_update TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    -- Volume and holder stats
     volume_24h_usd DECIMAL(30, 15),
     holder_count INTEGER,
     top_holder_percentage DECIMAL(5, 2),
@@ -92,6 +104,7 @@ CREATE TABLE trades_unified (
     bonding_curve_progress DECIMAL(5, 2),
     virtual_sol_reserves BIGINT,
     virtual_token_reserves BIGINT,
+    block_time TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT valid_program CHECK (program IN ('bonding_curve', 'amm_pool'))
 );
@@ -176,6 +189,20 @@ CREATE TABLE bonding_curve_mappings (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- AMM Pool States (MISSING FROM PREVIOUS SCHEMA)
+CREATE TABLE amm_pool_states (
+    id BIGSERIAL PRIMARY KEY,
+    mint_address VARCHAR(64) NOT NULL,
+    pool_address VARCHAR(64) NOT NULL,
+    virtual_sol_reserves BIGINT NOT NULL,
+    virtual_token_reserves BIGINT NOT NULL,
+    real_sol_reserves BIGINT,
+    real_token_reserves BIGINT,
+    pool_open BOOLEAN DEFAULT TRUE,
+    slot BIGINT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create all indexes for performance
 CREATE INDEX idx_tokens_graduated ON tokens_unified(graduated_to_amm);
 CREATE INDEX idx_tokens_creator ON tokens_unified(creator);
@@ -209,6 +236,10 @@ CREATE INDEX idx_lp_pool ON lp_positions(pool_address);
 CREATE INDEX idx_lp_provider ON lp_positions(provider_address);
 
 CREATE INDEX idx_bc_mapping_mint ON bonding_curve_mappings(mint_address);
+
+CREATE INDEX idx_amm_pool_states_mint ON amm_pool_states(mint_address, created_at DESC);
+CREATE INDEX idx_amm_pool_states_pool ON amm_pool_states(pool_address, created_at DESC);
+CREATE INDEX idx_amm_pool_states_slot ON amm_pool_states(slot DESC);
 
 -- Create update trigger for updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
