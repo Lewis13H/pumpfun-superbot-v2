@@ -218,6 +218,11 @@ export const EVENTS = {
   FEE_COLLECTED: 'fee:collected',
   PROTOCOL_FEE_COLLECTED: 'protocol_fee:collected',
   
+  // Raydium events
+  RAYDIUM_SWAP: 'raydium:swap',
+  RAYDIUM_LIQUIDITY: 'raydium:liquidity',
+  GRADUATED_TOKEN_FOUND: 'raydium:graduated_token_found',
+  
   // Price events
   PRICE_UPDATED: 'price:updated',
   SOL_PRICE_UPDATED: 'sol_price:updated',

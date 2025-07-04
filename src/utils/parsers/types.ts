@@ -7,6 +7,8 @@ export enum EventType {
   AMM_TRADE = 'amm_trade',
   GRADUATION = 'graduation',
   POOL_CREATED = 'pool_created',
+  RAYDIUM_SWAP = 'raydium_swap',
+  RAYDIUM_LIQUIDITY = 'raydium_liquidity',
   UNKNOWN = 'unknown'
 }
 
@@ -24,7 +26,7 @@ export interface BaseEvent {
 }
 
 export interface TradeEvent extends BaseEvent {
-  tradeType: TradeType;
+  tradeType: TradeType | string; // Allow string for 'buy'/'sell' compatibility
   mintAddress: string;
   userAddress: string;
   solAmount: bigint;
@@ -46,6 +48,8 @@ export interface TradeEvent extends BaseEvent {
   priceUsd?: number;
   marketCapUsd?: number;
   volumeUsd?: number;
+  // Additional fields for flexibility
+  program?: string;
 }
 
 export interface BCTradeEvent extends TradeEvent {
@@ -97,7 +101,7 @@ export interface ParseContext {
 }
 
 export interface ParseStrategy {
-  name: string;
-  canParse(context: ParseContext): boolean;
-  parse(context: ParseContext): ParsedEvent | null;
+  name?: string;
+  canParse(transaction: any): boolean;
+  parse(transaction: any, enhancedData?: any): Promise<ParsedEvent[] | TradeEvent[]>;
 }

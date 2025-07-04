@@ -9,8 +9,8 @@
  */
 
 import { UnifiedDbServiceV2, UnifiedTokenData, UnifiedTradeData } from '../database/unified-db-service';
-import { BCTradeEvent, EventType } from '../parsers/types';
-import { UnifiedEventParser } from '../parsers/unified-event-parser';
+import { BCTradeEvent, EventType } from '../utils/parsers/types';
+import { UnifiedEventParser } from '../utils/parsers/unified-event-parser';
 // import { calculateBondingCurveProgress } from '../services/bc-price-calculator';  // Unused import
 
 export interface ProcessedTradeDataV2 {

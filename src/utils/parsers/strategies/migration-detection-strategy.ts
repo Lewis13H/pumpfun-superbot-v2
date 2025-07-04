@@ -3,9 +3,9 @@
  * Detects token migrations from bonding curve to AMM
  */
 
-import { ParseContext, ParseStrategy } from './base-strategy';
+import { ParseContext, ParseStrategy } from '../types';
 import { EventType, ParsedEvent } from '../types';
-import { IDLParserService } from '../../services/core/idl-parser-service';
+import { IDLParserService } from '../../../services/core/idl-parser-service';
 
 export class MigrationDetectionStrategy implements ParseStrategy {
   name = 'MigrationDetection';

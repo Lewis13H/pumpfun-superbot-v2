@@ -3,7 +3,7 @@
  * Processes trade events and manages token discovery
  */
 
-import { TradeEvent, EventType } from '../parsers/types';
+import { TradeEvent, EventType } from '../utils/parsers/types';
 import { TokenRepository, Token } from '../repositories/token-repository';
 import { TradeRepository, Trade } from '../repositories/trade-repository';
 import { PriceCalculator, ReserveInfo } from '../services/pricing/price-calculator';

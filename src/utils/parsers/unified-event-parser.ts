@@ -8,8 +8,8 @@ import { BCTradeStrategy } from './strategies/bc-trade-strategy';
 import { AMMTradeStrategy } from './strategies/amm-trade-strategy';
 import { BCTradeIDLStrategy } from './strategies/bc-trade-idl-strategy';
 import { MigrationDetectionStrategy } from './strategies/migration-detection-strategy';
-import { Logger } from '../core/logger';
-import { EventBus } from '../core/event-bus';
+import { Logger } from '../../core/logger';
+import { EventBus } from '../../core/event-bus';
 import bs58 from 'bs58';
 
 export interface ParserOptions {

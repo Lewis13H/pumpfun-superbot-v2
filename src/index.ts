@@ -10,6 +10,7 @@ import { BCMonitor } from './monitors/bc-monitor';
 import { BCAccountMonitor } from './monitors/bc-account-monitor';
 import { AMMMonitor } from './monitors/amm-monitor';
 import { AMMAccountMonitor } from './monitors/amm-account-monitor';
+import { RaydiumMonitor } from './monitors/raydium-monitor';
 import { EventBus, EVENTS } from './core/event-bus';
 import { Logger, LogLevel } from './core/logger';
 import { ConfigService } from './core/config';
@@ -163,6 +164,11 @@ async function startMonitors() {
     
     monitors.push(new AMMMonitor(container));
     monitors.push(new AMMAccountMonitor(container));
+    
+    // Add Raydium monitor for graduated tokens
+    if (!process.env.DISABLE_RAYDIUM_MONITOR) {
+      monitors.push(new RaydiumMonitor(container));
+    }
     
     // Start all monitors
     // Since we're using StreamManager, we don't need staggered starts

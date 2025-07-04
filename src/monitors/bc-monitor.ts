@@ -6,8 +6,8 @@
 import chalk from 'chalk';
 import { BaseMonitor, MonitorOptions } from '../core/base-monitor';
 import { Container, TOKENS } from '../core/container';
-import { EventType, TradeType } from '../parsers/types';
-import { UnifiedEventParser } from '../parsers/unified-event-parser';
+import { EventType, TradeType } from '../utils/parsers/types';
+import { UnifiedEventParser } from '../utils/parsers/unified-event-parser';
 import { TradeHandler } from '../handlers/trade-handler';
 import { PUMP_PROGRAM } from '../utils/config/constants';
 import { EVENTS } from '../core/event-bus';

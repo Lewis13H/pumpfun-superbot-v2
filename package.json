@@ -7,6 +7,7 @@
     "bc-account-monitor": "tsx src/run-bc-account-monitor.ts",
     "amm-monitor": "tsx src/run-amm-monitor.ts",
     "amm-account-monitor": "tsx src/run-amm-account-monitor.ts",
+    "raydium-monitor": "tsx src/run-raydium-monitor.ts",
     "test-amm-monitor": "tsx src/tests/test-amm-monitor.ts",
     "verify-amm-trades": "tsx src/tests/verify-amm-trades.ts",
     "verify-amm-session-1": "tsx src/tests/verify-amm-session-1.ts",

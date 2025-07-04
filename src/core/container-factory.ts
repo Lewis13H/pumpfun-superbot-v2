@@ -59,7 +59,7 @@ export async function createContainer(): Promise<Container> {
   
   // Register parsers
   container.registerTransient(TOKENS.EventParser, async () => {
-    const { UnifiedEventParser } = await import('../parsers/unified-event-parser');
+    const { UnifiedEventParser } = await import('../utils/parsers/unified-event-parser');
     const eventBus = await container.resolve(TOKENS.EventBus);
     const config = await container.resolve(TOKENS.ConfigService);
     

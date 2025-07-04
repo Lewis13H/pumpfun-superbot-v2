@@ -21,7 +21,7 @@ import { AmmPoolStateService } from '../services/amm/amm-pool-state-service';
 import { EnhancedAutoEnricher } from '../services/metadata/enhanced-auto-enricher';
 import { eventParserService } from '../services/core/event-parser-service';
 import { EnhancedTradeHandler } from '../handlers/enhanced-trade-handler';
-import { TradeEvent, EventType, TradeType } from '../parsers/types';
+import { TradeEvent, EventType, TradeType } from '../utils/parsers/types';
 import { PriceCalculator } from '../services/pricing/price-calculator';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { extractAmmEventsFromLogs } from '../utils/amm/event-decoder';

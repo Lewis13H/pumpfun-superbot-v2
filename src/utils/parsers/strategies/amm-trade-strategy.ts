@@ -5,8 +5,8 @@
 
 // import bs58 from 'bs58';
 import { ParseStrategy, ParseContext, AMMTradeEvent, EventType, TradeType } from '../types';
-import { AMM_PROGRAM } from '../../utils/config/constants';
-import { Logger } from '../../core/logger';
+import { AMM_PROGRAM } from '../../config/constants';
+import { Logger } from '../../../core/logger';
 
 const logger = new Logger({ context: 'AMMTradeStrategy' });
 

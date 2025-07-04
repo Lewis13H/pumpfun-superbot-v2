@@ -121,7 +121,7 @@ Main tables:
 
 ## Recent Updates (January 2025)
 
-### Latest Changes (Jan 3)
+### Latest Changes (Jan 3-4)
 - ✅ **Major Code Reorganization**:
   - Reorganized `src/services/` from 40 files to 28 files in logical subdirectories
   - Reorganized `src/utils/` from 12 files to 10 files in logical subdirectories
@@ -164,6 +164,18 @@ Main tables:
   - Dashboard refresh interval reduced to 3 seconds
   - New /api/tokens/realtime endpoint bypasses database for fresh prices
   - Prices now update within seconds instead of minutes
+- ✅ **Parser Directory Reorganization** (Jan 4):
+  - Moved `src/parsers/` to `src/utils/parsers/` for better organization
+  - Updated all import paths throughout codebase
+  - Removed redundant `base-strategy.ts` file
+  - Fixed import issues in strategy files
+- 🚧 **Raydium Monitor Implementation** (Jan 4):
+  - Created RaydiumMonitor class to track graduated tokens on Raydium AMM
+  - Implemented SimpleRaydiumTradeStrategy parser for swap detection
+  - Added to main application startup sequence
+  - **ISSUE: 0% parse rate - no Raydium transactions being received**
+  - Created debugging scripts to investigate subscription issues
+  - Needs further investigation - see "Raydium Monitor Issues" section below
 
 ### Previous Changes (Jan 2)
 - ✅ Fixed AMM virtual reserves storage - changed from decimal to bigint
@@ -198,16 +210,38 @@ Main tables:
 4. **Enrichment counter**: Shows 0 but enrichment is working
    - This is a cosmetic issue only
 
-### CRITICAL: Raydium Graduations Not Monitored
-**Issue**: Pump.fun tokens are graduating to Raydium AMM, not pump.swap AMM
-- Current system only monitors pump.swap (`pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA`)
-- Missing all Raydium graduations (`675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8`)
-- This is why tokens show 100% bonding curve progress but not graduated
-- Example: DIDDY token (7KNGUT...) reached 100% but no AMM trades detected
-- **Dashboard shows $0.0001 price for these tokens** (default when no AMM price available)
+### Raydium Monitor Issues (Jan 4, 2025)
+**Status**: Implemented but not receiving transactions (0% parse rate)
 
-**Impact**: Most pump.fun graduations are being missed, prices show as $0.0001
-**Solution**: Need to implement Raydium AMM monitoring (see shyft-code-examples/temp-repo/Raydium)
+**What was done**:
+1. Created `RaydiumMonitor` class extending BaseMonitor
+2. Implemented `SimpleRaydiumTradeStrategy` parser for swap detection
+3. Added Raydium events to EventBus (RAYDIUM_SWAP, RAYDIUM_LIQUIDITY)
+4. Integrated with main application startup
+5. Created standalone runner: `npm run raydium-monitor`
+
+**Issues Found**:
+1. **No Raydium transactions received**: The gRPC subscription filter doesn't seem to work
+   - Tried `accountInclude: [RAYDIUM_PROGRAM_ID]` - no transactions received
+   - Direct monitor also receives 0 Raydium transactions
+   - Shared stream manager might be overriding subscription configs
+2. **Parser shows 0% success rate**: No transactions to parse
+3. **Subscription mechanism unclear**: Need to investigate proper Raydium filtering
+
+**Debugging Scripts Created**:
+- `src/run-raydium-monitor-direct.ts` - Direct gRPC connection test
+- `src/scripts/test-raydium-stream.ts` - Test subscription
+- `src/scripts/find-raydium-transactions.ts` - Search all transactions
+
+**Next Steps**:
+1. Verify Raydium program ID is correct: `675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8`
+2. Test different subscription approaches (monitor all, filter client-side)
+3. Check if graduated tokens are actually using Raydium vs other AMMs
+4. Consider monitoring pump.fun graduations first, then track on Raydium
+
+**Original Issue**: Pump.fun tokens graduating to Raydium show $0.0001 price
+- Dashboard shows incorrect price for Raydium-graduated tokens
+- Need working Raydium monitor to fix this
 
 ### Data Path Notes
 - gRPC transaction path: `data.transaction.transaction.transaction`

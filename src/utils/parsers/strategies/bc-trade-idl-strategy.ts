@@ -3,13 +3,13 @@
  * Uses Anchor IDLs for accurate event extraction
  */
 
-import { ParseContext, ParseStrategy } from './base-strategy';
+import { ParseContext, ParseStrategy } from '../types';
 import { EventType, ParsedEvent, TradeType } from '../types';
-import { IDLParserService } from '../../services/core/idl-parser-service';
-import { EventParserService } from '../../services/core/event-parser-service';
-import { InnerInstructionParser } from '../../services/core/inner-ix-parser';
-import { TransactionFormatter } from '../../utils/parsers/transaction-formatter';
-import { PUMP_PROGRAM } from '../../utils/config/constants';
+import { IDLParserService } from '../../../services/core/idl-parser-service';
+import { EventParserService } from '../../../services/core/event-parser-service';
+import { InnerInstructionParser } from '../../../services/core/inner-ix-parser';
+import { TransactionFormatter } from '../transaction-formatter';
+import { PUMP_PROGRAM } from '../../config/constants';
 import bs58 from 'bs58';
 
 export class BCTradeIDLStrategy implements ParseStrategy {

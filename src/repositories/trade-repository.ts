@@ -5,7 +5,7 @@
 
 import { Pool } from 'pg';
 import { BaseRepository } from './base-repository';
-import { TradeType } from '../parsers/types';
+import { TradeType } from '../utils/parsers/types';
 
 export interface Trade {
   signature: string;
