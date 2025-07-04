@@ -101,9 +101,11 @@ CREATE TABLE trades_unified (
     price_sol DECIMAL(30, 15),
     price_usd DECIMAL(30, 15),
     market_cap_usd DECIMAL(30, 15),
+    volume_usd DECIMAL(30, 15),
     bonding_curve_progress DECIMAL(5, 2),
     virtual_sol_reserves BIGINT,
     virtual_token_reserves BIGINT,
+    bonding_curve_key VARCHAR(100),
     block_time TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT valid_program CHECK (program IN ('bonding_curve', 'amm_pool'))
