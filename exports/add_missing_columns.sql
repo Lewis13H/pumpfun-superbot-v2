@@ -82,6 +82,19 @@ CREATE INDEX IF NOT EXISTS idx_amm_pool_states_mint ON amm_pool_states(mint_addr
 CREATE INDEX IF NOT EXISTS idx_amm_pool_states_pool ON amm_pool_states(pool_address, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_amm_pool_states_slot ON amm_pool_states(slot DESC);
 
+-- Create stale_detection_runs table if it doesn't exist
+CREATE TABLE IF NOT EXISTS stale_detection_runs (
+    id SERIAL PRIMARY KEY,
+    run_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    tokens_checked INTEGER DEFAULT 0,
+    tokens_marked_stale INTEGER DEFAULT 0,
+    tokens_marked_removal INTEGER DEFAULT 0,
+    tokens_recovered INTEGER DEFAULT 0,
+    execution_time_ms INTEGER,
+    status VARCHAR(20) DEFAULT 'running',
+    error_message TEXT
+);
+
 -- Grant permissions
 GRANT ALL ON ALL TABLES IN SCHEMA public TO pump_user;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO pump_user;

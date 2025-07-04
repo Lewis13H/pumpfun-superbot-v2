@@ -206,6 +206,19 @@ CREATE TABLE amm_pool_states (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Stale Detection Runs (MISSING FROM PREVIOUS SCHEMA)
+CREATE TABLE stale_detection_runs (
+    id SERIAL PRIMARY KEY,
+    run_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    tokens_checked INTEGER DEFAULT 0,
+    tokens_marked_stale INTEGER DEFAULT 0,
+    tokens_marked_removal INTEGER DEFAULT 0,
+    tokens_recovered INTEGER DEFAULT 0,
+    execution_time_ms INTEGER,
+    status VARCHAR(20) DEFAULT 'running',
+    error_message TEXT
+);
+
 -- Create all indexes for performance
 CREATE INDEX idx_tokens_graduated ON tokens_unified(graduated_to_amm);
 CREATE INDEX idx_tokens_creator ON tokens_unified(creator);
