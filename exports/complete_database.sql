@@ -32,9 +32,7 @@ ADD COLUMN IF NOT EXISTS is_enriched BOOLEAN DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS stale_marked_at TIMESTAMP WITH TIME ZONE,
 ADD COLUMN IF NOT EXISTS last_trade_at TIMESTAMP WITH TIME ZONE,
 ADD COLUMN IF NOT EXISTS discord VARCHAR(255),
-ADD COLUMN IF NOT EXISTS update_authority VARCHAR(64),
-ADD COLUMN IF NOT EXISTS freeze_authority VARCHAR(64),
-ADD COLUMN IF NOT EXISTS mint_authority VARCHAR(64);
+ADD COLUMN IF NOT EXISTS update_authority VARCHAR(64);
 
 -- =====================================================
 -- STEP 3: Add missing columns to trades_unified
