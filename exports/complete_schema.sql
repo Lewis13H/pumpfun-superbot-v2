@@ -48,6 +48,7 @@ CREATE TABLE tokens_unified (
     telegram VARCHAR(100),
     twitter VARCHAR(100),
     website VARCHAR(255),
+    discord VARCHAR(255),
     first_seen_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     first_program VARCHAR(20),
