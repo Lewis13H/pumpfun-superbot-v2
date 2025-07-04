@@ -508,6 +508,92 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #64748b;
         }
+
+        /* Cleanup Button */
+        .cleanup-btn {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            padding: 6px 12px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .cleanup-btn:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .cleanup-btn:active {
+            transform: translateY(0);
+        }
+
+        .cleanup-btn.loading {
+            background: #64748b;
+            cursor: not-allowed;
+        }
+
+        .cleanup-btn .spinner {
+            display: none;
+            width: 12px;
+            height: 12px;
+            border: 2px solid transparent;
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        .cleanup-btn.loading .spinner {
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Success/Error Toast */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 16px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: white;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            background: #10b981;
+        }
+
+        .toast.error {
+            background: #ef4444;
+        }
+
+        .toast.info {
+            background: #3b82f6;
+        }
     </style>
 </head>
 <body>
@@ -573,13 +659,17 @@
                     <span>--</span>
                 </div>
             </div>
-            <div class="vital-card">
+            <div class="vital-card" style="position: relative;">
                 <div class="vital-icon">🧠</div>
                 <div class="vital-value" id="memoryUsage">--%</div>
                 <div class="vital-label">Memory Usage</div>
                 <div class="vital-trend" id="memoryTrend">
                     <span>--</span>
                 </div>
+                <button class="cleanup-btn" id="cleanupBtn" onclick="performMemoryCleanup()" title="Clean up memory caches">
+                    <span class="spinner"></span>
+                    <span class="btn-text">Clean</span>
+                </button>
             </div>
             <div class="vital-card">
                 <div class="vital-icon">⏱️</div>
@@ -695,6 +785,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Toast Container -->
+    <div id="toast" class="toast"></div>
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1290,6 +1383,59 @@
             
             if (statusText) {
                 statusText.textContent = isConnected ? 'Connected' : 'Disconnected';
+            }
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 4000);
+        }
+
+        // Perform memory cleanup
+        async function performMemoryCleanup() {
+            const btn = document.getElementById('cleanupBtn');
+            const btnText = btn.querySelector('.btn-text');
+            
+            // Disable button and show loading
+            btn.classList.add('loading');
+            btn.disabled = true;
+            btnText.textContent = 'Cleaning...';
+            
+            try {
+                const response = await fetch('/api/v1/performance/cleanup-memory', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast(`✓ ${data.message}. Freed ${data.memoryFreed}`, 'success');
+                    
+                    // Refresh metrics after a short delay
+                    setTimeout(() => {
+                        loadMetrics();
+                    }, 1000);
+                } else {
+                    showToast(`✗ ${data.error || 'Cleanup failed'}`, 'error');
+                }
+            } catch (error) {
+                console.error('Cleanup error:', error);
+                showToast('✗ Failed to perform cleanup', 'error');
+            } finally {
+                // Re-enable button
+                btn.classList.remove('loading');
+                btn.disabled = false;
+                btnText.textContent = 'Clean';
             }
         }
 

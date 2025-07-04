@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { performanceMonitor } from '../services/monitoring/performance-monitor';
+import { RealtimePriceCache } from '../services/pricing/realtime-price-cache';
 // import { WebSocketServer, WebSocket } from 'ws';
 
 // WebSocket functionality removed - use REST API for metrics
@@ -138,6 +139,70 @@ export async function generateTestError(req: Request, res: Response) {
   }
 }
 
+/**
+ * POST /api/v1/performance/cleanup-memory
+ * Trigger memory cleanup for caches
+ */
+export async function cleanupMemory(_req: Request, res: Response) {
+  try {
+    const results = {
+      before: {
+        memoryUsage: process.memoryUsage(),
+        cacheSize: 0,
+        timestamp: new Date()
+      },
+      cleaned: {
+        priceCache: 0,
+        totalCleaned: 0
+      },
+      after: {
+        memoryUsage: {} as NodeJS.MemoryUsage,
+        cacheSize: 0,
+        timestamp: new Date()
+      }
+    };
+    
+    // Get initial stats
+    const priceCache = RealtimePriceCache.getInstance();
+    const initialStats = priceCache.getStats();
+    results.before.cacheSize = initialStats.totalTokens;
+    
+    // Clean up price cache (remove entries older than 30 minutes)
+    results.cleaned.priceCache = priceCache.cleanup(30 * 60 * 1000);
+    results.cleaned.totalCleaned = results.cleaned.priceCache;
+    
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+      // Wait a bit for GC to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    // Get final stats
+    results.after.memoryUsage = process.memoryUsage();
+    const finalStats = priceCache.getStats();
+    results.after.cacheSize = finalStats.totalTokens;
+    results.after.timestamp = new Date();
+    
+    // Calculate memory freed
+    const memoryFreed = results.before.memoryUsage.heapUsed - results.after.memoryUsage.heapUsed;
+    
+    res.json({
+      success: true,
+      message: `Cleaned ${results.cleaned.totalCleaned} cache entries`,
+      memoryFreed: memoryFreed > 0 ? `${(memoryFreed / 1024 / 1024).toFixed(2)} MB` : '0 MB',
+      details: results
+    });
+  } catch (error) {
+    console.error('Error during memory cleanup:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to perform memory cleanup',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}
+
 // Export function to register all endpoints
 export function registerPerformanceEndpoints(app: any) {
   // Performance metrics endpoints
@@ -148,4 +213,5 @@ export function registerPerformanceEndpoints(app: any) {
   app.get('/api/v1/performance/recommendations', getOptimizationRecommendations);
   app.get('/api/v1/performance/monitors/:name', getMonitorDetails);
   app.post('/api/v1/performance/test-error', generateTestError);
+  app.post('/api/v1/performance/cleanup-memory', cleanupMemory);
 }
