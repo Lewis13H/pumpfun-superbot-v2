@@ -1,10 +1,16 @@
--- PumpFun Superbot v2 Database Schema
--- Complete schema for Windows setup
+-- PumpFun Superbot v2 Database Schema - COMPLETE VERSION
+-- Includes all tables, columns, and indexes
+
+-- Grant schema permissions FIRST (fixes Windows permission issues)
+GRANT ALL ON SCHEMA public TO pump_user;
+GRANT CREATE ON SCHEMA public TO pump_user;
+GRANT USAGE ON SCHEMA public TO pump_user;
 
 -- Enable extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Drop existing tables if they exist
+-- Drop existing tables if they exist (in correct order)
+DROP TABLE IF EXISTS price_snapshots CASCADE;
 DROP TABLE IF EXISTS lp_positions CASCADE;
 DROP TABLE IF EXISTS amm_fee_events CASCADE;
 DROP TABLE IF EXISTS liquidity_events CASCADE;
@@ -12,8 +18,23 @@ DROP TABLE IF EXISTS amm_pool_metrics_hourly CASCADE;
 DROP TABLE IF EXISTS trades_unified CASCADE;
 DROP TABLE IF EXISTS bonding_curve_mappings CASCADE;
 DROP TABLE IF EXISTS tokens_unified CASCADE;
+DROP TABLE IF EXISTS sol_prices CASCADE;
 
--- Tokens table
+-- SOL Price Table (MISSING FROM PREVIOUS SCHEMA)
+CREATE TABLE sol_prices (
+    id SERIAL PRIMARY KEY,
+    price DECIMAL(20, 10) NOT NULL,
+    source VARCHAR(50) DEFAULT 'jupiter',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create index for performance
+CREATE INDEX idx_sol_prices_created_at ON sol_prices(created_at DESC);
+
+-- Insert initial SOL price (you can update this)
+INSERT INTO sol_prices (price, source) VALUES (250.00, 'initial');
+
+-- Tokens table (WITH MISSING COLUMNS)
 CREATE TABLE tokens_unified (
     mint_address VARCHAR(50) PRIMARY KEY,
     symbol VARCHAR(50),
@@ -44,6 +65,8 @@ CREATE TABLE tokens_unified (
     latest_price_usd DECIMAL(30, 15),
     latest_market_cap_usd DECIMAL(30, 15),
     latest_bonding_curve_progress DECIMAL(5, 2),
+    latest_virtual_sol_reserves BIGINT,  -- MISSING COLUMN
+    latest_virtual_token_reserves BIGINT, -- MISSING COLUMN
     volume_24h_usd DECIMAL(30, 15),
     holder_count INTEGER,
     top_holder_percentage DECIMAL(5, 2),
@@ -67,8 +90,23 @@ CREATE TABLE trades_unified (
     price_usd DECIMAL(30, 15),
     market_cap_usd DECIMAL(30, 15),
     bonding_curve_progress DECIMAL(5, 2),
+    virtual_sol_reserves BIGINT,
+    virtual_token_reserves BIGINT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT valid_program CHECK (program IN ('bonding_curve', 'amm_pool'))
+);
+
+-- Price Snapshots Table (FOR PRICE HISTORY)
+CREATE TABLE price_snapshots (
+    id SERIAL PRIMARY KEY,
+    mint_address VARCHAR(50) REFERENCES tokens_unified(mint_address),
+    price_sol DECIMAL(30, 15),
+    price_usd DECIMAL(30, 15),
+    market_cap_usd DECIMAL(30, 15),
+    bonding_curve_progress DECIMAL(5, 2),
+    virtual_sol_reserves BIGINT,
+    virtual_token_reserves BIGINT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- AMM Pool Metrics
@@ -138,7 +176,7 @@ CREATE TABLE bonding_curve_mappings (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create indexes for performance
+-- Create all indexes for performance
 CREATE INDEX idx_tokens_graduated ON tokens_unified(graduated_to_amm);
 CREATE INDEX idx_tokens_creator ON tokens_unified(creator);
 CREATE INDEX idx_tokens_program ON tokens_unified(current_program);
@@ -147,12 +185,17 @@ CREATE INDEX idx_tokens_market_cap ON tokens_unified(latest_market_cap_usd);
 CREATE INDEX idx_tokens_progress ON tokens_unified(latest_bonding_curve_progress);
 CREATE INDEX idx_tokens_first_seen ON tokens_unified(first_seen_at);
 CREATE INDEX idx_tokens_stale ON tokens_unified(is_stale);
+CREATE INDEX idx_tokens_threshold ON tokens_unified(threshold_crossed_at);
 
 CREATE INDEX idx_trades_mint ON trades_unified(mint_address);
 CREATE INDEX idx_trades_timestamp ON trades_unified(timestamp);
 CREATE INDEX idx_trades_user ON trades_unified(user_address);
 CREATE INDEX idx_trades_slot ON trades_unified(slot);
 CREATE INDEX idx_trades_program ON trades_unified(program);
+
+CREATE INDEX idx_price_snapshots_mint ON price_snapshots(mint_address);
+CREATE INDEX idx_price_snapshots_created ON price_snapshots(created_at DESC);
+CREATE INDEX idx_price_snapshots_composite ON price_snapshots(mint_address, created_at DESC);
 
 CREATE INDEX idx_liquidity_mint ON liquidity_events(mint_address);
 CREATE INDEX idx_liquidity_pool ON liquidity_events(pool_address);
