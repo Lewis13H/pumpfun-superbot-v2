@@ -84,7 +84,8 @@ CREATE TABLE tokens_unified (
     top_holder_percentage DECIMAL(5, 2),
     total_trades INTEGER,
     unique_traders_24h INTEGER,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_trade_at TIMESTAMP WITH TIME ZONE
 );
 
 -- Trades table
