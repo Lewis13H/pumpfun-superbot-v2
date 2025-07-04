@@ -340,12 +340,12 @@ function renderTokens() {
         const program = isGraduated ? 'amm_pool' : 'bonding_curve';
         
         // Get token icon - use image_uri if available, otherwise first letter
-        const iconContent = token.image_uri 
+        const iconContent = token.image_uri && !token.image_uri.includes('ipfs.io')
             ? `<img src="${token.image_uri}" alt="${token.symbol}" onerror="this.style.display='none'; this.parentElement.textContent='${token.symbol?.charAt(0) || '?'}';">`
             : (token.symbol?.charAt(0) || '?');
         
         return `
-            <tr data-mint="${token.mint_address}">
+            <tr data-mint="${token.mint_address}" class="token-row" onclick="window.location.href='/token-detail.html?mint=${token.mint_address}'" style="cursor: pointer;">
                 <td>${index + 1}</td>
                 <td>
                     <div class="token-info">
@@ -386,7 +386,8 @@ function renderTokens() {
                            target="_blank" 
                            rel="noopener noreferrer" 
                            class="icon-link"
-                           title="View on pump.fun">
+                           title="View on pump.fun"
+                           onclick="event.stopPropagation()">
                             <img src="https://pump.fun/_next/image?url=%2Flogo.png&w=96&q=75" 
                                  alt="pump.fun" 
                                  width="20" 
@@ -396,7 +397,8 @@ function renderTokens() {
                            target="_blank" 
                            rel="noopener noreferrer" 
                            class="icon-link"
-                           title="View on Solscan">
+                           title="View on Solscan"
+                           onclick="event.stopPropagation()">
                             <img src="https://solscan.io/_next/static/media/solana-sol-logo.ecf2bf3a.svg" 
                                  alt="Solscan" 
                                  width="20" 

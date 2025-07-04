@@ -3,13 +3,14 @@
  * Monitors Raydium AMM pools for graduated pump.fun tokens
  */
 
+import { PublicKey } from '@solana/web3.js';
 import { BaseMonitor } from '../core/base-monitor';
 import { Container, TOKENS } from '../core/container';
 import { EventType } from '../utils/parsers/types';
 import { SimpleRaydiumTradeStrategy } from '../utils/parsers/strategies/raydium-trade-strategy-simple';
 import { EnhancedTradeHandler } from '../handlers/enhanced-trade-handler';
 import { EnhancedAutoEnricher } from '../services/metadata/enhanced-auto-enricher';
-import { LiquidityEventHandler } from '../handlers/liquidity-event-handler';
+import { EVENTS } from '../core/event-bus';
 import chalk from 'chalk';
 
 export class RaydiumMonitor extends BaseMonitor {
@@ -17,7 +18,6 @@ export class RaydiumMonitor extends BaseMonitor {
   private raydiumParser: SimpleRaydiumTradeStrategy;
   private tradeHandler!: EnhancedTradeHandler;
   private metadataEnricher!: EnhancedAutoEnricher;
-  private liquidityEventHandler!: LiquidityEventHandler;
   
   // Statistics
   private raydiumStats = {
@@ -59,7 +59,6 @@ export class RaydiumMonitor extends BaseMonitor {
     // Resolve services from container
     this.tradeHandler = await this.container.resolve(TOKENS.TradeHandler) as EnhancedTradeHandler;
     this.metadataEnricher = await this.container.resolve(TOKENS.MetadataEnricher) as EnhancedAutoEnricher;
-    this.liquidityEventHandler = await this.container.resolve(TOKENS.LiquidityEventHandler) as LiquidityEventHandler;
     
     this.logger.info('Raydium monitor initialized', {
       programId: this.RAYDIUM_PROGRAM_ID,
@@ -78,28 +77,48 @@ export class RaydiumMonitor extends BaseMonitor {
     // Check if this is transaction data
     if (!data?.transaction) return false;
     
+    // Access the correct path: data.transaction.transaction
     const tx = data.transaction.transaction;
     if (!tx) return false;
     
     // Check if transaction involves Raydium
-    const innerTx = tx.transaction;
-    if (!innerTx?.message) return false;
+    const message = tx.transaction?.message;
+    if (!message) return false;
     
     // Sample logging every 100 transactions
     if (this.stats.transactions % 100 === 0) {
-      const accountKeys = innerTx.message.accountKeys || [];
+      const accountKeys = message.accountKeys || [];
       this.logger.debug('Sample transaction accounts:', {
         count: accountKeys.length,
-        first5: accountKeys.slice(0, 5).map((k: any) => 
-          typeof k === 'string' ? k.slice(0, 8) + '...' : 'buffer'
-        )
+        first5: accountKeys.slice(0, 5).map((k: any) => {
+          if (typeof k === 'string') return k.slice(0, 8) + '...';
+          if (k?.pubkey) return k.pubkey.slice(0, 8) + '...'; // Handle object format
+          if (Buffer.isBuffer(k)) return new PublicKey(k).toString().slice(0, 8) + '...';
+          return 'unknown';
+        })
       });
     }
     
     // Check account keys for Raydium program
-    const accountKeys = innerTx.message.accountKeys || [];
+    const accountKeys = message.accountKeys || [];
     const hasRaydium = accountKeys.some((key: any) => {
-      const keyStr = typeof key === 'string' ? key : key.toString();
+      // Handle different key formats
+      let keyStr: string;
+      if (typeof key === 'string') {
+        keyStr = key;
+      } else if (key?.pubkey) {
+        keyStr = key.pubkey;
+      } else if (key?.toString) {
+        keyStr = key.toString();
+      } else if (Buffer.isBuffer(key)) {
+        try {
+          keyStr = new PublicKey(key).toString();
+        } catch {
+          return false;
+        }
+      } else {
+        return false;
+      }
       return keyStr === this.RAYDIUM_PROGRAM_ID;
     });
     
@@ -115,7 +134,13 @@ export class RaydiumMonitor extends BaseMonitor {
     );
     
     if (hasRaydiumLog) {
-      this.logger.info('Found Raydium in logs!');
+      // Log only once per 50 transactions to reduce noise
+      if (this.stats.transactions % 50 === 0) {
+        this.logger.debug('Found Raydium in logs but not in account keys', {
+          signature: tx.signature?.slice(0, 8) + '...',
+          logSample: logs.find((log: string) => log.includes(this.RAYDIUM_PROGRAM_ID))?.slice(0, 100) + '...'
+        });
+      }
       return true;
     }
     
@@ -177,7 +202,7 @@ export class RaydiumMonitor extends BaseMonitor {
     try {
       this.stats.transactions++;
       
-      // Check if this is actually a Raydium transaction first
+      // Access the correct path: data.transaction.transaction
       const fullTransaction = data?.transaction?.transaction;
       if (!fullTransaction) {
         this.logger.debug('No transaction data in stream');
@@ -186,34 +211,62 @@ export class RaydiumMonitor extends BaseMonitor {
       
       // Log transaction structure for debugging
       if (this.stats.transactions % 100 === 0) {
+        const message = fullTransaction.transaction?.message;
         this.logger.debug('Transaction structure sample:', {
           hasTransaction: !!fullTransaction.transaction,
-          hasMessage: !!fullTransaction.transaction?.message,
-          instructionCount: fullTransaction.transaction?.message?.instructions?.length || 0,
-          accountKeysCount: fullTransaction.transaction?.message?.accountKeys?.length || 0
+          hasMessage: !!message,
+          instructionCount: message?.instructions?.length || 0,
+          accountKeysCount: message?.accountKeys?.length || 0,
+          signature: fullTransaction.signature?.slice(0, 8) + '...',
+          // Log full structure every 1000 transactions for deep debugging
+          fullStructure: this.stats.transactions % 1000 === 0 ? {
+            keys: Object.keys(fullTransaction),
+            txKeys: fullTransaction.transaction ? Object.keys(fullTransaction.transaction) : [],
+            messageKeys: message ? Object.keys(message) : []
+          } : undefined
         });
       }
       
       // Check if transaction involves Raydium program
-      if (!this.raydiumParser.canParse(fullTransaction.transaction)) {
+      const canParse = this.raydiumParser.canParse(fullTransaction);
+      if (!canParse) {
+        // Debug why parser can't parse this transaction
+        if (this.stats.transactions % 100 === 0) {
+          this.logger.debug('Parser cannot parse transaction', {
+            hasMessage: !!fullTransaction.transaction?.message,
+            accountKeysCount: fullTransaction.transaction?.message?.accountKeys?.length || 0
+          });
+        }
         return;
       }
       
-      this.logger.info('Found Raydium transaction!', {
+      this.logger.info('Found Raydium transaction in account keys!', {
         signature: fullTransaction.signature?.slice(0, 8) + '...'
       });
 
       // Update slot tracking
-      const slot = Number(data.transaction?.transaction?.slot || 0);
+      const slot = Number(fullTransaction.slot || 0);
       if (slot > this.raydiumStats.lastProcessedSlot) {
         this.raydiumStats.lastProcessedSlot = slot;
       }
 
       // Parse the transaction using Raydium parser
-      const events = await this.raydiumParser.parse(fullTransaction.transaction, fullTransaction);
+      const events = this.raydiumParser.parse(fullTransaction, fullTransaction);
       
       if (!events || events.length === 0) {
         this.raydiumStats.parseFailures++;
+        
+        // Log detailed failure info every 10 failures
+        if (this.raydiumStats.parseFailures % 10 === 0) {
+          const message = fullTransaction.transaction?.message;
+          this.logger.debug('Parse failure details:', {
+            signature: fullTransaction.signature?.slice(0, 8) + '...',
+            hasMessage: !!message,
+            instructionCount: message?.instructions?.length || 0,
+            hasMeta: !!fullTransaction.meta,
+            hasLogs: !!(fullTransaction.meta?.logMessages?.length)
+          });
+        }
         return;
       }
 
@@ -277,7 +330,23 @@ export class RaydiumMonitor extends BaseMonitor {
    */
   private async processLiquidityEvent(event: any): Promise<void> {
     try {
-      await this.liquidityEventHandler.processEvent(event);
+      // The LiquidityEventHandler expects deposit/withdraw events to be emitted via EventBus
+      // For Raydium liquidity events, we'll need to determine the event type and emit accordingly
+      if (event.eventType === 'deposit') {
+        this.eventBus.emit(EVENTS.LIQUIDITY_ADDED, {
+          event: event,
+          signature: event.signature,
+          slot: event.slot,
+          blockTime: new Date(event.blockTime * 1000)
+        });
+      } else if (event.eventType === 'withdraw') {
+        this.eventBus.emit(EVENTS.LIQUIDITY_REMOVED, {
+          event: event,
+          signature: event.signature,
+          slot: event.slot,
+          blockTime: new Date(event.blockTime * 1000)
+        });
+      }
     } catch (error) {
       this.logger.error('Error processing Raydium liquidity event', error as Error);
     }

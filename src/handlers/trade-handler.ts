@@ -3,13 +3,14 @@
  * Processes trade events and manages token discovery
  */
 
-import { TradeEvent, EventType } from '../utils/parsers/types';
+import { TradeEvent, EventType, TradeType } from '../utils/parsers/types';
 import { TokenRepository, Token } from '../repositories/token-repository';
 import { TradeRepository, Trade } from '../repositories/trade-repository';
 import { PriceCalculator, ReserveInfo } from '../services/pricing/price-calculator';
 import { EventBus, EVENTS } from '../core/event-bus';
 import { ConfigService } from '../core/config';
 import { Logger } from '../core/logger';
+import { sanitizeUtf8 } from '../utils/sanitizers/utf8-sanitizer';
 
 export interface TradeHandlerOptions {
   tokenRepo: TokenRepository;
@@ -73,13 +74,15 @@ export class TradeHandler {
         priceInfo = this.priceCalculator.calculatePrice(reserves, solPriceUsd);
       }
       
-      // Create trade record
+      // Create trade record with sanitized string fields
       const trade: Trade = {
-        signature: event.signature,
-        mintAddress: event.mintAddress,
+        signature: sanitizeUtf8(event.signature),
+        mintAddress: sanitizeUtf8(event.mintAddress),
         program: event.type === EventType.BC_TRADE ? 'bonding_curve' : 'amm_pool',
-        tradeType: event.tradeType,
-        userAddress: event.userAddress,
+        tradeType: (typeof event.tradeType === 'string' ? 
+          (event.tradeType.toLowerCase() === 'buy' ? TradeType.BUY : TradeType.SELL) : 
+          event.tradeType) as TradeType,
+        userAddress: sanitizeUtf8(event.userAddress),
         solAmount: event.solAmount,
         tokenAmount: event.tokenAmount,
         priceSol: priceInfo.priceInSol,
@@ -94,7 +97,7 @@ export class TradeHandler {
       
       // Add bonding curve specific fields if applicable
       if (event.type === EventType.BC_TRADE && 'bondingCurveKey' in event) {
-        trade.bondingCurveKey = (event as any).bondingCurveKey;
+        trade.bondingCurveKey = sanitizeUtf8((event as any).bondingCurveKey);
         trade.bondingCurveProgress = this.priceCalculator.calculateBondingCurveProgress(
           (event as any).virtualSolReserves
         );
@@ -178,7 +181,7 @@ export class TradeHandler {
     const now = new Date();
     
     const token: Token = {
-      mintAddress: event.mintAddress,
+      mintAddress: sanitizeUtf8(event.mintAddress),
       firstPriceSol: priceInfo.priceInSol,
       firstPriceUsd: priceInfo.priceInUsd,
       firstMarketCapUsd: priceInfo.marketCapUsd,
@@ -202,10 +205,10 @@ export class TradeHandler {
 
     // Add pump.fun specific fields if available (from BC trade)
     if (event.type === EventType.BC_TRADE && 'creator' in event) {
-      token.creator = (event as any).creator;
+      token.creator = sanitizeUtf8((event as any).creator);
     }
     if (event.type === EventType.BC_TRADE && 'bondingCurveKey' in event) {
-      token.bondingCurveKey = (event as any).bondingCurveKey;
+      token.bondingCurveKey = sanitizeUtf8((event as any).bondingCurveKey);
     }
     if (event.type === EventType.BC_TRADE && 'bondingCurveProgress' in event) {
       token.latestBondingCurveProgress = (event as any).bondingCurveProgress;

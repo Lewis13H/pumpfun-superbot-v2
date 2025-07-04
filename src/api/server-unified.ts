@@ -69,6 +69,9 @@ app.use('/api/stale', createStaleTokenEndpoints(pool));
 // Register performance monitoring endpoints
 registerPerformanceEndpoints(app);
 
+// Get realtime price cache instance
+const realtimePriceCache = RealtimePriceCache.getInstance();
+
 // API endpoint for tokens - unified schema
 app.get('/api/tokens', async (_req, res) => {
   try {
@@ -158,6 +161,74 @@ app.get('/api/status', async (_req, res) => {
   }
 });
 
+// API endpoint for realtime token prices
+app.get('/api/tokens/realtime', async (_req, res) => {
+  try {
+    // First get tokens from database
+    const query = `
+      SELECT 
+        t.mint_address,
+        t.symbol,
+        t.name,
+        t.image_uri,
+        t.creator,
+        t.first_seen_at,
+        t.token_created_at,
+        t.first_program,
+        t.current_program,
+        t.graduated_to_amm,
+        t.threshold_crossed_at,
+        t.latest_price_sol,
+        t.latest_price_usd,
+        t.latest_market_cap_usd,
+        t.latest_virtual_sol_reserves,
+        t.latest_virtual_token_reserves,
+        t.latest_bonding_curve_progress,
+        t.volume_24h_usd,
+        t.holder_count,
+        t.top_holder_percentage,
+        t.total_trades,
+        t.unique_traders_24h,
+        EXTRACT(EPOCH FROM (NOW() - COALESCE(t.token_created_at, t.first_seen_at))) as age_seconds,
+        (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1) as sol_price
+      FROM tokens_unified t
+      WHERE t.threshold_crossed_at IS NOT NULL
+      ORDER BY t.latest_market_cap_usd DESC NULLS LAST
+    `;
+    
+    const result = await pool.query(query);
+    
+    // Update with realtime prices from cache
+    const tokensWithRealtimePrices = result.rows.map(token => {
+      const realtimeData = realtimePriceCache.getPrice(token.mint_address);
+      
+      if (realtimeData) {
+        return {
+          ...token,
+          latest_price_sol: realtimeData.priceSol || token.latest_price_sol,
+          latest_price_usd: realtimeData.priceUsd || token.latest_price_usd,
+          latest_market_cap_usd: realtimeData.marketCapUsd || token.latest_market_cap_usd,
+          latest_bonding_curve_progress: realtimeData.bondingCurveProgress || token.latest_bonding_curve_progress,
+          calculated_price_usd: realtimeData.priceUsd || token.calculated_price_usd,
+          realtime_updated: true
+        };
+      }
+      
+      return {
+        ...token,
+        calculated_price_usd: token.latest_price_usd || (token.latest_price_sol * token.sol_price),
+        realtime_updated: false
+      };
+    });
+    
+    res.json(tokensWithRealtimePrices);
+    
+  } catch (error) {
+    console.error('Error fetching realtime tokens:', error);
+    res.status(500).json({ error: 'Failed to fetch realtime tokens' });
+  }
+});
+
 // API endpoint for recent trades
 app.get('/api/trades/recent', async (_req, res) => {
   try {
@@ -195,35 +266,118 @@ app.get('/api/tokens/:mintAddress', async (req, res) => {
     const query = `
       SELECT 
         t.*,
-        -- Get recent price history
+        -- Calculate age from actual creation time if available
+        EXTRACT(EPOCH FROM (NOW() - COALESCE(t.token_created_at, t.first_seen_at))) as age_seconds,
+        -- Get current SOL price
+        (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1) as sol_price,
+        -- Get recent price history (24h)
         (
           SELECT json_agg(
             json_build_object(
               'created_at', ps.created_at,
               'price_usd', ps.price_usd,
-              'market_cap_usd', ps.market_cap_usd
+              'price_sol', ps.price_sol,
+              'market_cap_usd', ps.market_cap_usd,
+              'bonding_curve_progress', ps.bonding_curve_progress,
+              'virtual_sol_reserves', ps.virtual_sol_reserves,
+              'virtual_token_reserves', ps.virtual_token_reserves
             ) ORDER BY ps.created_at DESC
           )
           FROM price_snapshots_unified ps
           WHERE ps.mint_address = t.mint_address
           AND ps.created_at > NOW() - INTERVAL '24 hours'
-          LIMIT 100
-        ) as price_history,
-        -- Get recent trades
+          LIMIT 200
+        ) as price_history_24h,
+        -- Get hourly price snapshots (7 days)
+        (
+          SELECT json_agg(
+            json_build_object(
+              'created_at', ps.created_at,
+              'price_usd', ps.price_usd,
+              'market_cap_usd', ps.market_cap_usd,
+              'volume_hour', (
+                SELECT COALESCE(SUM(CAST(tr.sol_amount AS DECIMAL) * tr.price_usd / NULLIF(tr.price_sol, 0)), 0)
+                FROM trades_unified tr
+                WHERE tr.mint_address = ps.mint_address
+                AND tr.created_at BETWEEN ps.created_at - INTERVAL '1 hour' AND ps.created_at
+              )
+            ) ORDER BY ps.created_at DESC
+          )
+          FROM (
+            SELECT DISTINCT ON (date_trunc('hour', created_at))
+              mint_address, created_at, price_usd, price_sol, market_cap_usd
+            FROM price_snapshots_unified
+            WHERE mint_address = t.mint_address
+            AND created_at > NOW() - INTERVAL '7 days'
+            ORDER BY date_trunc('hour', created_at) DESC, created_at DESC
+          ) ps
+        ) as price_history_7d,
+        -- Get recent trades with user info
         (
           SELECT json_agg(
             json_build_object(
               'signature', tr.signature,
               'trade_type', tr.trade_type,
+              'user_address', tr.user_address,
               'price_usd', tr.price_usd,
+              'price_sol', tr.price_sol,
               'sol_amount', tr.sol_amount,
-              'created_at', tr.created_at
+              'token_amount', tr.token_amount,
+              'market_cap_usd', tr.market_cap_usd,
+              'created_at', tr.created_at,
+              'block_time', tr.block_time
             ) ORDER BY tr.created_at DESC
           )
           FROM trades_unified tr
           WHERE tr.mint_address = t.mint_address
-          LIMIT 20
-        ) as recent_trades
+          LIMIT 50
+        ) as recent_trades,
+        -- Get trade statistics
+        (
+          SELECT json_build_object(
+            'total_trades', COUNT(*),
+            'total_buys', COUNT(*) FILTER (WHERE trade_type = 'buy'),
+            'total_sells', COUNT(*) FILTER (WHERE trade_type = 'sell'),
+            'unique_traders_24h', COUNT(DISTINCT user_address) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours'),
+            'unique_traders_total', COUNT(DISTINCT user_address),
+            'volume_1h_usd', COALESCE(SUM(CAST(sol_amount AS DECIMAL) * price_usd / NULLIF(price_sol, 0)) FILTER (WHERE created_at > NOW() - INTERVAL '1 hour'), 0),
+            'volume_24h_usd', COALESCE(SUM(CAST(sol_amount AS DECIMAL) * price_usd / NULLIF(price_sol, 0)) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours'), 0),
+            'volume_7d_usd', COALESCE(SUM(CAST(sol_amount AS DECIMAL) * price_usd / NULLIF(price_sol, 0)) FILTER (WHERE created_at > NOW() - INTERVAL '7 days'), 0),
+            'volume_total_usd', COALESCE(SUM(CAST(sol_amount AS DECIMAL) * price_usd / NULLIF(price_sol, 0)), 0)
+          )
+          FROM trades_unified
+          WHERE mint_address = t.mint_address
+        ) as trade_stats,
+        -- Get AMM pool info if graduated
+        (
+          SELECT json_build_object(
+            'pool_address', aps.pool_address,
+            'virtual_sol_reserves', aps.virtual_sol_reserves,
+            'virtual_token_reserves', aps.virtual_token_reserves,
+            'virtual_lp_supply', aps.virtual_lp_supply,
+            'swap_fee_numerator', aps.swap_fee_numerator,
+            'swap_fee_denominator', aps.swap_fee_denominator,
+            'total_volume_sol', aps.total_volume_sol,
+            'total_trades', aps.total_trades,
+            'last_price_sol', aps.last_price_sol,
+            'last_price_usd', aps.last_price_usd,
+            'updated_at', aps.updated_at
+          )
+          FROM amm_pool_state aps
+          WHERE aps.mint_address = t.mint_address
+          LIMIT 1
+        ) as pool_info,
+        -- Calculate additional metrics
+        CASE 
+          WHEN t.first_price_usd > 0 
+          THEN ((t.latest_price_usd - t.first_price_usd) / t.first_price_usd) * 100
+          ELSE 0 
+        END as total_gain_percent,
+        CASE 
+          WHEN t.graduated_to_amm = true AND t.threshold_price_usd > 0 
+          THEN ((t.latest_price_usd - t.threshold_price_usd) / t.threshold_price_usd) * 100
+          ELSE 0 
+        END as gain_since_graduation
       FROM tokens_unified t
       WHERE t.mint_address = $1
     `;

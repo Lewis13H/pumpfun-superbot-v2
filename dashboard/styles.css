@@ -443,6 +443,11 @@ tbody tr:hover {
     background: var(--bg-hover);
 }
 
+tbody tr:hover .token-symbol {
+    color: #66b3ff;
+    text-decoration: underline;
+}
+
 td {
     padding: 8px 12px;
     font-size: 12px;

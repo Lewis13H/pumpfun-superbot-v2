@@ -9,7 +9,7 @@
  */
 
 import { UnifiedDbServiceV2, UnifiedTokenData, UnifiedTradeData } from '../database/unified-db-service';
-import { BCTradeEvent, EventType } from '../utils/parsers/types';
+import { BCTradeEvent, EventType, TradeType } from '../utils/parsers/types';
 import { UnifiedEventParser } from '../utils/parsers/unified-event-parser';
 // import { calculateBondingCurveProgress } from '../services/bc-price-calculator';  // Unused import
 
@@ -104,7 +104,7 @@ export class BondingCurveDbHandlerV2 {
       mintAddress: event.mintAddress,
       signature: signature,
       program: 'bonding_curve',
-      tradeType: event.tradeType,
+      tradeType: event.tradeType as TradeType,
       userAddress: event.userAddress,
       solAmount: event.solAmount,
       tokenAmount: event.tokenAmount,

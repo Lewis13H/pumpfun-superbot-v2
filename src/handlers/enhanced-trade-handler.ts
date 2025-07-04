@@ -11,6 +11,7 @@ import { TradeEvent, EventType } from '../utils/parsers/types';
 import { Trade } from '../repositories/trade-repository';
 import { Logger } from '../core/logger';
 import { TOKENS } from '../core/container';
+import { sanitizeUtf8 } from '../utils/sanitizers/utf8-sanitizer';
 import chalk from 'chalk';
 
 export interface EnhancedTrade extends Trade {
@@ -159,7 +160,7 @@ export class EnhancedTradeHandler extends TradeHandler {
           slippage = $6
         WHERE signature = $1`,
         [
-          signature,
+          sanitizeUtf8(signature),
           enhancedData.priceImpact,
           enhancedData.effectiveFee,
           enhancedData.spotPrice,

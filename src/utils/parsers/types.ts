@@ -102,6 +102,6 @@ export interface ParseContext {
 
 export interface ParseStrategy {
   name?: string;
-  canParse(transaction: any): boolean;
-  parse(transaction: any, enhancedData?: any): Promise<ParsedEvent[] | TradeEvent[]>;
+  canParse(context: ParseContext | any): boolean;
+  parse(context: ParseContext | any, enhancedData?: any): ParsedEvent | ParsedEvent[] | TradeEvent | TradeEvent[] | null;
 }

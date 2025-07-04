@@ -51,7 +51,7 @@ export class UnifiedEventParser {
     });
 
     // Initialize strategy stats
-    this.strategies.forEach(s => this.stats.byStrategy.set(s.name, 0));
+    this.strategies.forEach(s => this.stats.byStrategy.set(s.name || 'unnamed', 0));
   }
 
   /**
@@ -64,28 +64,32 @@ export class UnifiedEventParser {
     for (const strategy of this.strategies) {
       try {
         if (strategy.canParse(context)) {
-          const event = strategy.parse(context);
+          const result = strategy.parse(context);
+          // Handle both single event and array of events
+          const events = Array.isArray(result) ? result : (result ? [result] : []);
+          const event = events.length > 0 ? events[0] : null;
           if (event) {
             this.stats.parsed++;
+            const strategyName = strategy.name || 'unnamed';
             this.stats.byStrategy.set(
-              strategy.name, 
-              (this.stats.byStrategy.get(strategy.name) || 0) + 1
+              strategyName, 
+              (this.stats.byStrategy.get(strategyName) || 0) + 1
             );
             
             // Emit parse success event
             if (this.eventBus) {
               this.eventBus.emit('parser:success', {
-                strategy: strategy.name,
+                strategy: strategy.name || 'unnamed',
                 eventType: event.type,
                 signature: context.signature
               });
             }
             
-            return event;
+            return event as ParsedEvent;
           }
         }
       } catch (error) {
-        this.logger.error(`Strategy ${strategy.name} failed`, error as Error, {
+        this.logger.error(`Strategy ${strategy.name || 'unnamed'} failed`, error as Error, {
           signature: context.signature
         });
       }
@@ -125,7 +129,7 @@ export class UnifiedEventParser {
    */
   addStrategy(strategy: ParseStrategy): void {
     this.strategies.push(strategy);
-    this.stats.byStrategy.set(strategy.name, 0);
+    this.stats.byStrategy.set(strategy.name || 'unnamed', 0);
   }
 
   /**
@@ -160,7 +164,7 @@ export class UnifiedEventParser {
     this.stats.total = 0;
     this.stats.parsed = 0;
     this.stats.failed = 0;
-    this.strategies.forEach(s => this.stats.byStrategy.set(s.name, 0));
+    this.strategies.forEach(s => this.stats.byStrategy.set(s.name || 'unnamed', 0));
   }
 
   /**

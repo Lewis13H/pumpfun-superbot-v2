@@ -20,7 +20,7 @@ async function testRaydiumStream() {
 
   try {
     // Create subscription for Raydium transactions
-    const stream = client.subscribe();
+    const stream = await client.subscribe();
     
     const request = {
       commitment: CommitmentLevel.CONFIRMED,
@@ -39,7 +39,8 @@ async function testRaydiumStream() {
       accounts: {},
       blocks: {},
       blocksMeta: {},
-      entry: {}
+      entry: {},
+      transactionsStatus: {}
     };
     
     console.log(chalk.yellow('Subscribing to Raydium transactions...'));
@@ -126,7 +127,8 @@ async function testRaydiumStream() {
     setTimeout(() => {
       console.log(chalk.yellow('\nStopping test...'));
       console.log(chalk.blue(`Final stats: ${count} total transactions, ${raydiumCount} Raydium transactions`));
-      stream.cancel();
+      // Cast stream to any to access cancel method
+      (stream as any).cancel();
       process.exit(0);
     }, 30000);
     

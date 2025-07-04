@@ -26,9 +26,9 @@ export class RaydiumTradeStrategy implements ParseStrategy {
   private readonly SWAP_BASE_IN = 9;
   private readonly SWAP_BASE_OUT = 11;
   
-  // Event discriminators (in logs)
-  private readonly SWAP_BASE_IN_EVENT_DISCRIMINATOR = 3;
-  private readonly SWAP_BASE_OUT_EVENT_DISCRIMINATOR = 4;
+  // Event discriminators (in logs) - commented out as not currently used
+  // private readonly SWAP_BASE_IN_EVENT_DISCRIMINATOR = 3;
+  // private readonly SWAP_BASE_OUT_EVENT_DISCRIMINATOR = 4;
   
   private logger: Logger;
 
@@ -53,7 +53,7 @@ export class RaydiumTradeStrategy implements ParseStrategy {
     });
   }
 
-  async parse(transaction: any, enhancedData?: any): Promise<TradeEvent[]> {
+  parse(transaction: any, enhancedData?: any): TradeEvent[] {
     const events: TradeEvent[] = [];
     
     try {
@@ -109,7 +109,7 @@ export class RaydiumTradeStrategy implements ParseStrategy {
             continue;
           }
         } catch (error) {
-          this.logger.debug('Failed to decode instruction data', { error: error.message });
+          this.logger.debug('Failed to decode instruction data', { error: (error as Error).message });
           continue;
         }
         
@@ -118,7 +118,7 @@ export class RaydiumTradeStrategy implements ParseStrategy {
         
         // Process swap instructions
         if (instructionType === this.SWAP_BASE_IN || instructionType === this.SWAP_BASE_OUT) {
-          const swapEvent = await this.parseSwapEvent(
+          const swapEvent = this.parseSwapEvent(
             transaction,
             enhancedData,
             ix,
@@ -143,14 +143,14 @@ export class RaydiumTradeStrategy implements ParseStrategy {
   /**
    * Parse a swap event from instruction and logs
    */
-  private async parseSwapEvent(
+  private parseSwapEvent(
     _transaction: any,
     enhancedData: any,
     instruction: any,
     instructionType: number,
     logs: string[],
     accountKeys: string[]
-  ): Promise<TradeEvent | null> {
+  ): TradeEvent | null {
     try {
       // Find the event log for this instruction
       const eventLog = this.findEventLog(logs, instructionType);
@@ -242,7 +242,7 @@ export class RaydiumTradeStrategy implements ParseStrategy {
       }
       
       // Parse event data based on type
-      if (instructionType === this.SWAP_BASE_IN) {
+      if (_instructionType === this.SWAP_BASE_IN) {
         return {
           amountIn: buffer.readBigUInt64LE(1),
           minimumAmountOut: buffer.readBigUInt64LE(9),

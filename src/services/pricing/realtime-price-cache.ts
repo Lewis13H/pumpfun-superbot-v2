@@ -157,5 +157,7 @@ export class RealtimePriceCache extends EventEmitter {
     if (removed > 0) {
       console.log(chalk.yellow(`🧹 Cleaned up ${removed} stale price entries`));
     }
+    
+    return removed;
   }
 }
