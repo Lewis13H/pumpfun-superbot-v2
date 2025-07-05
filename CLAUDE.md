@@ -210,6 +210,17 @@ Main tables:
   - All token lifecycle events working correctly
   - Load balancing metrics tracking functional
   - Ready for production with environment variable switch
+- ✅ **Domain Monitor - TradingActivity (Session 5)**:
+  - Created `TradingActivityMonitor` consolidating all trading venues
+  - Unified monitoring for BC, AMM, and Raydium trades
+  - Implemented MEV detection:
+    - Sandwich attack detection
+    - Frontrunning detection
+    - Copy trading patterns
+  - High slippage trade tracking
+  - Trade window analysis for pattern detection
+  - Cross-venue trade metrics and statistics
+  - Located at: `src/monitors/domain/trading-activity-monitor.ts`
 
 ### Previous Changes (Jan 4-5)
 - ✅ **Raydium Monitor Fixed and Working** (Jan 4):

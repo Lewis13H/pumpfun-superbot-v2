@@ -31,7 +31,6 @@ export async function createContainer(): Promise<Container> {
     if (useSmartStreaming) {
       // Use the new SmartStreamManager with connection pooling
       const { SmartStreamManager } = await import('../services/core/smart-stream-manager');
-      const streamClientService = await container.resolve(TOKENS.StreamClient);
       const eventBus = await container.resolve(TOKENS.EventBus);
       const config = await container.resolve(TOKENS.ConfigService);
       
@@ -46,7 +45,7 @@ export async function createContainer(): Promise<Container> {
           connectionTimeout: parseInt(process.env.POOL_CONNECTION_TIMEOUT || '10000'),
           maxRetries: parseInt(process.env.POOL_MAX_RETRIES || '3'),
           priorityGroups: {
-            high: ['bonding_curve'],
+            high: ['bonding_curve', 'trading'],
             medium: ['amm_pool'],
             low: ['external_amm']
           }

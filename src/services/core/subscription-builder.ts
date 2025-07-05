@@ -9,7 +9,7 @@ import { Logger } from '../../core/logger';
 const logger = new Logger({ context: 'SubscriptionBuilder' });
 
 export type SubscriptionPriority = 'high' | 'medium' | 'low';
-export type MonitorGroup = 'bonding_curve' | 'amm_pool' | 'external_amm';
+export type MonitorGroup = 'bonding_curve' | 'amm_pool' | 'external_amm' | 'trading';
 
 export interface SubscriptionGroup {
   id: string;

@@ -810,7 +810,7 @@ export class TokenLifecycleMonitor extends BaseMonitor {
   /**
    * Should log error (required by BaseMonitor)
    */
-  protected shouldLogError(error: Error): boolean {
+  shouldLogError(error: Error): boolean {
     // Suppress common parsing errors
     const message = error.message?.toLowerCase() || '';
     if (message.includes('unknown program') || 
@@ -824,7 +824,7 @@ export class TokenLifecycleMonitor extends BaseMonitor {
   /**
    * On shutdown (required by BaseMonitor)
    */
-  protected async onShutdown(): Promise<void> {
+  async onShutdown(): Promise<void> {
     // Save final stats
     this.reportStats();
     

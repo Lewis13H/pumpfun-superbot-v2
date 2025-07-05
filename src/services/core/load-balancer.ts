@@ -395,6 +395,7 @@ export class LoadBalancer extends EventEmitter {
     totalMessages: number;
     totalErrors: number;
     overallParseRate: number;
+    connectionLoads: Map<string, number>;
   } {
     const metrics = Array.from(this.connectionMetrics.values());
     
@@ -407,12 +408,18 @@ export class LoadBalancer extends EventEmitter {
         minLoad: 0,
         totalMessages: 0,
         totalErrors: 0,
-        overallParseRate: 100
+        overallParseRate: 100,
+        connectionLoads: new Map()
       };
     }
     
     const totalMessages = metrics.reduce((sum, m) => sum + m.messageCount, 0);
     const totalErrors = metrics.reduce((sum, m) => sum + m.errorCount, 0);
+    
+    const connectionLoads = new Map<string, number>();
+    for (const metric of metrics) {
+      connectionLoads.set(metric.connectionId, metric.load);
+    }
     
     return {
       totalTps: metrics.reduce((sum, m) => sum + m.tps, 0),
@@ -422,7 +429,8 @@ export class LoadBalancer extends EventEmitter {
       minLoad: Math.min(...metrics.map(m => m.load)),
       totalMessages,
       totalErrors,
-      overallParseRate: totalMessages > 0 ? ((totalMessages - totalErrors) / totalMessages) * 100 : 100
+      overallParseRate: totalMessages > 0 ? ((totalMessages - totalErrors) / totalMessages) * 100 : 100,
+      connectionLoads
     };
   }
 

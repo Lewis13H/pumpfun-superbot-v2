@@ -362,7 +362,7 @@ export class ConnectionPool extends EventEmitter {
         id: conn.id,
         status: conn.status,
         priority: conn.priority,
-        subscriptions: conn.metrics.subscriptions,
+        subscriptions: conn.metrics.activeSubscriptions,
         errorRate: conn.metrics.errorRate
       }))
     };
