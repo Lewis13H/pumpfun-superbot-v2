@@ -157,6 +157,19 @@ Main tables:
   - Created `MIGRATION_GUIDE.md` for incremental migration
   - Fixed all TypeScript errors in test scripts
   - Build completes successfully
+- ✅ **Subscription Strategy Implementation (Session 2)**:
+  - Created `SubscriptionBuilder` with grouping and priority routing
+  - Implemented 3 subscription groups:
+    - `bonding_curve`: High priority (BC monitors)
+    - `amm_pool`: Medium priority (AMM monitors)
+    - `external_amm`: Low priority (Raydium monitors)
+  - Enhanced SmartStreamManager to use subscription builder
+  - Updated BaseMonitor with subscription group metadata
+  - Added automatic group inference from program IDs
+  - Priority-based connection assignment algorithm
+  - Subscription merging for efficient resource usage
+  - Metrics tracking per subscription group
+  - Test script verifies all functionality
 
 ### Previous Changes (Jan 4-5)
 - ✅ **Raydium Monitor Fixed and Working** (Jan 4):

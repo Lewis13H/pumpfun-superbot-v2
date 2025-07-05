@@ -69,6 +69,7 @@ async function testConnectionPool() {
     await smartManager.registerMonitor({
       monitorId: 'test-bc-monitor',
       monitorType: 'BC',
+      group: 'bonding_curve',
       programId: '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P',
       subscriptionConfig: {
         transactions: {
@@ -84,6 +85,7 @@ async function testConnectionPool() {
     await smartManager.registerMonitor({
       monitorId: 'test-amm-monitor',
       monitorType: 'AMM',
+      group: 'amm_pool',
       programId: '39azKMXXgKqvmd1n5egrFWqrSu2nZ8nvkbp11ruKWnv4',
       subscriptionConfig: {
         transactions: {

@@ -22,6 +22,11 @@ export interface MonitorOptions {
   filters?: any[];
   fromSlot?: string | number;
   commitment?: 'processed' | 'confirmed' | 'finalized';
+  // Subscription group metadata
+  monitorGroup?: 'bonding_curve' | 'amm_pool' | 'external_amm';
+  monitorType?: string;
+  priority?: 'high' | 'medium' | 'low';
+  isAccountMonitor?: boolean;
 }
 
 export interface MonitorStats {
@@ -114,7 +119,23 @@ export abstract class BaseMonitor {
       
       // Register with stream manager using enhanced subscription config
       const subscriptionConfig = this.buildEnhancedSubscribeRequest();
-      await this.streamManager.subscribeTo(this.options.programId, subscriptionConfig);
+      
+      // If stream manager supports enhanced registration, use it
+      if (this.streamManager.registerMonitor) {
+        await this.streamManager.registerMonitor({
+          monitorId: this.options.monitorName,
+          monitorType: this.options.monitorType || this.inferMonitorType(),
+          group: this.options.monitorGroup || this.inferMonitorGroup(),
+          programId: this.options.programId,
+          subscriptionConfig: {
+            ...subscriptionConfig,
+            isAccountMonitor: this.options.isAccountMonitor
+          }
+        });
+      } else {
+        // Fallback to legacy method
+        await this.streamManager.subscribeTo(this.options.programId, subscriptionConfig);
+      }
       
       // Emit monitor started event
       this.eventBus.emit(EVENTS.MONITOR_STARTED, {
@@ -381,6 +402,50 @@ export abstract class BaseMonitor {
   protected getDataSliceConfig(): { offset: string; length: string } | null {
     // Override in subclasses for specific slicing
     return null;
+  }
+
+  /**
+   * Infer monitor type from program ID and monitor name
+   */
+  protected inferMonitorType(): string {
+    if (this.options.monitorName.toLowerCase().includes('raydium')) {
+      return 'Raydium';
+    } else if (this.options.monitorName.toLowerCase().includes('amm')) {
+      return 'AMM';
+    } else if (this.options.monitorName.toLowerCase().includes('bc') || 
+               this.options.monitorName.toLowerCase().includes('bonding')) {
+      return 'BC';
+    }
+    return 'Unknown';
+  }
+
+  /**
+   * Infer monitor group from program ID
+   */
+  protected inferMonitorGroup(): 'bonding_curve' | 'amm_pool' | 'external_amm' {
+    const BC_PROGRAM = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
+    const PUMP_SWAP_PROGRAM = '61acRgpURKTU8LKPJKs6WQa18KzD9ogavXzjxfD84KLu';
+    const PUMP_AMM_PROGRAM = 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
+    const RAYDIUM_PROGRAM = '5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1';
+    
+    if (this.options.programId === BC_PROGRAM) {
+      return 'bonding_curve';
+    } else if (this.options.programId === PUMP_SWAP_PROGRAM || 
+               this.options.programId === PUMP_AMM_PROGRAM) {
+      return 'amm_pool';
+    } else if (this.options.programId === RAYDIUM_PROGRAM || 
+               this.options.programId.includes('raydium')) {
+      return 'external_amm';
+    }
+    
+    // Default based on monitor name
+    if (this.options.monitorName.toLowerCase().includes('raydium')) {
+      return 'external_amm';
+    } else if (this.options.monitorName.toLowerCase().includes('amm')) {
+      return 'amm_pool';
+    }
+    
+    return 'bonding_curve';
   }
 
   /**

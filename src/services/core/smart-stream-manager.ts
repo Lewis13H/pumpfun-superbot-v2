@@ -2,6 +2,10 @@ import { StreamManager, StreamManagerOptions } from '../../core/stream-manager';
 import { ConnectionPool, ConnectionPoolConfig, PooledConnection } from './connection-pool';
 import { EventBus, EVENTS } from '../../core/event-bus';
 import { Logger } from '../../core/logger';
+import { 
+  subscriptionBuilder, 
+  MonitorGroup
+} from './subscription-builder';
 import chalk from 'chalk';
 
 export interface SmartStreamManagerOptions extends Omit<StreamManagerOptions, 'streamClient'> {
@@ -11,9 +15,11 @@ export interface SmartStreamManagerOptions extends Omit<StreamManagerOptions, 's
 export interface MonitorRegistration {
   monitorId: string;
   monitorType: string;
+  group: MonitorGroup;
   programId: string;
   subscriptionConfig?: any;
   connectionId?: string;
+  subscriptionId?: string;
 }
 
 export class SmartStreamManager extends StreamManager {
@@ -67,9 +73,13 @@ export class SmartStreamManager extends StreamManager {
   async subscribeTo(programId: string, subscriptionConfig?: any): Promise<void> {
     // This method is called by monitors, but we need more info
     // For backward compatibility, we'll assign to primary connection
+    const monitorType = this.inferMonitorType(programId);
+    const group = this.inferMonitorGroup(programId);
+    
     await this.registerMonitor({
       monitorId: `monitor-${programId}-${Date.now()}`,
-      monitorType: this.inferMonitorType(programId),
+      monitorType,
+      group,
       programId,
       subscriptionConfig
     });
@@ -81,11 +91,26 @@ export class SmartStreamManager extends StreamManager {
   async registerMonitor(registration: MonitorRegistration): Promise<void> {
     this.smartLogger.info(`Registering monitor: ${registration.monitorId}`, {
       type: registration.monitorType,
+      group: registration.group,
       program: registration.programId
     });
 
-    // Acquire connection from pool
-    const connection = await this.pool.acquireConnection(registration.monitorType);
+    // Create enhanced subscription
+    const subscriptionRequest = registration.subscriptionConfig?.isAccountMonitor
+      ? subscriptionBuilder.buildAccountSubscription([registration.programId])
+      : subscriptionBuilder.buildTransactionSubscription([registration.programId]);
+    
+    const enhancedSub = subscriptionBuilder.createSubscription(
+      registration.monitorId,
+      registration.monitorType,
+      registration.group,
+      subscriptionRequest
+    );
+    
+    registration.subscriptionId = enhancedSub.id;
+
+    // Acquire connection from pool based on group priority
+    const connection = await this.pool.acquireConnection(registration.group);
     registration.connectionId = connection.id;
 
     // Store registration
@@ -100,6 +125,9 @@ export class SmartStreamManager extends StreamManager {
 
     // Subscribe through the connection's stream manager
     await streamManager.subscribeTo(registration.programId, registration.subscriptionConfig);
+    
+    // Update subscription metrics
+    subscriptionBuilder.updateMetrics(enhancedSub.id, 'message');
   }
 
   private createStreamManagerForConnection(connection: PooledConnection): StreamManager {
@@ -141,6 +169,25 @@ export class SmartStreamManager extends StreamManager {
       return 'Raydium';
     }
     return 'Unknown';
+  }
+
+  private inferMonitorGroup(programId: string): MonitorGroup {
+    // Map program IDs to subscription groups
+    const BC_PROGRAM = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
+    const PUMP_SWAP_PROGRAM = '61acRgpURKTU8LKPJKs6WQa18KzD9ogavXzjxfD84KLu';
+    const PUMP_AMM_PROGRAM = 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
+    const RAYDIUM_PROGRAM = '5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1';
+    
+    if (programId === BC_PROGRAM) {
+      return 'bonding_curve';
+    } else if (programId === PUMP_SWAP_PROGRAM || programId === PUMP_AMM_PROGRAM) {
+      return 'amm_pool';
+    } else if (programId === RAYDIUM_PROGRAM || programId.includes('raydium')) {
+      return 'external_amm';
+    }
+    
+    // Default to medium priority AMM pool group
+    return 'amm_pool';
   }
 
   private async handleConnectionFailure(connectionId: string): Promise<void> {
@@ -188,20 +235,27 @@ export class SmartStreamManager extends StreamManager {
   getStats() {
     const baseStats = super.getStats();
     const poolStats = this.pool.getConnectionStats();
+    const subscriptionStats = subscriptionBuilder.getStatistics();
     const monitorsByConnection: Record<string, number> = {};
+    const monitorsByGroup: Record<string, number> = {};
 
     for (const registration of this.monitorRegistrations.values()) {
       const connId = registration.connectionId || 'unassigned';
       monitorsByConnection[connId] = (monitorsByConnection[connId] || 0) + 1;
+      
+      const group = registration.group;
+      monitorsByGroup[group] = (monitorsByGroup[group] || 0) + 1;
     }
 
     // Return both base stats and extended stats
     return {
       ...baseStats,
       pool: poolStats,
+      subscriptions: subscriptionStats,
       monitors: {
         total: this.monitorRegistrations.size,
-        byConnection: monitorsByConnection
+        byConnection: monitorsByConnection,
+        byGroup: monitorsByGroup
       },
       streams: {
         active: this.connectionStreams.size
