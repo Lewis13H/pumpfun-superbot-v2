@@ -25,21 +25,51 @@ export async function createContainer(): Promise<Container> {
   
   // Register StreamManager (shared stream for all monitors)
   container.registerSingleton(TOKENS.StreamManager, async () => {
-    const { StreamManager } = await import('./stream-manager');
-    const streamClientService = await container.resolve(TOKENS.StreamClient);
-    const eventBus = await container.resolve(TOKENS.EventBus);
-    const config = await container.resolve(TOKENS.ConfigService);
+    // Check if we should use SmartStreamManager with connection pooling
+    const useSmartStreaming = process.env.USE_SMART_STREAMING === 'true';
     
-    const manager = new StreamManager({
-      streamClient: streamClientService.getClient(), // Pass the yellowstone-grpc Client
-      eventBus,
-      reconnectDelay: config.get('grpc').reconnectDelay,
-      maxReconnectDelay: config.get('grpc').maxReconnectDelay
-    });
-    
-    // Don't start here - let it start when first monitor subscribes
-    
-    return manager;
+    if (useSmartStreaming) {
+      // Use the new SmartStreamManager with connection pooling
+      const { SmartStreamManager } = await import('../services/core/smart-stream-manager');
+      const streamClientService = await container.resolve(TOKENS.StreamClient);
+      const eventBus = await container.resolve(TOKENS.EventBus);
+      const config = await container.resolve(TOKENS.ConfigService);
+      
+      const manager = new SmartStreamManager({
+        eventBus,
+        reconnectDelay: config.get('grpc').reconnectDelay,
+        maxReconnectDelay: config.get('grpc').maxReconnectDelay,
+        poolConfig: {
+          maxConnections: parseInt(process.env.POOL_MAX_CONNECTIONS || '3'),
+          minConnections: parseInt(process.env.POOL_MIN_CONNECTIONS || '2'),
+          healthCheckInterval: parseInt(process.env.POOL_HEALTH_CHECK_INTERVAL || '30000'),
+          connectionTimeout: parseInt(process.env.POOL_CONNECTION_TIMEOUT || '10000'),
+          maxRetries: parseInt(process.env.POOL_MAX_RETRIES || '3'),
+          priorityGroups: {
+            high: ['bonding_curve'],
+            medium: ['amm_pool'],
+            low: ['external_amm']
+          }
+        }
+      });
+      
+      return manager;
+    } else {
+      // Use the standard StreamManager (current working implementation)
+      const { StreamManager } = await import('./stream-manager');
+      const streamClientService = await container.resolve(TOKENS.StreamClient);
+      const eventBus = await container.resolve(TOKENS.EventBus);
+      const config = await container.resolve(TOKENS.ConfigService);
+      
+      const manager = new StreamManager({
+        streamClient: streamClientService.getClient(),
+        eventBus,
+        reconnectDelay: config.get('grpc').reconnectDelay,
+        maxReconnectDelay: config.get('grpc').maxReconnectDelay
+      });
+      
+      return manager;
+    }
   });
   
   // Register database service

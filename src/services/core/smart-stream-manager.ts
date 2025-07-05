@@ -31,6 +31,8 @@ export class SmartStreamManager extends StreamManager {
   private connectionStreams: Map<string, StreamManager> = new Map();
   private smartLogger: Logger;
   private messageTracking: Map<string, string> = new Map(); // messageId -> connectionId
+  private subscriptionCounts: Map<string, number> = new Map(); // connectionId -> count
+  private subscriptionGroups: Map<string, string> = new Map(); // subscriptionId -> group
 
   constructor(options: SmartStreamManagerOptions) {
     // Create a dummy client for base class (won't be used)
@@ -295,14 +297,21 @@ export class SmartStreamManager extends StreamManager {
   }
 
   private updateConnectionSubscriptionCounts(): void {
-    const counts = new Map<string, number>();
+    // Clear and rebuild subscription counts
+    this.subscriptionCounts.clear();
     
     for (const registration of this.monitorRegistrations.values()) {
       const connId = registration.connectionId || '';
-      counts.set(connId, (counts.get(connId) || 0) + 1);
+      this.subscriptionCounts.set(connId, (this.subscriptionCounts.get(connId) || 0) + 1);
+      
+      // Update subscription group mapping
+      if (registration.subscriptionId) {
+        this.subscriptionGroups.set(registration.subscriptionId, registration.group);
+      }
     }
     
-    for (const [connId, count] of counts) {
+    // Update load balancer with counts
+    for (const [connId, count] of this.subscriptionCounts) {
       this.loadBalancer.updateSubscriptionCount(connId, count);
     }
   }
@@ -449,10 +458,38 @@ export class SmartStreamManager extends StreamManager {
     return {
       summary,
       connections,
+      connectionLoads: summary.connectionLoads,
       predictions: connections.map(c => ({
         connectionId: c.id,
         predictedLoad: this.loadBalancer.predictLoad(c.id)
       }))
     };
+  }
+
+  /**
+   * Get pool information for monitoring
+   */
+  async getPoolInfo() {
+    const poolStats = await this.pool.getStatistics();
+    return {
+      totalConnections: poolStats.totalConnections,
+      activeConnections: poolStats.activeConnections,
+      healthyConnections: poolStats.healthyConnections,
+      totalSubscriptions: this.monitorRegistrations.size
+    };
+  }
+
+  /**
+   * Get subscription groups for monitoring
+   */
+  getSubscriptionGroups(): Map<string, number> {
+    const groups = new Map<string, number>();
+    
+    // Count subscriptions by group
+    this.subscriptionGroups.forEach((group) => {
+      groups.set(group, (groups.get(group) || 0) + 1);
+    });
+    
+    return groups;
   }
 }

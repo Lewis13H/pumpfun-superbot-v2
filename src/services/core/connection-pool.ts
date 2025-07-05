@@ -345,6 +345,29 @@ export class ConnectionPool extends EventEmitter {
     return stats;
   }
 
+  /**
+   * Get statistics for monitoring (alias for compatibility)
+   */
+  async getStatistics() {
+    const activeConnections = this.getActiveConnections();
+    const healthyConnections = activeConnections.filter(conn => 
+      conn.status === ConnectionStatus.IDLE || conn.status === ConnectionStatus.ACTIVE
+    );
+    
+    return {
+      totalConnections: this.connections.size,
+      activeConnections: activeConnections.length,
+      healthyConnections: healthyConnections.length,
+      connectionDetails: Array.from(this.connections.values()).map(conn => ({
+        id: conn.id,
+        status: conn.status,
+        priority: conn.priority,
+        subscriptions: conn.metrics.subscriptions,
+        errorRate: conn.metrics.errorRate
+      }))
+    };
+  }
+
   async shutdown(): Promise<void> {
     logger.info('Shutting down connection pool');
     
