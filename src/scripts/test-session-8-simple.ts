@@ -20,8 +20,8 @@ async function testCircuitBreaker() {
   let connectionErrors = 0;
   let connectionRecoveries = 0;
   
-  eventBus.on('connection:error', () => connectionErrors++);
-  eventBus.on('connection:success', () => connectionRecoveries++);
+  eventBus.on('connection:error', () => { connectionErrors++; });
+  eventBus.on('connection:success', () => { connectionRecoveries++; });
   
   // Mock SmartStreamManager
   const mockManager = {
@@ -152,7 +152,7 @@ async function testAlertSystem() {
   const eventBus = new EventBus();
   const alerts: any[] = [];
   
-  eventBus.on('alert:created', (alert) => alerts.push(alert));
+  eventBus.on('alert:created', (alert) => { alerts.push(alert); });
   
   const alertService = new FaultToleranceAlerts(eventBus, {
     enableConsoleAlerts: false, // Disable console output for test

@@ -13,7 +13,7 @@ import 'dotenv/config';
 import { createContainer } from '../core/container-factory';
 import { TokenLifecycleMonitor } from '../monitors/domain/token-lifecycle-monitor';
 import { TradingActivityMonitor } from '../monitors/domain/trading-activity-monitor';
-import { EventBus, EVENTS } from '../core/event-bus';
+import { EventBus } from '../core/event-bus';
 import { Logger } from '../core/logger';
 import { FaultToleranceAlerts } from '../services/monitoring/fault-tolerance-alerts';
 import chalk from 'chalk';
@@ -78,11 +78,11 @@ async function runTest() {
     };
     
     // Setup event tracking
-    eventBus.on('connection:error', () => events.connectionErrors++);
-    eventBus.on('fault-tolerance:recovery-attempt', () => events.recoveryAttempts++);
-    eventBus.on('fault-tolerance:failover', () => events.failovers++);
-    eventBus.on('fault-tolerance:checkpoint', () => events.checkpoints++);
-    eventBus.on('alert:created', () => events.alerts++);
+    eventBus.on('connection:error', () => { events.connectionErrors++; });
+    eventBus.on('fault-tolerance:recovery-attempt', () => { events.recoveryAttempts++; });
+    eventBus.on('fault-tolerance:failover', () => { events.failovers++; });
+    eventBus.on('fault-tolerance:checkpoint', () => { events.checkpoints++; });
+    eventBus.on('alert:created', () => { events.alerts++; });
     
     // Initialize StreamManager with fault tolerance
     const streamManager = await container.resolve('StreamManager') as any;
@@ -141,7 +141,7 @@ async function runTest() {
     logger.info('\n=== Test 1: Circuit Breaker ===');
     const connections = Array.from(streamManager.connectionStreams.keys());
     if (connections.length > 0) {
-      await simulateConnectionFailure(eventBus, connections[0]);
+      await simulateConnectionFailure(eventBus, connections[0] as string);
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       const stats1 = streamManager.getStats();
@@ -153,18 +153,18 @@ async function runTest() {
     // Test 2: Performance Degradation
     logger.info('\n=== Test 2: Performance Degradation ===');
     if (connections.length > 1) {
-      await simulatePerformanceDegradation(eventBus, connections[1]);
+      await simulatePerformanceDegradation(eventBus, connections[1] as string);
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
     
     // Test 3: Manual Checkpoint
     logger.info('\n=== Test 3: Manual Checkpoint ===');
-    eventBus.emit('fault-tolerance:checkpoint');
+    eventBus.emit('fault-tolerance:checkpoint', {});
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     // Test 4: Recovery Simulation
     logger.info('\n=== Test 4: Recovery Simulation ===');
-    eventBus.emit('connection:success', { connectionId: connections[0] });
+    eventBus.emit('connection:success', { connectionId: connections[0] as string });
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Wait for automatic checkpoint

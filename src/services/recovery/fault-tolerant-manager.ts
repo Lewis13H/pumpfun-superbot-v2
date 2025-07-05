@@ -4,9 +4,7 @@
  */
 
 import { Logger } from '../../core/logger';
-import { EventBus, EVENTS } from '../../core/event-bus';
-import { ConnectionPool } from '../core/connection-pool';
-import { SmartStreamManager } from '../core/smart-stream-manager';
+import { EventBus } from '../../core/event-bus';
 
 export enum CircuitState {
   CLOSED = 'CLOSED',   // Normal operation
@@ -46,11 +44,10 @@ export interface StateCheckpoint {
 export class FaultTolerantManager {
   private logger: Logger;
   private eventBus: EventBus;
-  private pool: ConnectionPool;
   private circuitBreakers: Map<string, CircuitBreaker> = new Map();
   private connectionHealth: Map<string, ConnectionHealth> = new Map();
   private lastCheckpoint?: StateCheckpoint;
-  private checkpointInterval: NodeJS.Timer | null = null;
+  private checkpointInterval: NodeJS.Timeout | null = null;
   private recoveryInProgress = false;
   
   // Make connectionHealth accessible for checkpointing
@@ -59,7 +56,7 @@ export class FaultTolerantManager {
   }
   
   constructor(
-    private smartStreamManager: any, // SmartStreamManager type would create circular dependency
+    smartStreamManager: any, // SmartStreamManager type would create circular dependency
     private config: {
       circuitBreaker: CircuitBreakerConfig;
       checkpointInterval: number; // ms
@@ -70,7 +67,7 @@ export class FaultTolerantManager {
     this.logger = new Logger({ context: 'FaultTolerantManager' });
     // Access eventBus from the base StreamManager options
     this.eventBus = smartStreamManager.options?.eventBus || smartStreamManager.smartOptions?.eventBus;
-    this.pool = smartStreamManager.pool;
+    // Pool access removed - not needed
     
     if (!this.eventBus) {
       throw new Error('EventBus not found in SmartStreamManager');
@@ -120,7 +117,7 @@ export class FaultTolerantManager {
     // Get or create circuit breaker
     let breaker = this.circuitBreakers.get(connectionId);
     if (!breaker) {
-      breaker = new CircuitBreaker(connectionId, this.config.circuitBreaker);
+      breaker = new CircuitBreaker(this.config.circuitBreaker);
       this.circuitBreakers.set(connectionId, breaker);
     }
     
@@ -393,7 +390,7 @@ export class FaultTolerantManager {
       this.connectionHealth.set(connectionId, health);
       
       // Recreate circuit breakers in appropriate state
-      const breaker = new CircuitBreaker(connectionId, this.config.circuitBreaker);
+      const breaker = new CircuitBreaker(this.config.circuitBreaker);
       if (health.circuitState === CircuitState.OPEN) {
         // Force breaker to open state
         for (let i = 0; i < this.config.circuitBreaker.failureThreshold; i++) {
@@ -540,7 +537,6 @@ class CircuitBreaker {
   private halfOpenTestCount: number = 0;
   
   constructor(
-    private connectionId: string,
     private config: CircuitBreakerConfig
   ) {}
   

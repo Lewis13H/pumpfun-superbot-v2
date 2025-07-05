@@ -184,7 +184,7 @@ export class SmartStreamManager extends StreamManager {
         const group = this.subscriptionGroups.get(subId);
         if (group) {
           // Update registration to point to new connection
-          for (const [monitorId, reg] of this.monitorRegistrations) {
+          for (const [, reg] of this.monitorRegistrations) {
             if (reg.subscriptionId === subId) {
               reg.connectionId = data.to;
               break;
@@ -202,7 +202,7 @@ export class SmartStreamManager extends StreamManager {
       this.smartLogger.info(`Recovery attempt ${data.attempt} for connection ${data.connectionId}`);
       // Attempt to reconnect the stream
       const stream = this.connectionStreams.get(data.connectionId);
-      if (stream && !stream.isRunning) {
+      if (stream && !stream.getStats().isRunning) {
         try {
           await stream.start();
           eventBus.emit('connection:success', { connectionId: data.connectionId });
@@ -223,9 +223,9 @@ export class SmartStreamManager extends StreamManager {
         lastProcessedSlots: new Map(this.lastProcessedSlots),
         activeSubscriptions: this.buildActiveSubscriptionsMap(),
         metrics: {
-          totalProcessed: this.getStats().messages.total,
+          totalProcessed: this.dataPipeline?.getStats().eventsProcessed || 0,
           totalFailures: 0,
-          averageParseRate: this.getStats().messages.parseRate
+          averageParseRate: this.loadBalancer.getLoadSummary().overallParseRate || 0
         }
       };
       
@@ -239,7 +239,7 @@ export class SmartStreamManager extends StreamManager {
   private buildActiveSubscriptionsMap(): Map<string, string[]> {
     const map = new Map<string, string[]>();
     
-    for (const [monitorId, reg] of this.monitorRegistrations) {
+    for (const [, reg] of this.monitorRegistrations) {
       if (reg.connectionId && reg.subscriptionId) {
         const subs = map.get(reg.connectionId) || [];
         subs.push(reg.subscriptionId);
@@ -379,11 +379,11 @@ export class SmartStreamManager extends StreamManager {
             
             // Emit metrics for fault tolerance
             const metrics = this.loadBalancer.getConnectionMetrics(connectionId);
-            if (metrics && metrics.stats) {
+            if (metrics) {
               originalEventBus.emit('connection:metrics', {
                 connectionId,
-                parseRate: metrics.stats.parseRate || 100,
-                latency: metrics.stats.averageLatency || 0
+                parseRate: metrics.parseRate || 100,
+                latency: metrics.latency || 0
               });
             }
           }, 10);

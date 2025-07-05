@@ -244,7 +244,7 @@ export class FaultToleranceAlerts {
     console.log(`\n${color(`[${timestamp}] ${prefix}${alert.title}`)}`);
     console.log(color(`  ${alert.message}`));
     
-    if (alert.data && this.logger.level <= 1) { // DEBUG level
+    if (alert.data) { // Show data if available
       console.log(chalk.gray(`  Data: ${JSON.stringify(alert.data, null, 2)}`));
     }
     console.log(); // Empty line for readability

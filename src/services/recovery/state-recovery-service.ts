@@ -155,7 +155,7 @@ export class StateRecoveryService {
       const currentSlot = await this.getCurrentSlot();
       const missedSlots: bigint[] = [];
       
-      for (const [connectionId, lastSlot] of checkpoint.lastProcessedSlots) {
+      for (const [, lastSlot] of checkpoint.lastProcessedSlots) {
         if (currentSlot > lastSlot) {
           // Track slots we need to catch up on
           for (let slot = lastSlot + 1n; slot <= currentSlot && missedSlots.length < 1000; slot++) {
