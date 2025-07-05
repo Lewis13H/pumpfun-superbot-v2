@@ -18,6 +18,7 @@ import { Container } from '../../core/container';
 import { EVENTS } from '../../core/event-bus';
 import { Logger } from '../../core/logger';
 import chalk from 'chalk';
+import bs58 from 'bs58';
 import { UnifiedEventParser } from '../../utils/parsers/unified-event-parser';
 import { TradeHandler } from '../../handlers/trade-handler';
 import { MonitorGroup } from '../../services/core/subscription-builder';
@@ -103,12 +104,13 @@ export class TradingActivityMonitor extends BaseMonitor {
   constructor(container: Container) {
     super(
       {
-        programId: '', // Multiple programs, set in getProgramIds()
+        programId: '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P', // BC program as primary
         monitorName: 'Trading Activity Monitor',
         monitorType: 'transaction',
         monitorGroup: 'bonding_curve', // Use existing group, will monitor all venues
         priority: 'high',
-        commitment: 'confirmed'
+        commitment: 'confirmed',
+        includeFailedTxs: false
       },
       container
     );
@@ -118,7 +120,8 @@ export class TradingActivityMonitor extends BaseMonitor {
     });
   }
 
-  async initialize(): Promise<void> {
+  protected async initializeServices(): Promise<void> {
+    await super.initializeServices();
     
     // Get services
     this.parser = await this.container.resolve('EventParser') as UnifiedEventParser;
@@ -139,6 +142,31 @@ export class TradingActivityMonitor extends BaseMonitor {
 
   protected getProgramIds(): string[] {
     return Object.values(this.PROGRAMS);
+  }
+
+  protected isRelevantTransaction(data: any): boolean {
+    // First check base implementation
+    if (!super.isRelevantTransaction(data)) {
+      return false;
+    }
+    
+    // Additionally check if ANY of our programs are in the transaction
+    if (data?.transaction) {
+      const tx = data.transaction.transaction;
+      const innerTx = tx?.transaction;
+      const accounts = innerTx?.message?.accountKeys || [];
+      
+      // Convert accounts to strings for comparison
+      const accountStrs = accounts.map((acc: any) => 
+        typeof acc === 'string' ? acc : bs58.encode(acc)
+      );
+      
+      // Check if any of our programs are in the account keys
+      const programIds = Object.values(this.PROGRAMS);
+      return programIds.some(programId => accountStrs.includes(programId));
+    }
+    
+    return false;
   }
 
   async processStreamData(data: any): Promise<void> {
@@ -162,40 +190,43 @@ export class TradingActivityMonitor extends BaseMonitor {
     const accountKeys = tx.message.accountKeys || [];
     let venue: 'bc' | 'amm' | 'raydium' | null = null;
     
-    if (accountKeys.includes(this.PROGRAMS.BC)) {
+    // Debug: log that we're processing a transaction
+    this.stats.transactions++;
+    
+    // Convert account keys to strings for comparison
+    const accountStrs = accountKeys.map((acc: any) => 
+      typeof acc === 'string' ? acc : bs58.encode(acc)
+    );
+    
+    if (accountStrs.includes(this.PROGRAMS.BC)) {
       venue = 'bc';
-    } else if (accountKeys.includes(this.PROGRAMS.AMM)) {
+    } else if (accountStrs.includes(this.PROGRAMS.AMM)) {
       venue = 'amm';
-    } else if (accountKeys.includes(this.PROGRAMS.RAYDIUM)) {
+    } else if (accountStrs.includes(this.PROGRAMS.RAYDIUM)) {
       venue = 'raydium';
     }
     
     if (!venue) return;
 
-    // Create parse context
-    const context = {
-      signature: data.transaction.signature,
-      slot: data.transaction.slot,
-      blockTime: data.transaction.blockTime,
-      transaction: tx,
-      accountKeys: accountKeys,
-      programId: venue === 'bc' ? this.PROGRAMS.BC : 
-                 venue === 'amm' ? this.PROGRAMS.AMM : 
-                 this.PROGRAMS.RAYDIUM
-    };
+    // Create parse context using UnifiedEventParser helper
+    const context = UnifiedEventParser.createContext(data);
+    
+    // Add program ID for the venue
+    context.programId = venue === 'bc' ? this.PROGRAMS.BC : 
+                       venue === 'amm' ? this.PROGRAMS.AMM : 
+                       this.PROGRAMS.RAYDIUM;
     
     // Parse the event
     const event = this.parser.parse(context);
     
-    if (event && event.type === 'trade') {
+    if (event && (event.type === 'bc_trade' || event.type === 'amm_trade' || event.type === 'raydium_swap')) {
       await this.processTrade(event, venue);
     }
-    
-    this.stats.transactions++;
   }
 
   private async processTrade(event: any, venue: 'bc' | 'amm' | 'raydium'): Promise<void> {
-    const trade = event.data as TradeEvent;
+    // The event IS the trade data, not wrapped in a data property
+    const trade = event as TradeEvent;
     
     // Update stats
     this.stats.totalTrades++;
