@@ -132,6 +132,28 @@ export class SmartStreamManager extends StreamManager {
   }
 
   /**
+   * Unregister a monitor
+   */
+  async unregisterMonitor(monitorId: string): Promise<void> {
+    const registration = this.monitorRegistrations.get(monitorId);
+    if (!registration) {
+      this.smartLogger.debug(`Monitor ${monitorId} not found for unregistration`);
+      return;
+    }
+
+    this.smartLogger.info(`Unregistering monitor: ${monitorId}`);
+    
+    // Remove from registrations
+    this.monitorRegistrations.delete(monitorId);
+    
+    // Update subscription counts
+    this.updateConnectionSubscriptionCounts();
+    
+    // If this was the last monitor on a connection, we could stop the stream
+    // but for now we'll keep connections alive for reuse
+  }
+
+  /**
    * New method for registering monitors with full information
    */
   async registerMonitor(registration: MonitorRegistration): Promise<void> {
@@ -454,12 +476,25 @@ export class SmartStreamManager extends StreamManager {
     const rateStats = this.getSubscriptionRateStats();
     this.smartLogger.info('Final subscription rate stats', rateStats);
 
-    // Stop all streams
-    const stopPromises = Array.from(this.connectionStreams.values()).map(
-      stream => stream.stop()
+    // Stop all streams gracefully
+    const stopPromises = Array.from(this.connectionStreams.entries()).map(
+      async ([connectionId, stream]) => {
+        try {
+          this.smartLogger.debug(`Stopping stream for connection ${connectionId}`);
+          await stream.stop();
+        } catch (error: any) {
+          // Ignore cancellation errors - they're expected
+          if (error.code !== 1 && 
+              !error.message?.includes('Cancelled') &&
+              !error.message?.includes('ERR_STREAM_PREMATURE_CLOSE')) {
+            this.smartLogger.error(`Error stopping stream for ${connectionId}:`, error);
+          }
+        }
+      }
     );
     
-    await Promise.all(stopPromises);
+    // Wait for all streams to stop
+    await Promise.allSettled(stopPromises);
     
     // Clear registrations
     this.connectionStreams.clear();
@@ -469,7 +504,11 @@ export class SmartStreamManager extends StreamManager {
     // Shutdown data pipeline
     if (this.dataPipeline) {
       this.smartLogger.info('Shutting down data pipeline');
-      await this.dataPipeline.shutdown();
+      try {
+        await this.dataPipeline.shutdown();
+      } catch (error) {
+        this.smartLogger.error('Error shutting down data pipeline:', error);
+      }
     }
     
     // Shutdown load balancer

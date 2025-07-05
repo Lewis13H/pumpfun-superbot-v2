@@ -59,9 +59,16 @@ async function testSession6() {
     
     // Start all monitors
     console.log(chalk.yellow('\n🚀 Starting all domain monitors...'));
+    
+    // Start monitors one by one with a small delay to avoid race conditions
     await tokenMonitor.start();
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     await tradingMonitor.start();
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     await liquidityMonitor.start();
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     // Monitor for 10 seconds
     console.log(chalk.gray('\nMonitoring liquidity events for 10 seconds...'));

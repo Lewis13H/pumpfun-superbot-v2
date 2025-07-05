@@ -530,6 +530,16 @@ export abstract class BaseMonitor {
       this.priceUpdateInterval = undefined;
     }
     
+    // Unregister from stream manager if it supports it
+    try {
+      if (this.streamManager.unregisterMonitor && this.options.monitorName) {
+        await this.streamManager.unregisterMonitor(this.options.monitorName);
+      }
+    } catch (error) {
+      // Ignore errors during unregistration
+      this.logger.debug('Error unregistering monitor:', error);
+    }
+    
     await this.onShutdown();
     this.logger.info('Monitor stopped');
   }

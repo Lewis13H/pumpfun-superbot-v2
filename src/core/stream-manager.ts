@@ -186,6 +186,14 @@ export class StreamManager {
       });
       
       this.stream.on('error', (error: any) => {
+        // Don't log cancellation errors when stopping
+        if (!this.isRunning && 
+            (error.code === 1 || 
+             error.message?.includes('Cancelled') ||
+             error.message?.includes('ERR_STREAM_PREMATURE_CLOSE'))) {
+          return;
+        }
+        
         this.logger.error('Stream error', error);
         if (this.isRunning) {
           this.handleReconnect();
