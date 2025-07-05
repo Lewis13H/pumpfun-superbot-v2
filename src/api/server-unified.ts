@@ -7,7 +7,7 @@ import { createServer } from 'http';
 // import { bcWebSocketServer } from '../services/bc-websocket-server'; // File deleted
 // import { unifiedWebSocketServer } from '../services/unified-websocket-server-fixed';
 // const WebSocket = require('ws'); // Not used
-import bcMonitorEndpoints from './bc-monitor-endpoints';
+// import bcMonitorEndpoints from './bc-monitor-endpoints'; // Legacy - removed with smart streaming
 import ammEndpoints from './amm-endpoints';
 import { registerPerformanceEndpoints } from './performance-metrics-endpoints';
 import { createStaleTokenEndpoints } from './stale-token-endpoints';
@@ -58,7 +58,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '../../dashboard')));
 
 // BC Monitor API endpoints
-app.use('/api/bc-monitor', bcMonitorEndpoints);
+// app.use('/api/bc-monitor', bcMonitorEndpoints); // Legacy - removed with smart streaming
 
 // AMM API endpoints
 app.use('/api/amm', ammEndpoints);

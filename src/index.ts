@@ -6,11 +6,10 @@
 import 'dotenv/config';
 import chalk from 'chalk';
 import { createContainer } from './core/container-factory';
-import { BCMonitor } from './monitors/bc-monitor';
-import { BCAccountMonitor } from './monitors/bc-account-monitor';
-import { AMMMonitor } from './monitors/amm-monitor';
-import { AMMAccountMonitor } from './monitors/amm-account-monitor';
-import { RaydiumMonitor } from './monitors/raydium-monitor';
+// Domain monitors for smart streaming
+import { TokenLifecycleMonitor } from './monitors/domain/token-lifecycle-monitor';
+import { TradingActivityMonitor } from './monitors/domain/trading-activity-monitor';
+import { LiquidityMonitor } from './monitors/domain/liquidity-monitor';
 import { EventBus, EVENTS } from './core/event-bus';
 import { Logger, LogLevel } from './core/logger';
 import { ConfigService } from './core/config';
@@ -154,27 +153,30 @@ async function startMonitors() {
     // Setup event listeners before starting monitors
     setupEventListeners(eventBus, logger);
     
-    // Create monitors based on environment settings
+    // Create monitors - using smart streaming domain monitors
     const monitors = [];
     
-    if (!process.env.DISABLE_BC_MONITORS) {
-      monitors.push(new BCMonitor(container));
-      monitors.push(new BCAccountMonitor(container));
-    }
+    logger.debug('Using smart streaming with domain monitors');
     
-    monitors.push(new AMMMonitor(container));
-    monitors.push(new AMMAccountMonitor(container));
+    // Initialize SmartStreamManager
+    const streamManager = await container.resolve('StreamManager') as any;
+    await streamManager.initialize();
     
-    // Add Raydium monitor for graduated tokens
-    if (!process.env.DISABLE_RAYDIUM_MONITOR) {
-      monitors.push(new RaydiumMonitor(container));
-    }
+    monitors.push(new TokenLifecycleMonitor(container));
+    monitors.push(new TradingActivityMonitor(container));
+    monitors.push(new LiquidityMonitor(container));
     
     // Start all monitors
     // Since we're using StreamManager, we don't need staggered starts
     for (const monitor of monitors) {
       await monitor.start();
-      stats.activeMonitors.add(monitor.constructor.name.replace('Monitor', ''));
+      // Format monitor name for display
+      const monitorName = monitor.constructor.name
+        .replace('Monitor', '')
+        .replace('TokenLifecycle', 'TokenLC')
+        .replace('TradingActivity', 'Trading')
+        .replace('Liquidity', 'Liq');
+      stats.activeMonitors.add(monitorName);
     }
     
     // Start enhanced stale token detector
