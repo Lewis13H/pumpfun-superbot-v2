@@ -4,12 +4,12 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Overview
 
-Real-time Solana token monitor & evaluator for pump.fun bonding curves and pump.swap AMM pools. Streams blockchain data via Shyft's gRPC, tracks prices/market caps, saves high-value tokens (≥$8,888) to PostgreSQL.
+Real-time Solana token monitor & evaluator for pump.fun bonding curves and pump.swap AMM pools. Uses smart streaming architecture with domain-driven monitors to track tokens across their entire lifecycle. Streams blockchain data via Shyft's gRPC, tracks prices/market caps, saves high-value tokens (≥$8,888) to PostgreSQL.
 
 ## Quick Start
 
 ```bash
-npm run start        # Run all 4 monitors (RECOMMENDED)
+npm run start        # Run all domain monitors with smart streaming
 npm run dashboard    # Web dashboard (http://localhost:3001)
 npm run build       # Build TypeScript
 ```
@@ -17,8 +17,9 @@ npm run build       # Build TypeScript
 ## Architecture
 
 ### Core Components
-- **Monitors**: BC (bonding curve) and AMM monitors for trades/accounts
-- **Shared Stream**: Single gRPC connection shared by all monitors
+- **Domain Monitors**: TokenLifecycle, TradingActivity, and Liquidity monitors
+- **Smart Streaming**: Connection pooling with load balancing and rate limiting
+- **Data Pipeline**: Unified event processing with batching and normalization
 - **Event Bus**: Components communicate via events
 - **DI Container**: Dependency injection for all services
 
@@ -194,7 +195,7 @@ The system now features a comprehensive smart streaming architecture with connec
 - **PipelineMetrics**: Comprehensive performance tracking
 
 #### Configuration
-Enable smart streaming with: `USE_SMART_STREAMING=true`
+Smart streaming is now the default and only mode. The system automatically uses domain monitors.
 
 Environment variables for connection pool:
 ```bash
@@ -328,6 +329,15 @@ POOL_MAX_RETRIES=3
   - Used Promise.allSettled for graceful parallel stream shutdown
   - Added delays in test scripts to prevent race conditions
   - All session tests now run without gRPC errors
+- ✅ **Legacy Monitor System Removal (Jan 5)**:
+  - Removed 27 legacy files including monitors, run scripts, and parsers
+  - Deleted legacy monitors: BCMonitor, AMMMonitor, RaydiumMonitor, and account monitors
+  - Removed legacy parsing strategies: bc-trade, amm-trade, raydium-trade strategies
+  - Cleaned up API endpoints: removed bc-monitor-endpoints and stats aggregator
+  - Updated index.ts to use only domain monitors
+  - Simplified unified-event-parser to only use LiquidityStrategy
+  - System now exclusively uses smart streaming architecture
+  - All functionality preserved with better organization and performance
 
 ### Previous Changes (Jan 4-5)
 - ✅ **Raydium Monitor Fixed and Working** (Jan 4):
@@ -497,11 +507,10 @@ npx tsx src/scripts/test-sessions-1-6.ts  # All monitors and liquidity
 ```
 src/
 ├── monitors/              # Monitor implementations
-│   ├── domain/           # Domain-driven monitors
-│   │   ├── token-lifecycle-monitor.ts
-│   │   ├── trading-activity-monitor.ts
-│   │   └── liquidity-monitor.ts
-│   └── [legacy monitors]
+│   └── domain/           # Domain-driven monitors (only monitors in the system)
+│       ├── token-lifecycle-monitor.ts
+│       ├── trading-activity-monitor.ts
+│       └── liquidity-monitor.ts
 ├── services/              # Business logic services
 │   ├── core/             # Core infrastructure
 │   │   ├── smart-stream-manager.ts      # Enhanced stream manager
@@ -526,7 +535,7 @@ src/
 │   ├── amm/              # AMM utilities (decoders, calculators)
 │   ├── config/           # Constants and configuration
 │   ├── parsers/          # Event and transaction parsers
-│   │   ├── strategies/   # Parsing strategies (liquidity, MEV, etc.)
+│   │   ├── strategies/   # Parsing strategies (only liquidity-strategy.ts remains)
 │   │   └── types.ts      # Common types and interfaces
 │   └── formatters/       # Data formatting utilities
 └── scripts/              # Test and utility scripts
@@ -544,7 +553,7 @@ src/
 - Dashboard updates every 10 seconds
 - Token age shows blockchain creation time when available
 - FDV = Market Cap × 10 (pump.fun tokens have 10% circulating supply)
-- **Graduated tokens showing $0.0001**: Fixed! Raydium monitor now tracks these tokens
+- TradingActivityMonitor tracks graduated tokens across all venues (BC, AMM, Raydium)
 
 ## Architecture Benefits
 
@@ -559,7 +568,8 @@ src/
 8. **Scalability**: Easy to add new domain monitors or event processors
 
 ### Production Ready
-- Enable with `USE_SMART_STREAMING=true`
-- All TypeScript errors fixed, builds successfully
+- Smart streaming is now the default and only mode
+- All legacy code removed for cleaner architecture
+- TypeScript builds successfully with no errors
 - Comprehensive test coverage with session scripts
-- Graceful degradation to legacy mode if needed
+- Domain monitors handle all functionality previously split across multiple monitors
