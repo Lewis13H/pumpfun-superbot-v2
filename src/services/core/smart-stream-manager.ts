@@ -9,12 +9,22 @@ import {
 import { LoadBalancer, LoadBalancerConfig, MigrationRequest } from './load-balancer';
 import { SubscriptionRateLimiter } from './subscription-rate-limiter';
 import { DataPipeline, PipelineConfig } from '../pipeline/data-pipeline';
+import { FaultTolerantManager, CircuitBreakerConfig } from '../recovery/fault-tolerant-manager';
+import { StateRecoveryService, RecoveryConfig } from '../recovery/state-recovery-service';
 import chalk from 'chalk';
 
 export interface SmartStreamManagerOptions extends Omit<StreamManagerOptions, 'streamClient'> {
   poolConfig: ConnectionPoolConfig;
   loadBalancerConfig?: Partial<LoadBalancerConfig>;
   pipelineConfig?: PipelineConfig;
+  faultToleranceConfig?: {
+    enabled: boolean;
+    circuitBreaker?: Partial<CircuitBreakerConfig>;
+    checkpointInterval?: number;
+    maxRecoveryAttempts?: number;
+    recoveryBackoff?: number;
+  };
+  recoveryConfig?: Partial<RecoveryConfig>;
 }
 
 export interface MonitorRegistration {
@@ -32,6 +42,8 @@ export class SmartStreamManager extends StreamManager {
   private loadBalancer: LoadBalancer;
   private rateLimiter: SubscriptionRateLimiter;
   private dataPipeline?: DataPipeline;
+  private faultTolerantManager?: FaultTolerantManager;
+  private stateRecoveryService?: StateRecoveryService;
   private monitorRegistrations: Map<string, MonitorRegistration> = new Map();
   private connectionStreams: Map<string, StreamManager> = new Map();
   private smartLogger: Logger;
@@ -39,6 +51,7 @@ export class SmartStreamManager extends StreamManager {
   private subscriptionCounts: Map<string, number> = new Map(); // connectionId -> count
   private subscriptionGroups: Map<string, string> = new Map(); // subscriptionId -> group
   private smartOptions: SmartStreamManagerOptions;
+  private lastProcessedSlots: Map<string, bigint> = new Map(); // Track for checkpointing
 
   constructor(options: SmartStreamManagerOptions) {
     // Create a dummy client for base class (won't be used)
@@ -111,6 +124,130 @@ export class SmartStreamManager extends StreamManager {
       this.dataPipeline = DataPipeline.getInstance(this.smartOptions.pipelineConfig);
       await this.dataPipeline.initialize();
     }
+    
+    // Initialize fault tolerance if enabled
+    if (this.smartOptions.faultToleranceConfig?.enabled) {
+      this.smartLogger.info('Initializing fault tolerance');
+      
+      // Initialize fault tolerant manager
+      const ftConfig = {
+        circuitBreaker: {
+          failureThreshold: 3,
+          recoveryTimeout: 30000,
+          halfOpenRequests: 3,
+          monitoringWindow: 60000,
+          ...this.smartOptions.faultToleranceConfig.circuitBreaker
+        },
+        checkpointInterval: this.smartOptions.faultToleranceConfig.checkpointInterval || 60000,
+        maxRecoveryAttempts: this.smartOptions.faultToleranceConfig.maxRecoveryAttempts || 5,
+        recoveryBackoff: this.smartOptions.faultToleranceConfig.recoveryBackoff || 5000
+      };
+      
+      this.faultTolerantManager = new FaultTolerantManager(this, ftConfig);
+      
+      // Initialize state recovery service
+      const recoveryConfig: RecoveryConfig = {
+        checkpointDir: './checkpoints',
+        maxCheckpoints: 10,
+        compressionEnabled: false,
+        ...this.smartOptions.recoveryConfig
+      };
+      
+      this.stateRecoveryService = new StateRecoveryService((this as any).options.eventBus, recoveryConfig);
+      
+      // Setup fault tolerance event handlers
+      this.setupFaultToleranceHandlers();
+      
+      // Attempt recovery from previous checkpoint
+      const recoveryData = await this.stateRecoveryService.performRecovery();
+      if (recoveryData) {
+        await this.faultTolerantManager.restoreFromCheckpoint(recoveryData.checkpoint);
+      }
+    }
+  }
+
+  /**
+   * Setup fault tolerance event handlers
+   */
+  private setupFaultToleranceHandlers(): void {
+    const eventBus = (this as any).options.eventBus;
+    
+    // Handle failover requests
+    eventBus.on('fault-tolerance:failover', async (data: {
+      from: string;
+      to: string;
+      subscriptions: string[];
+    }) => {
+      this.smartLogger.info(`Handling failover from ${data.from} to ${data.to}`);
+      // Move subscriptions from failed to healthy connection
+      for (const subId of data.subscriptions) {
+        const group = this.subscriptionGroups.get(subId);
+        if (group) {
+          // Update registration to point to new connection
+          for (const [monitorId, reg] of this.monitorRegistrations) {
+            if (reg.subscriptionId === subId) {
+              reg.connectionId = data.to;
+              break;
+            }
+          }
+        }
+      }
+    });
+    
+    // Handle recovery attempts
+    eventBus.on('fault-tolerance:recovery-attempt', async (data: {
+      connectionId: string;
+      attempt: number;
+    }) => {
+      this.smartLogger.info(`Recovery attempt ${data.attempt} for connection ${data.connectionId}`);
+      // Attempt to reconnect the stream
+      const stream = this.connectionStreams.get(data.connectionId);
+      if (stream && !stream.isRunning) {
+        try {
+          await stream.start();
+          eventBus.emit('connection:success', { connectionId: data.connectionId });
+        } catch (error) {
+          eventBus.emit('connection:error', { 
+            connectionId: data.connectionId, 
+            error: error as Error 
+          });
+        }
+      }
+    });
+    
+    // Handle checkpoint saves
+    eventBus.on('fault-tolerance:checkpoint', async () => {
+      const checkpoint = {
+        timestamp: new Date(),
+        connectionStates: this.faultTolerantManager?.getConnectionHealth() || new Map(),
+        lastProcessedSlots: new Map(this.lastProcessedSlots),
+        activeSubscriptions: this.buildActiveSubscriptionsMap(),
+        metrics: {
+          totalProcessed: this.getStats().messages.total,
+          totalFailures: 0,
+          averageParseRate: this.getStats().messages.parseRate
+        }
+      };
+      
+      await this.stateRecoveryService?.saveCheckpoint(checkpoint);
+    });
+  }
+  
+  /**
+   * Build active subscriptions map for checkpointing
+   */
+  private buildActiveSubscriptionsMap(): Map<string, string[]> {
+    const map = new Map<string, string[]>();
+    
+    for (const [monitorId, reg] of this.monitorRegistrations) {
+      if (reg.connectionId && reg.subscriptionId) {
+        const subs = map.get(reg.connectionId) || [];
+        subs.push(reg.subscriptionId);
+        map.set(reg.connectionId, subs);
+      }
+    }
+    
+    return map;
   }
 
   /**
@@ -239,6 +376,16 @@ export class SmartStreamManager extends StreamManager {
             const bytesProcessed = JSON.stringify(data).length;
             this.loadBalancer.recordMessageComplete(connectionId, messageId, true, bytesProcessed);
             this.messageTracking.delete(messageId);
+            
+            // Emit metrics for fault tolerance
+            const metrics = this.loadBalancer.getConnectionMetrics(connectionId);
+            if (metrics && metrics.stats) {
+              originalEventBus.emit('connection:metrics', {
+                connectionId,
+                parseRate: metrics.stats.parseRate || 100,
+                latency: metrics.stats.averageLatency || 0
+              });
+            }
           }, 10);
           
         } else if (event === EVENTS.MONITOR_ERROR) {
@@ -249,6 +396,23 @@ export class SmartStreamManager extends StreamManager {
             this.loadBalancer.recordMessageComplete(connId, messageId, false);
             this.messageTracking.delete(messageId);
           }
+          
+          // Emit connection error for fault tolerance
+          originalEventBus.emit('connection:error', {
+            connectionId,
+            error: data.error || new Error('Monitor error')
+          });
+          
+          originalEventBus.emit(event, data);
+        } else if (event === EVENTS.STREAM_DATA) {
+          // Track slot for checkpointing
+          if (data.slot) {
+            this.lastProcessedSlots.set(connectionId, BigInt(data.slot));
+          }
+          
+          // Emit success for fault tolerance
+          originalEventBus.emit('connection:success', { connectionId });
+          
           originalEventBus.emit(event, data);
         } else {
           originalEventBus.emit(event, data);
@@ -420,6 +584,13 @@ export class SmartStreamManager extends StreamManager {
       monitorsByGroup[group] = (monitorsByGroup[group] || 0) + 1;
     }
 
+    // Get fault tolerance stats if available
+    const faultToleranceStats = this.faultTolerantManager ? {
+      enabled: true,
+      health: this.faultTolerantManager.getHealthSummary(),
+      lastCheckpoint: this.lastProcessedSlots.size > 0 ? new Date() : null
+    } : { enabled: false };
+
     // Return both base stats and extended stats
     return {
       ...baseStats,
@@ -427,6 +598,7 @@ export class SmartStreamManager extends StreamManager {
       subscriptions: subscriptionStats,
       load: loadStats,
       pipeline: pipelineStats,
+      faultTolerance: faultToleranceStats,
       monitors: {
         total: this.monitorRegistrations.size,
         byConnection: monitorsByConnection,
@@ -508,6 +680,16 @@ export class SmartStreamManager extends StreamManager {
         await this.dataPipeline.shutdown();
       } catch (error) {
         this.smartLogger.error('Error shutting down data pipeline:', error);
+      }
+    }
+    
+    // Shutdown fault tolerance
+    if (this.faultTolerantManager) {
+      this.smartLogger.info('Shutting down fault tolerance');
+      try {
+        this.faultTolerantManager.stop();
+      } catch (error) {
+        this.smartLogger.error('Error shutting down fault tolerance:', error);
       }
     }
     

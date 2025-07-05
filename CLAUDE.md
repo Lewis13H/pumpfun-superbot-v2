@@ -54,12 +54,15 @@ npm run build       # Build TypeScript
 - `token-creation-time-service.ts` - Fetches creation timestamps
 
 #### Monitoring Services (`services/monitoring/`)
+- `fault-tolerance-alerts.ts` - Real-time alert system for failures
 - Performance monitoring, stats aggregation, alerts
 
 #### Analysis Services (`services/analysis/`)
 - MEV detection, slippage analysis, fork detection
 
 #### Recovery Services (`services/recovery/`)
+- `fault-tolerant-manager.ts` - Circuit breakers and connection failover
+- `state-recovery-service.ts` - Checkpoint persistence and recovery
 - Recovery queue, pool creation monitoring
 
 #### Pipeline Services (`services/pipeline/`)
@@ -78,6 +81,8 @@ npm run build       # Build TypeScript
 - ✅ Stale token detection and removal
 - ✅ Bonding curve progress tracking (0-100%)
 - ✅ FDV calculation (10x market cap for pump.fun tokens)
+- ✅ Fault tolerance with circuit breakers and auto-recovery
+- ✅ State checkpointing for crash recovery
 
 ## Environment Variables
 
@@ -99,6 +104,13 @@ POOL_MIN_CONNECTIONS=2      # Minimum gRPC connections
 POOL_HEALTH_CHECK_INTERVAL=30000  # Health check interval (ms)
 POOL_CONNECTION_TIMEOUT=10000     # Connection timeout (ms)
 POOL_MAX_RETRIES=3          # Max reconnection attempts
+
+# Fault Tolerance (Optional - requires smart streaming)
+FAULT_TOLERANCE_ENABLED=true     # Enable fault tolerance
+CIRCUIT_BREAKER_THRESHOLD=3      # Failures before opening circuit
+RECOVERY_TIMEOUT=30000           # Time before recovery attempt (ms)
+CHECKPOINT_INTERVAL=60000        # State checkpoint interval (ms)
+CHECKPOINT_DIR=./checkpoints     # Directory for checkpoints
 ```
 
 ## Database Schema
@@ -338,6 +350,25 @@ POOL_MAX_RETRIES=3
   - Simplified unified-event-parser to only use LiquidityStrategy
   - System now exclusively uses smart streaming architecture
   - All functionality preserved with better organization and performance
+- ✅ **Session 8: Fault Tolerance & Recovery (Jan 6)**:
+  - Created `FaultTolerantManager` with circuit breaker implementation
+  - Implemented connection failover logic:
+    - Circuit breakers open after configurable failure threshold
+    - Automatic failover to healthy connections
+    - Emergency recovery when all connections fail
+  - Created `StateRecoveryService` for checkpoint persistence:
+    - Saves system state to disk periodically
+    - Recovers from checkpoints after crashes
+    - Tracks missed slots for catch-up processing
+  - Added `FaultToleranceAlerts` for monitoring:
+    - Real-time alerts for failures and degradation
+    - Multiple severity levels (info, warning, error, critical)
+    - Console and webhook alert support
+  - Integrated fault tolerance into SmartStreamManager:
+    - Optional enablement via configuration
+    - Automatic health monitoring and metrics emission
+    - Graceful shutdown with checkpoint saving
+  - Test scripts: `test-session-8.ts` and `test-session-8-simple.ts`
 
 ### Previous Changes (Jan 4-5)
 - ✅ **Raydium Monitor Fixed and Working** (Jan 4):

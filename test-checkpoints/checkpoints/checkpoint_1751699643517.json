@@ -1,0 +1,35 @@
+{
+  "timestamp": "2025-07-05T07:14:03.517Z",
+  "connectionStates": [
+    [
+      "conn-1",
+      {
+        "connectionId": "conn-1",
+        "failures": 2,
+        "circuitState": "CLOSED",
+        "parseRate": 95,
+        "latency": 100
+      }
+    ]
+  ],
+  "lastProcessedSlots": [
+    [
+      "conn-1",
+      "12345"
+    ]
+  ],
+  "activeSubscriptions": [
+    [
+      "conn-1",
+      [
+        "sub-1",
+        "sub-2"
+      ]
+    ]
+  ],
+  "metrics": {
+    "totalProcessed": 1000,
+    "totalFailures": 5,
+    "averageParseRate": 95
+  }
+}
