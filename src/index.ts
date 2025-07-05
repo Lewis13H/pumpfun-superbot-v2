@@ -106,6 +106,7 @@ function displayStats() {
     chalk.green('●') + ' ' + m
   ).join(' | ');
   console.log(chalk.gray('Monitors: ') + monitorStatus);
+  
 }
 
 /**
@@ -158,10 +159,7 @@ async function startMonitors() {
     
     logger.debug('Using smart streaming with domain monitors');
     
-    // Initialize SmartStreamManager
-    const streamManager = await container.resolve('StreamManager') as any;
-    await streamManager.initialize();
-    
+    // Domain monitors use the existing container system
     monitors.push(new TokenLifecycleMonitor(container));
     monitors.push(new TradingActivityMonitor(container));
     monitors.push(new LiquidityMonitor(container));
@@ -199,7 +197,7 @@ async function startMonitors() {
     console.log(chalk.green('✅ All systems operational\n'));
     
     // Initial stats display
-    console.log('\n'.repeat(6)); // Make space for stats (increased for extra line)
+    console.log('\n'.repeat(6)); // Make space for stats
     displayStats();
     
     // Update stats every 5 seconds

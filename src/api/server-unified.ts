@@ -12,6 +12,7 @@ import ammEndpoints from './amm-endpoints';
 import { registerPerformanceEndpoints } from './performance-metrics-endpoints';
 import { createStaleTokenEndpoints } from './stale-token-endpoints';
 import { RealtimePriceCache } from '../services/pricing/realtime-price-cache';
+import { setupNewEndpoints } from './setup-new-endpoints';
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;
@@ -68,6 +69,9 @@ app.use('/api/stale', createStaleTokenEndpoints(pool));
 
 // Register performance monitoring endpoints
 registerPerformanceEndpoints(app);
+
+// Register new fault tolerance and performance optimization endpoints
+setupNewEndpoints(app).catch(console.error);
 
 // Get realtime price cache instance
 const realtimePriceCache = RealtimePriceCache.getInstance();
