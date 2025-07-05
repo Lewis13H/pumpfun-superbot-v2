@@ -228,36 +228,25 @@ export class StreamManager {
       };
       
       // Merge all monitor configurations
-      let txIndex = 0;
-      for (const [programId, config] of this.monitorConfigs) {
+      for (const [, config] of this.monitorConfigs) {
         // Merge transactions
         if (config.transactions) {
-          // If config has a 'client' key, it's using the old format
-          if (config.transactions.client) {
-            mergedConfig.transactions[`prog_${programId.substring(0, 8)}_${txIndex}`] = config.transactions.client;
-          } else {
-            // Otherwise merge all transaction subscriptions
-            Object.assign(mergedConfig.transactions, config.transactions);
-          }
+          Object.assign(mergedConfig.transactions, config.transactions);
         }
         // Merge accounts
         if (config.accounts) {
-          if (config.accounts.client) {
-            mergedConfig.accounts[`acc_${programId.substring(0, 8)}_${txIndex}`] = config.accounts.client;
-          } else {
-            Object.assign(mergedConfig.accounts, config.accounts);
-          }
+          Object.assign(mergedConfig.accounts, config.accounts);
         }
         // Merge other fields if needed
         if (config.slots) {
           Object.assign(mergedConfig.slots, config.slots);
         }
-        txIndex++;
       }
       
       this.logger.info('Using merged subscription config from monitors', {
         transactionKeys: Object.keys(mergedConfig.transactions),
-        accountKeys: Object.keys(mergedConfig.accounts)
+        accountKeys: Object.keys(mergedConfig.accounts),
+        transactions: mergedConfig.transactions
       });
       
       // Convert account subscriptions to proper gRPC format

@@ -13,7 +13,7 @@ async function inspectSchema() {
       ORDER BY table_name
     `);
 
-    console.log('📋 Tables found:', tablesResult.rows.map(r => r.table_name).join(', '));
+    console.log('📋 Tables found:', tablesResult.rows.map((r: any) => r.table_name).join(', '));
     console.log('\n');
 
     // For each table, get column details
@@ -38,7 +38,7 @@ async function inspectSchema() {
       `, [tableName]);
 
       for (const col of columnsResult.rows) {
-        let type = col.data_type;
+        let type = (col as any).data_type;
         if (col.character_maximum_length) {
           type += `(${col.character_maximum_length})`;
         } else if (col.numeric_precision) {
@@ -96,7 +96,7 @@ async function inspectSchema() {
       ORDER BY ordinal_position
     `);
     console.log('\nAll columns in trades_unified:');
-    console.log(tradesColumns.rows.map(r => r.column_name).join(', '));
+    console.log(tradesColumns.rows.map((r: any) => r.column_name).join(', '));
 
     // Check what columns the code is trying to insert
     console.log('\n\n📝 Columns referenced in code that might be missing:');
@@ -137,7 +137,7 @@ async function inspectSchema() {
         WHERE table_name = $1
       `, [tableName]);
       
-      const existingColumns = result.rows.map(r => r.column_name);
+      const existingColumns = result.rows.map((r: any) => r.column_name);
       const missingColumns = columns.filter(col => !existingColumns.includes(col));
       
       if (missingColumns.length > 0) {
@@ -150,7 +150,7 @@ async function inspectSchema() {
   } catch (error) {
     console.error('Error inspecting schema:', error);
   } finally {
-    await db.end();
+    await (db as any).close();
   }
 }
 

@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Detail - Combined Analytics Mockup</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #0a0a0a;
+            color: #ffffff;
+            line-height: 1.6;
+        }
+
+        /* Header Styles */
+        .header {
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: #888;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            color: #4CAF50;
+        }
+
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            color: #888;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #4CAF50;
+            border-radius: 50%;
+            animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Back Button */
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #888;
+            text-decoration: none;
+            margin-bottom: 24px;
+            transition: color 0.3s;
+        }
+
+        .back-button:hover {
+            color: #4CAF50;
+        }
+
+        /* Token Header */
+        .token-header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+            border: 1px solid #333;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .token-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .token-icon {
+            width: 48px;
+            height: 48px;
+            background: #4CAF50;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .token-name {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .token-symbol {
+            color: #888;
+        }
+
+        .graduated-badge {
+            background: #4CAF50;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 12px;
+        }
+
+        .token-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .metric {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .metric-label {
+            color: #888;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        .metric-value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .positive {
+            color: #4CAF50;
+        }
+
+        /* Combined Analytics Section */
+        .combined-analytics-section {
+            margin: 24px 0;
+        }
+
+        .combined-score-card {
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 50%, #16213e 100%);
+            border: 2px solid #0f3460;
+            border-radius: 20px;
+            padding: 32px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .combined-score-card::before {
+            content: '';
+            position: absolute;
+            top: -100%;
+            left: -100%;
+            width: 300%;
+            height: 300%;
+            background: radial-gradient(circle, rgba(76, 175, 80, 0.1) 0%, transparent 70%);
+            animation: pulse 15s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(0.8) rotate(0deg); opacity: 0.5; }
+            50% { transform: scale(1.2) rotate(180deg); opacity: 1; }
+        }
+
+        .analytics-title {
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 24px;
+            background: linear-gradient(90deg, #4CAF50 0%, #2196F3 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Main Score Display */
+        .main-score {
+            text-align: center;
+            margin-bottom: 32px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .score-display {
+            display: flex;
+            justify-content: center;
+            align-items: baseline;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .score-value {
+            font-size: 48px;
+            font-weight: 700;
+            background: linear-gradient(90deg, #4CAF50 0%, #8BC34A 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .score-total {
+            font-size: 24px;
+            color: #666;
+        }
+
+        .score-rating {
+            padding: 8px 20px;
+            border-radius: 24px;
+            font-size: 16px;
+            font-weight: 600;
+            margin-left: 16px;
+        }
+
+        .score-rating.excellent {
+            background: linear-gradient(135deg, #4CAF50 0%, #8BC34A 100%);
+            color: white;
+        }
+
+        /* Progress Bar */
+        .main-progress {
+            height: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50 0%, #2196F3 50%, #9C27B0 100%);
+            transition: width 0.8s ease;
+            position: relative;
+            width: 87%;
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
+            animation: progress-shine 2s infinite;
+        }
+
+        @keyframes progress-shine {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .progress-percentage {
+            text-align: center;
+            font-size: 18px;
+            font-weight: 600;
+            color: #888;
+        }
+
+        /* Sub-scores Grid */
+        .sub-scores {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .sub-score {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .sub-score-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .sub-score-header .icon {
+            font-size: 20px;
+        }
+
+        .sub-score-header .label {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .sub-score-value {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .sub-progress-bar {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .sub-progress-fill {
+            height: 100%;
+            transition: width 0.6s ease;
+        }
+
+        .holder-fill {
+            background: linear-gradient(90deg, #4CAF50 0%, #8BC34A 100%);
+            width: 82%;
+        }
+
+        .momentum-fill {
+            background: linear-gradient(90deg, #2196F3 0%, #03A9F4 100%);
+            width: 92%;
+        }
+
+        /* Analytics Footer */
+        .analytics-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .last-updated {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .refresh-analytics-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #4CAF50;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+        }
+
+        .refresh-analytics-btn:hover {
+            background: rgba(76, 175, 80, 0.2);
+            border-color: #4CAF50;
+            transform: translateY(-1px);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 2px;
+            background: #1a1a1a;
+            border-radius: 12px 12px 0 0;
+            padding: 4px;
+            margin-bottom: -1px;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            transition: all 0.3s;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .tab:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab.active {
+            background: #2a2a2a;
+            color: #4CAF50;
+            border-bottom: 2px solid #4CAF50;
+        }
+
+        /* Tab Content */
+        .tab-content {
+            background: #1a1a1a;
+            border-radius: 0 0 12px 12px;
+            padding: 24px;
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Analytics Tab Styles */
+        .score-summary-card {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid #333;
+        }
+
+        .summary-content {
+            margin-top: 16px;
+        }
+
+        .combined-score-display {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: #4CAF50;
+        }
+
+        .score-components {
+            font-size: 16px;
+            line-height: 1.8;
+            color: #ccc;
+            margin-bottom: 16px;
+        }
+
+        .graduation-prediction {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .prediction-likelihood {
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        .likelihood-badge {
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-weight: 600;
+            margin-left: 8px;
+            background: #4CAF50;
+            color: white;
+            font-size: 14px;
+        }
+
+        .prediction-time {
+            font-size: 16px;
+            color: #888;
+        }
+
+        /* Breakdowns Grid */
+        .breakdowns-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .breakdown-card {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #333;
+        }
+
+        .breakdown-card h3 {
+            margin-bottom: 20px;
+            color: #fff;
+        }
+
+        .breakdown-items {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .breakdown-item {
+            display: grid;
+            grid-template-columns: 140px 1fr 80px;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .breakdown-item label {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .score-bar-wrapper {
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .score-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50 0%, #8BC34A 100%);
+            transition: width 0.6s ease;
+        }
+
+        .item-score {
+            text-align: right;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .breakdown-item.penalties {
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 16px;
+            margin-top: 8px;
+        }
+
+        .penalty-value {
+            color: #f44336;
+            font-weight: 600;
+            text-align: right;
+        }
+
+        /* KPI Grid */
+        .kpi-section {
+            margin-bottom: 32px;
+        }
+
+        .kpi-section h3 {
+            margin-bottom: 20px;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+        }
+
+        .kpi-card {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #333;
+        }
+
+        .kpi-card label {
+            display: block;
+            color: #888;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .kpi-value {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: #fff;
+        }
+
+        .kpi-change {
+            font-size: 14px;
+        }
+
+        .kpi-change.positive {
+            color: #4CAF50;
+        }
+
+        .kpi-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 20px;
+            opacity: 0.3;
+        }
+
+        .risk-indicator.low {
+            color: #4CAF50;
+        }
+
+        /* Timeline Section */
+        .timeline-section {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+            border: 1px solid #333;
+        }
+
+        .timeline-chart-container {
+            height: 300px;
+            margin: 20px 0;
+        }
+
+        .milestones {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .milestone-list {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .milestone-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            font-size: 14px;
+        }
+
+        /* Holder Distribution */
+        .distribution-section {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+            border: 1px solid #333;
+        }
+
+        .distribution-content {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 32px;
+            align-items: center;
+        }
+
+        .donut-chart-container {
+            height: 300px;
+            position: relative;
+        }
+
+        .classification-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .classification-table th,
+        .classification-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .classification-table th {
+            font-weight: 600;
+            color: #888;
+            text-transform: uppercase;
+            font-size: 12px;
+        }
+
+        .risk-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .risk-low {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+        }
+
+        .risk-medium {
+            background: rgba(255, 193, 7, 0.2);
+            color: #FFC107;
+        }
+
+        .risk-high {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+        }
+
+        /* Insights Section */
+        .insights-section {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+            border: 1px solid #333;
+        }
+
+        .insights-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin: 20px 0;
+        }
+
+        .insight-category h4 {
+            margin-bottom: 12px;
+        }
+
+        .insight-category ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .insight-category li {
+            padding: 8px 0;
+            padding-left: 20px;
+            position: relative;
+            color: #ccc;
+        }
+
+        .insight-category li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: #4CAF50;
+        }
+
+        .risk-factors li::before {
+            content: '•';
+            color: #FFC107;
+        }
+
+        .prediction-box {
+            background: linear-gradient(135deg, rgba(33, 150, 243, 0.1) 0%, rgba(76, 175, 80, 0.1) 100%);
+            border: 1px solid rgba(33, 150, 243, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 24px;
+        }
+
+        .prediction-box h4 {
+            margin-bottom: 8px;
+        }
+
+        /* Comparison Section */
+        .comparison-section {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #333;
+        }
+
+        .comparison-subtitle {
+            color: #888;
+            margin-bottom: 20px;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .comparison-table th {
+            font-weight: 600;
+            color: #888;
+            text-transform: uppercase;
+            font-size: 12px;
+        }
+
+        .percentile-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .percentile-top10 {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .percentile-top25 {
+            background: #2196F3;
+            color: white;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .sub-scores {
+                grid-template-columns: 1fr;
+            }
+            
+            .breakdowns-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .insights-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .kpi-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .distribution-content {
+                grid-template-columns: 1fr;
+            }
+
+            .token-metrics {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="nav-links">
+            <span style="font-size: 20px; margin-right: 16px;">🚀 PumpMonitor</span>
+            <a href="#" class="active">Tokens</a>
+            <a href="#">AMM Analytics</a>
+            <a href="#">Stream</a>
+        </div>
+        <div class="header-info">
+            <span>SOL $180.50</span>
+            <div class="connection-status">
+                <span>Connected</span>
+                <div class="status-dot"></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Back Button -->
+        <a href="#" class="back-button">
+            <span>←</span>
+            <span>Back to Dashboard</span>
+        </a>
+
+        <!-- Token Header -->
+        <div class="token-header">
+            <div class="token-title">
+                <div class="token-icon">🪙</div>
+                <span class="token-name">TOKEN_NAME</span>
+                <span class="token-symbol">(SYMBOL)</span>
+                <span class="graduated-badge">🎓 GRADUATED</span>
+            </div>
+            <div class="token-metrics">
+                <div class="metric">
+                    <span class="metric-label">Price</span>
+                    <span class="metric-value">$0.0234 <span class="positive">(+15.3%)</span></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Market Cap</span>
+                    <span class="metric-value">$234,567</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">FDV</span>
+                    <span class="metric-value">$2.3M</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Volume 24h</span>
+                    <span class="metric-value">$45,678</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Liquidity</span>
+                    <span class="metric-value">$123,456</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Combined Analytics Section -->
+        <div class="combined-analytics-section">
+            <div class="combined-score-card">
+                <h2 class="analytics-title">🎯 COMBINED ANALYTICS SCORE</h2>
+                
+                <!-- Main Combined Score -->
+                <div class="main-score">
+                    <div class="score-display">
+                        <span class="score-value">521</span>
+                        <span class="score-total">/ 600</span>
+                        <span class="score-rating excellent">Excellent Potential</span>
+                    </div>
+                    <div class="main-progress">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <div class="progress-percentage">87%</div>
+                </div>
+                
+                <!-- Sub-scores -->
+                <div class="sub-scores">
+                    <div class="sub-score holder-score">
+                        <div class="sub-score-header">
+                            <span class="icon">🏆</span>
+                            <span class="label">Holder Health</span>
+                        </div>
+                        <div class="sub-score-value">
+                            245/300 (82%)
+                        </div>
+                        <div class="sub-progress-bar">
+                            <div class="sub-progress-fill holder-fill"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="sub-score momentum-score">
+                        <div class="sub-score-header">
+                            <span class="icon">🚀</span>
+                            <span class="label">BC Momentum</span>
+                        </div>
+                        <div class="sub-score-value">
+                            276/300 (92%)
+                        </div>
+                        <div class="sub-progress-bar">
+                            <div class="sub-progress-fill momentum-fill"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Last Updated & Refresh -->
+                <div class="analytics-footer">
+                    <span class="last-updated">Last analyzed: 2 mins ago</span>
+                    <button class="refresh-analytics-btn">
+                        <span class="refresh-icon">↻</span> Refresh Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab" onclick="showTab('overview')">Overview</button>
+            <button class="tab" onclick="showTab('price-chart')">Price Chart</button>
+            <button class="tab active" onclick="showTab('analytics')">📊 Analytics</button>
+            <button class="tab" onclick="showTab('transactions')">Transactions</button>
+            <button class="tab" onclick="showTab('pool-info')">Pool Info</button>
+        </div>
+
+        <!-- Analytics Tab Content -->
+        <div class="tab-content active" id="analytics-tab">
+            <!-- Score Summary -->
+            <div class="score-summary-card">
+                <h3>Score Summary</h3>
+                <div class="summary-content">
+                    <div class="combined-score-display">
+                        Combined Score: 521/600 (87%)
+                    </div>
+                    <div class="score-components">
+                        <div>▸ Holder Health: 245/300</div>
+                        <div>▸ BC Momentum: 276/300</div>
+                    </div>
+                    <div class="graduation-prediction">
+                        <div class="prediction-likelihood">
+                            🎯 Graduation Likelihood: <span class="likelihood-badge">VERY HIGH</span>
+                        </div>
+                        <div class="prediction-time">
+                            ⏰ Projected Graduation: ~3.5 hours
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Detailed Breakdowns -->
+            <div class="breakdowns-grid">
+                <div class="breakdown-card">
+                    <h3>Holder Health Breakdown</h3>
+                    <div class="breakdown-items">
+                        <div class="breakdown-item">
+                            <label>Distribution Analysis</label>
+                            <div class="score-bar-wrapper">
+                                <div class="score-bar" style="width: 85%"></div>
+                            </div>
+                            <span class="item-score">85/100</span>
+                        </div>
+                        <div class="breakdown-item">
+                            <label>Whale Concentration</label>
+                            <div class="score-bar-wrapper">
+                                <div class="score-bar" style="width: 75%"></div>
+                            </div>
+                            <span class="item-score">60/80</span>
+                        </div>
+                        <div class="breakdown-item">
+                            <label>Organic Growth</label>
+                            <div class="score-bar-wrapper">
+                                <div class="score-bar" style="width: 78.5%"></div>
+                            </div>
+                            <span class="item-score">55/70</span>
+                        </div>
+                        <div class="breakdown-item">
+                            <label>Dev/Team Ethics</label>
+                            <div class="score-bar-wrapper">
+                                <div class="score-bar" style="width: 90%"></div>
+                            </div>
+                            <span class="item-score">45/50</span>
+                        </div>
+                        <div class="breakdown-item penalties">
+                            <label>Penalties</label>
+                            <span></span>
+                            <span class="penalty-value">-20</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="breakdown-card">
+                    <h3>BC Momentum Breakdown</h3>
+                    <div class="breakdown-items">
+                        <div class="breakdown-item">
+                            <label>Progress Velocity</label>
+                            <div class="score-bar-wrapper">
+                                <div class="score-bar" style="width: 87.5%"></div>
+                            </div>
+                            <span class="item-score">105/120</span>
+                        </div>
+                        <div class="breakdown-item">
+                            <label>Early Action</label>
+                            <div class="score-bar-wrapper">
+                                <div class="score-bar" style="width: 91%"></div>
+                            </div>
+                            <span class="item-score">91/100</span>
+                        </div>
+                        <div class="breakdown-item">
+                            <label>Graduation Trajectory</label>
+                            <div class="score-bar-wrapper">
+                                <div class="score-bar" style="width: 100%"></div>
+                            </div>
+                            <span class="item-score">80/80</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- KPI Grid -->
+            <div class="kpi-section">
+                <h3>Key Performance Indicators</h3>
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <label>Total Holders</label>
+                        <div class="kpi-value">1,234</div>
+                        <div class="kpi-change positive">📈 +5.2%</div>
+                    </div>
+                    <div class="kpi-card">
+                        <label>BC Progress</label>
+                        <div class="kpi-value">72.5%</div>
+                        <div class="kpi-indicator">🚀</div>
+                    </div>
+                    <div class="kpi-card">
+                        <label>Progress/Hour</label>
+                        <div class="kpi-value">+18.5%</div>
+                        <div class="kpi-change positive">📈</div>
+                    </div>
+                    <div class="kpi-card">
+                        <label>Market Cap</label>
+                        <div class="kpi-value">$234K</div>
+                        <div class="kpi-indicator">💰</div>
+                    </div>
+                    <div class="kpi-card">
+                        <label>Volume/Hour</label>
+                        <div class="kpi-value">125 SOL</div>
+                        <div class="kpi-indicator">📊</div>
+                    </div>
+                    <div class="kpi-card">
+                        <label>Time to 50%</label>
+                        <div class="kpi-value">45 mins</div>
+                        <div class="kpi-indicator">⚡</div>
+                    </div>
+                    <div class="kpi-card">
+                        <label>Holder Quality</label>
+                        <div class="kpi-value">82% Organic</div>
+                        <div class="kpi-indicator">✅</div>
+                    </div>
+                    <div class="kpi-card">
+                        <label>Momentum Score</label>
+                        <div class="kpi-value">92/100</div>
+                        <div class="kpi-indicator">🔥</div>
+                    </div>
+                    <div class="kpi-card">
+                        <label>Risk Level</label>
+                        <div class="kpi-value risk-indicator low">LOW ✅</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Progress Timeline Chart -->
+            <div class="timeline-section">
+                <h3>Momentum & Progress Timeline</h3>
+                <div class="timeline-chart-container">
+                    <canvas id="progressTimelineChart"></canvas>
+                </div>
+                <div class="milestones">
+                    <h4>Milestones:</h4>
+                    <div class="milestone-list">
+                        <div class="milestone-item">⚡ 10% @ 15min</div>
+                        <div class="milestone-item">⚡ 25% @ 38min</div>
+                        <div class="milestone-item">⚡ 50% @ 1.5hr</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Holder Distribution -->
+            <div class="distribution-section">
+                <h3>Holder Distribution & Classifications</h3>
+                <div class="distribution-content">
+                    <div class="donut-chart-container">
+                        <canvas id="holderDistributionChart"></canvas>
+                    </div>
+                    <table class="classification-table">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Count</th>
+                                <th>Supply</th>
+                                <th>Risk</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>🌱 Organic</td>
+                                <td>850</td>
+                                <td>52.3%</td>
+                                <td><span class="risk-badge risk-low">✅ Low</span></td>
+                            </tr>
+                            <tr>
+                                <td>🎯 Snipers</td>
+                                <td>15</td>
+                                <td>18.5%</td>
+                                <td><span class="risk-badge risk-high">🔴 High</span></td>
+                            </tr>
+                            <tr>
+                                <td>🤖 Bots</td>
+                                <td>45</td>
+                                <td>8.2%</td>
+                                <td><span class="risk-badge risk-medium">🟡 Med</span></td>
+                            </tr>
+                            <tr>
+                                <td>🐋 Whales</td>
+                                <td>8</td>
+                                <td>15.8%</td>
+                                <td><span class="risk-badge risk-medium">🟡 Med</span></td>
+                            </tr>
+                            <tr>
+                                <td>👨‍💻 Dev</td>
+                                <td>3</td>
+                                <td>5.2%</td>
+                                <td><span class="risk-badge risk-low">✅ Low</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Combined Insights -->
+            <div class="insights-section">
+                <h3>Combined Analytics Insights & Alerts</h3>
+                
+                <div class="insights-grid">
+                    <div class="insight-category strong-signals">
+                        <h4>🟢 Strong Signals:</h4>
+                        <ul>
+                            <li>Exceptional momentum (92% score)</li>
+                            <li>Reached 50% in record time (45 mins)</li>
+                            <li>Healthy holder distribution (82% organic)</li>
+                            <li>Low developer holdings (5.2%)</li>
+                            <li>Consistent upward trajectory</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="insight-category risk-factors">
+                        <h4>⚠️ Risk Factors:</h4>
+                        <ul>
+                            <li>High sniper concentration (18.5%)</li>
+                            <li>Top 10 holders control 28.5%</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="prediction-box">
+                    <h4>📊 Prediction:</h4>
+                    <p>Based on current momentum and holder quality, this token has a 94% probability of graduating within 4 hours.</p>
+                </div>
+            </div>
+            
+            <!-- Historical Comparison -->
+            <div class="comparison-section">
+                <h3>Historical Comparison</h3>
+                <p class="comparison-subtitle">This token vs. successful graduates at same progress:</p>
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>This Token</th>
+                            <th>Avg Graduate</th>
+                            <th>Percentile</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Time to 70%</td>
+                            <td>2.8 hours</td>
+                            <td>5.2 hours</td>
+                            <td><span class="percentile-badge percentile-top10">Top 10%</span></td>
+                        </tr>
+                        <tr>
+                            <td>Holder Count</td>
+                            <td>1,234</td>
+                            <td>856</td>
+                            <td><span class="percentile-badge percentile-top25">Top 25%</span></td>
+                        </tr>
+                        <tr>
+                            <td>Volume/Hour</td>
+                            <td>125 SOL</td>
+                            <td>78 SOL</td>
+                            <td><span class="percentile-badge percentile-top25">Top 15%</span></td>
+                        </tr>
+                        <tr>
+                            <td>Organic Holders</td>
+                            <td>82%</td>
+                            <td>71%</td>
+                            <td><span class="percentile-badge percentile-top25">Top 20%</span></td>
+                        </tr>
+                        <tr>
+                            <td>Price Stability</td>
+                            <td>High</td>
+                            <td>Medium</td>
+                            <td><span class="percentile-badge percentile-top25">Top 30%</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching functionality
+        function showTab(tabName) {
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+            
+            // In a real implementation, this would show/hide different tab contents
+            console.log('Showing tab:', tabName);
+        }
+
+        // Progress Timeline Chart
+        const ctx = document.getElementById('progressTimelineChart').getContext('2d');
+        const progressChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['0h', '1h', '2h', '3h', '4h', '5h', '6h', '7h', '8h'],
+                datasets: [{
+                    label: 'Actual Progress',
+                    data: [0, 15, 32, 48, 72.5, null, null, null, null],
+                    borderColor: '#4CAF50',
+                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#4CAF50',
+                    borderWidth: 3
+                }, {
+                    label: 'Projected Progress',
+                    data: [null, null, null, null, 72.5, 82, 91, 97, 100],
+                    borderColor: '#2196F3',
+                    backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                    borderDash: [5, 5],
+                    tension: 0.4,
+                    pointRadius: 0,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            },
+                            color: '#888'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: '#888'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#888'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Holder Distribution Chart
+        const distributionCtx = document.getElementById('holderDistributionChart').getContext('2d');
+        const distributionChart = new Chart(distributionCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Organic 65%', 'Snipers 15%', 'Bots 10%', 'Whales 8%', 'Dev 2%'],
+                datasets: [{
+                    data: [65, 15, 10, 8, 2],
+                    backgroundColor: [
+                        '#4CAF50',
+                        '#f44336',
+                        '#FF9800',
+                        '#2196F3',
+                        '#9C27B0'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#888',
+                            padding: 15,
+                            usePointStyle: true,
+                            font: {
+                                size: 12
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Refresh button animation
+        document.querySelector('.refresh-analytics-btn').addEventListener('click', function() {
+            this.disabled = true;
+            const icon = this.querySelector('.refresh-icon');
+            icon.style.animation = 'spin 1s linear infinite';
+            
+            // Simulate refresh
+            setTimeout(() => {
+                this.disabled = false;
+                icon.style.animation = '';
+            }, 2000);
+        });
+
+        // Add spin animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>

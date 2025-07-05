@@ -48,7 +48,7 @@ async function checkMissingColumns() {
         ORDER BY ordinal_position
       `, [tableName]);
 
-      const actualColumns = result.rows.map(r => r.column_name);
+      const actualColumns = result.rows.map((r: any) => r.column_name);
       console.log(`Found ${actualColumns.length} columns`);
 
       // Find missing columns
@@ -80,7 +80,7 @@ async function checkMissingColumns() {
   } catch (error) {
     console.error('Error checking columns:', error);
   } finally {
-    await db.end();
+    await (db as any).close();
   }
 }
 

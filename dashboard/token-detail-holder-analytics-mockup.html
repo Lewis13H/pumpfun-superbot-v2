@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Detail - Holder Analytics Mockup</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #0a0a0a;
+            color: #ffffff;
+            line-height: 1.6;
+        }
+
+        /* Header Styles */
+        .header {
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: #888;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            color: #4CAF50;
+        }
+
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            color: #888;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #4CAF50;
+            border-radius: 50%;
+            animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Back Button */
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #888;
+            text-decoration: none;
+            margin-bottom: 24px;
+            transition: color 0.3s;
+        }
+
+        .back-button:hover {
+            color: #4CAF50;
+        }
+
+        /* Token Header */
+        .token-header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+            border: 1px solid #333;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .token-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .token-icon {
+            width: 48px;
+            height: 48px;
+            background: #4CAF50;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .token-name {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .token-symbol {
+            color: #888;
+        }
+
+        .graduated-badge {
+            background: #4CAF50;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 12px;
+        }
+
+        .token-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .metric {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .metric-label {
+            color: #888;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        .metric-value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .positive {
+            color: #4CAF50;
+        }
+
+        /* Holder Score Section */
+        .holder-score-section {
+            margin: 24px 0;
+        }
+
+        .holder-score-badge {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 1px solid #0f3460;
+            border-radius: 16px;
+            padding: 24px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .holder-score-badge::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
+            animation: shimmer 10s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .score-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .score-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .trophy-icon {
+            font-size: 24px;
+        }
+
+        .score-value {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        #holderScore {
+            font-size: 36px;
+            font-weight: 700;
+            color: #4CAF50;
+        }
+
+        .score-total {
+            font-size: 18px;
+            color: #666;
+        }
+
+        .score-rating {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .score-rating.excellent {
+            background: #4CAF50;
+            color: white;
+        }
+
+        /* Progress Bar */
+        .score-progress {
+            position: relative;
+            margin-bottom: 16px;
+            z-index: 1;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50 0%, #8BC34A 100%);
+            transition: width 0.6s ease;
+            position: relative;
+            width: 82%;
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
+            animation: progress-shine 2s infinite;
+        }
+
+        @keyframes progress-shine {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .progress-label {
+            text-align: center;
+            margin-top: 8px;
+        }
+
+        .score-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .last-analyzed {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .refresh-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #4CAF50;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(76,175,80,0.2);
+            border-color: #4CAF50;
+            transform: translateY(-1px);
+        }
+
+        .refresh-icon {
+            display: inline-block;
+            transition: transform 0.3s;
+        }
+
+        .refresh-btn:hover .refresh-icon {
+            transform: rotate(180deg);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 2px;
+            background: #1a1a1a;
+            border-radius: 12px 12px 0 0;
+            padding: 4px;
+            margin-bottom: -1px;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            transition: all 0.3s;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .tab:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab.active {
+            background: #2a2a2a;
+            color: #4CAF50;
+            border-bottom: 2px solid #4CAF50;
+        }
+
+        /* Tab Content */
+        .tab-content {
+            background: #1a1a1a;
+            border-radius: 0 0 12px 12px;
+            padding: 24px;
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Holders Tab Content */
+        .holders-overview {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .score-breakdown {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #333;
+        }
+
+        .score-components {
+            margin-top: 20px;
+        }
+
+        .score-item {
+            display: grid;
+            grid-template-columns: 120px 1fr 60px;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .score-bar-container {
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .score-bar {
+            height: 100%;
+            background: #4CAF50;
+            transition: width 0.6s ease;
+        }
+
+        .penalties {
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 12px;
+            margin-top: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .penalty-label {
+            color: #888;
+        }
+
+        .penalty-value {
+            color: #f44336;
+            font-weight: 600;
+        }
+
+        /* Distribution Chart */
+        .distribution-chart {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            border: 1px solid #333;
+        }
+
+        #holderDistributionChart {
+            max-height: 300px;
+        }
+
+        /* Metrics Grid */
+        .metrics-grid {
+            margin-bottom: 32px;
+        }
+
+        .metrics-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .metric-card {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid #333;
+        }
+
+        .metric-card .metric-label {
+            color: #888;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .metric-card .metric-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .metric-change {
+            font-size: 14px;
+        }
+
+        .metric-change.positive {
+            color: #4CAF50;
+        }
+
+        .metric-change.negative {
+            color: #f44336;
+        }
+
+        /* Classifications Table */
+        .classifications-section {
+            margin-bottom: 32px;
+        }
+
+        .classifications-table {
+            width: 100%;
+            background: #2a2a2a;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #333;
+        }
+
+        .classifications-table th,
+        .classifications-table td {
+            padding: 12px;
+            text-align: left;
+        }
+
+        .classifications-table th {
+            background: rgba(255,255,255,0.05);
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #888;
+        }
+
+        .classifications-table td {
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .risk-indicator {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .risk-low {
+            background: rgba(76,175,80,0.2);
+            color: #4CAF50;
+        }
+
+        .risk-medium {
+            background: rgba(255,193,7,0.2);
+            color: #FFC107;
+        }
+
+        .risk-high {
+            background: rgba(244,67,54,0.2);
+            color: #f44336;
+        }
+
+        /* Growth Chart */
+        .growth-chart-section {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+            border: 1px solid #333;
+        }
+
+        .chart-container {
+            height: 300px;
+            margin-top: 20px;
+        }
+
+        /* Top Holders */
+        .top-holders-section {
+            margin-bottom: 32px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .view-more {
+            color: #4CAF50;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .holders-table {
+            width: 100%;
+            background: #2a2a2a;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #333;
+        }
+
+        .holders-table th,
+        .holders-table td {
+            padding: 12px;
+            text-align: left;
+        }
+
+        .holders-table th {
+            background: rgba(255,255,255,0.05);
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #888;
+        }
+
+        .holders-table td {
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .address {
+            font-family: monospace;
+            font-size: 13px;
+        }
+
+        /* Health Alerts */
+        .health-indicators {
+            margin-top: 32px;
+        }
+
+        .alerts-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .health-alert {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .alert-warning {
+            background: rgba(255,193,7,0.1);
+            border: 1px solid rgba(255,193,7,0.3);
+            color: #FFC107;
+        }
+
+        .alert-success {
+            background: rgba(76,175,80,0.1);
+            border: 1px solid rgba(76,175,80,0.3);
+            color: #4CAF50;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .holders-overview {
+                grid-template-columns: 1fr;
+            }
+            
+            .metrics-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .classifications-table {
+                font-size: 12px;
+            }
+            
+            .classifications-table th,
+            .classifications-table td {
+                padding: 8px;
+            }
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="nav-links">
+            <span style="font-size: 20px; margin-right: 16px;">🚀 PumpMonitor</span>
+            <a href="#" class="active">Tokens</a>
+            <a href="#">AMM Analytics</a>
+            <a href="#">Stream</a>
+        </div>
+        <div class="header-info">
+            <span>SOL $180.50</span>
+            <div class="connection-status">
+                <span>Connected</span>
+                <div class="status-dot"></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Back Button -->
+        <a href="#" class="back-button">
+            <span>←</span>
+            <span>Back to Dashboard</span>
+        </a>
+
+        <!-- Token Header -->
+        <div class="token-header">
+            <div class="token-title">
+                <div class="token-icon">🪙</div>
+                <span class="token-name">TOKEN_NAME</span>
+                <span class="token-symbol">(SYMBOL)</span>
+                <span class="graduated-badge">🎓 GRADUATED</span>
+            </div>
+            <div class="token-metrics">
+                <div class="metric">
+                    <span class="metric-label">Price</span>
+                    <span class="metric-value">$0.0234 <span class="positive">(+15.3%)</span></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Market Cap</span>
+                    <span class="metric-value">$234,567</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">FDV</span>
+                    <span class="metric-value">$2.3M</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Volume 24h</span>
+                    <span class="metric-value">$45,678</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Liquidity</span>
+                    <span class="metric-value">$123,456</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Holder Score Section -->
+        <div class="holder-score-section">
+            <div class="holder-score-badge">
+                <div class="score-header">
+                    <div class="score-title">
+                        <span class="trophy-icon">🏆</span>
+                        <h3>Holder Health Score</h3>
+                    </div>
+                    <div class="score-value">
+                        <span id="holderScore">245</span>
+                        <span class="score-total">/ 300</span>
+                        <span class="score-rating excellent">Excellent</span>
+                    </div>
+                </div>
+                <div class="score-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <div class="progress-label">
+                        <span id="scorePercentage">82%</span>
+                    </div>
+                </div>
+                <div class="score-footer">
+                    <span class="last-analyzed">Last analyzed: <span id="lastAnalyzed">5 minutes ago</span></span>
+                    <button class="refresh-btn">
+                        <span class="refresh-icon">↻</span> Refresh Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab">Overview</button>
+            <button class="tab">Price Chart</button>
+            <button class="tab active">📊 Holders</button>
+            <button class="tab">Transactions</button>
+            <button class="tab">Pool Info</button>
+        </div>
+
+        <!-- Holders Tab Content -->
+        <div class="tab-content active">
+            <!-- Score Breakdown and Distribution -->
+            <div class="holders-overview">
+                <div class="score-breakdown">
+                    <h3>Score Breakdown</h3>
+                    <div class="score-components">
+                        <div class="score-item">
+                            <label>Distribution</label>
+                            <div class="score-bar-container">
+                                <div class="score-bar" style="width: 90%"></div>
+                            </div>
+                            <span class="score-value">45/50</span>
+                        </div>
+                        <div class="score-item">
+                            <label>Decentralization</label>
+                            <div class="score-bar-container">
+                                <div class="score-bar" style="width: 80%"></div>
+                            </div>
+                            <span class="score-value">40/50</span>
+                        </div>
+                        <div class="score-item">
+                            <label>Organic Growth</label>
+                            <div class="score-bar-container">
+                                <div class="score-bar" style="width: 83%"></div>
+                            </div>
+                            <span class="score-value">25/30</span>
+                        </div>
+                        <div class="score-item">
+                            <label>Developer Ethics</label>
+                            <div class="score-bar-container">
+                                <div class="score-bar" style="width: 75%"></div>
+                            </div>
+                            <span class="score-value">15/20</span>
+                        </div>
+                        <div class="penalties">
+                            <span class="penalty-label">Penalties</span>
+                            <span class="penalty-value">-25</span>
+                        </div>
+                        <div class="penalties" style="border-top: 2px solid rgba(255,255,255,0.2); padding-top: 16px; margin-top: 16px;">
+                            <span style="font-weight: 600;">Total Score</span>
+                            <span style="font-weight: 600; color: #4CAF50;">245</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="distribution-chart">
+                    <h3>Holder Distribution</h3>
+                    <canvas id="holderDistributionChart"></canvas>
+                    <div style="margin-top: 16px; color: #888; font-size: 14px;">
+                        Total: 1,234 holders
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Key Metrics Grid -->
+            <div class="metrics-grid">
+                <h3>Key Metrics</h3>
+                <div class="metrics-container">
+                    <div class="metric-card">
+                        <div class="metric-label">Total Holders</div>
+                        <div class="metric-value">1,234</div>
+                        <div class="metric-change positive">📈 +5.2%</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Unique Wallets</div>
+                        <div class="metric-value">1,180</div>
+                        <div class="metric-change">(95.6%)</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Avg Holding Duration</div>
+                        <div class="metric-value">18.5 hours</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Top 10 Hold</div>
+                        <div class="metric-value">28.5%</div>
+                        <div class="metric-change">✅</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Top 25 Hold</div>
+                        <div class="metric-value">42.3%</div>
+                        <div class="metric-change">⚠️</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Gini Coefficient</div>
+                        <div class="metric-value">0.72</div>
+                        <div class="metric-change">(High)</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Growth Rate 24h</div>
+                        <div class="metric-value">+12.3%</div>
+                        <div class="metric-change">🚀</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Churn Rate 24h</div>
+                        <div class="metric-value">3.2%</div>
+                        <div class="metric-change">✅</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Concentration Risk</div>
+                        <div class="metric-value">Medium</div>
+                        <div class="metric-change">⚠️</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Classifications Table -->
+            <div class="classifications-section">
+                <h3>Holder Classifications & Risk Analysis</h3>
+                <table class="classifications-table">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Wallets</th>
+                            <th>% Holders</th>
+                            <th>% Supply</th>
+                            <th>Avg Size</th>
+                            <th>Risk</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>🌱 Organic</td>
+                            <td>850</td>
+                            <td>68.9%</td>
+                            <td>52.3%</td>
+                            <td>76.5K</td>
+                            <td><span class="risk-indicator risk-low">✅</span></td>
+                        </tr>
+                        <tr>
+                            <td>🎯 Snipers</td>
+                            <td>15</td>
+                            <td>1.2%</td>
+                            <td>18.5%</td>
+                            <td>1.5M</td>
+                            <td><span class="risk-indicator risk-high">🔴</span></td>
+                        </tr>
+                        <tr>
+                            <td>🤖 Bots</td>
+                            <td>45</td>
+                            <td>3.6%</td>
+                            <td>8.2%</td>
+                            <td>226K</td>
+                            <td><span class="risk-indicator risk-medium">🟡</span></td>
+                        </tr>
+                        <tr>
+                            <td>🐋 Whales</td>
+                            <td>8</td>
+                            <td>0.6%</td>
+                            <td>15.8%</td>
+                            <td>2.5M</td>
+                            <td><span class="risk-indicator risk-medium">🟡</span></td>
+                        </tr>
+                        <tr>
+                            <td>👨‍💻 Dev</td>
+                            <td>3</td>
+                            <td>0.2%</td>
+                            <td>5.2%</td>
+                            <td>2.2M</td>
+                            <td><span class="risk-indicator risk-low">✅</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Growth Chart -->
+            <div class="growth-chart-section">
+                <h3>Holder Growth & Score History (7 Days)</h3>
+                <div class="chart-container">
+                    <canvas id="holderGrowthChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Top Holders -->
+            <div class="top-holders-section">
+                <div class="section-header">
+                    <h3>Top 10 Holders</h3>
+                    <a href="#" class="view-more">View All</a>
+                </div>
+                <table class="holders-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Address</th>
+                            <th>Balance</th>
+                            <th>%</th>
+                            <th>Type</th>
+                            <th>First Buy</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1</td>
+                            <td class="address">7xKd...3mP</td>
+                            <td>5,234,567</td>
+                            <td>8.5%</td>
+                            <td>🐋</td>
+                            <td>2 days ago</td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td class="address">9bNf...8kL</td>
+                            <td>3,123,456</td>
+                            <td>5.1%</td>
+                            <td>🎯</td>
+                            <td>5 mins</td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td class="address">2mXy...4pQ</td>
+                            <td>2,987,654</td>
+                            <td>4.9%</td>
+                            <td>🌱</td>
+                            <td>1 day ago</td>
+                        </tr>
+                        <tr>
+                            <td>4</td>
+                            <td class="address">5kLm...7nR</td>
+                            <td>2,456,789</td>
+                            <td>4.0%</td>
+                            <td>🤖</td>
+                            <td>3 hours ago</td>
+                        </tr>
+                        <tr>
+                            <td>5</td>
+                            <td class="address">8qWe...2mS</td>
+                            <td>2,123,456</td>
+                            <td>3.5%</td>
+                            <td>🌱</td>
+                            <td>12 hrs ago</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Health Indicators -->
+            <div class="health-indicators">
+                <h3>Health Indicators & Alerts</h3>
+                <div class="alerts-container">
+                    <div class="health-alert alert-warning">
+                        <span>⚠️</span>
+                        <span>High Sniper Concentration (18.5% of supply)</span>
+                    </div>
+                    <div class="health-alert alert-success">
+                        <span>✅</span>
+                        <span>Healthy Holder Growth (+12.3% in 24h)</span>
+                    </div>
+                    <div class="health-alert alert-success">
+                        <span>✅</span>
+                        <span>Low Developer Holdings (5.2%)</span>
+                    </div>
+                    <div class="health-alert alert-warning">
+                        <span>⚠️</span>
+                        <span>Increasing Concentration (Top 10: +2.3% in 24h)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Holder Distribution Chart
+        const ctx = document.getElementById('holderDistributionChart').getContext('2d');
+        const distributionChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Organic', 'Snipers', 'Bots', 'Whales', 'Developer'],
+                datasets: [{
+                    data: [850, 15, 45, 8, 3],
+                    backgroundColor: [
+                        '#4CAF50',
+                        '#f44336',
+                        '#FF9800',
+                        '#2196F3',
+                        '#9C27B0'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#888',
+                            padding: 15,
+                            usePointStyle: true,
+                            generateLabels: function(chart) {
+                                const data = chart.data;
+                                const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                return data.labels.map((label, i) => {
+                                    const value = data.datasets[0].data[i];
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return {
+                                        text: `${label} ${percentage}% (${value})`,
+                                        fillStyle: data.datasets[0].backgroundColor[i],
+                                        hidden: false,
+                                        index: i
+                                    };
+                                });
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return `${label}: ${percentage}% (${value} wallets)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Holder Growth Chart
+        const growthCtx = document.getElementById('holderGrowthChart').getContext('2d');
+        const growthChart = new Chart(growthCtx, {
+            type: 'line',
+            data: {
+                labels: ['7d', '6d', '5d', '4d', '3d', '2d', '1d', 'Now'],
+                datasets: [{
+                    label: 'Holders',
+                    data: [600, 680, 750, 820, 950, 1050, 1150, 1234],
+                    borderColor: '#4CAF50',
+                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                    tension: 0.4,
+                    yAxisID: 'y',
+                    borderWidth: 3
+                }, {
+                    label: 'Score',
+                    data: [180, 190, 205, 215, 225, 235, 240, 245],
+                    borderColor: '#2196F3',
+                    backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                    borderDash: [5, 5],
+                    tension: 0.4,
+                    yAxisID: 'y1',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Holders',
+                            color: '#888'
+                        },
+                        ticks: {
+                            color: '#888'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Score',
+                            color: '#888'
+                        },
+                        ticks: {
+                            color: '#888'
+                        },
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                    },
+                    x: {
+                        ticks: {
+                            color: '#888'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#888'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Refresh button functionality
+        document.querySelector('.refresh-btn').addEventListener('click', function() {
+            this.disabled = true;
+            const icon = this.querySelector('.refresh-icon');
+            icon.style.animation = 'spin 1s linear infinite';
+            
+            // Simulate refresh
+            setTimeout(() => {
+                this.disabled = false;
+                icon.style.animation = '';
+                
+                // Update last analyzed time
+                document.getElementById('lastAnalyzed').textContent = 'just now';
+            }, 2000);
+        });
+
+        // Tab switching (for demo purposes)
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>

@@ -79,6 +79,13 @@ HELIUS_API_KEY=your-key     # Metadata fallback
 SHYFT_API_KEY=your-key      # Primary metadata
 BC_SAVE_THRESHOLD=8888      # BC market cap threshold
 AMM_SAVE_THRESHOLD=1000     # AMM market cap threshold
+
+# Connection Pool Configuration
+POOL_MAX_CONNECTIONS=3      # Maximum gRPC connections
+POOL_MIN_CONNECTIONS=2      # Minimum gRPC connections
+POOL_HEALTH_CHECK_INTERVAL=30000  # Health check interval (ms)
+POOL_CONNECTION_TIMEOUT=10000     # Connection timeout (ms)
+POOL_MAX_RETRIES=3          # Max reconnection attempts
 ```
 
 ## Database Schema
@@ -138,7 +145,20 @@ Main tables:
 
 ## Recent Updates (January 2025)
 
-### Latest Changes (Jan 4-5)
+### Latest Changes (Jan 5)
+- ✅ **Connection Pool Implementation (Session 1)**:
+  - Created `ConnectionPool` class with health monitoring and metrics
+  - Implemented `SmartStreamManager` extending current StreamManager
+  - Added pool configuration with environment variables
+  - Connection prioritization: BC (high), AMM (medium), Raydium (low)
+  - Health checks every 30 seconds with auto-recovery
+  - Supports 2-3 concurrent gRPC connections
+  - Removed obsolete test script: `test-amm-monitors.ts`
+  - Created `MIGRATION_GUIDE.md` for incremental migration
+  - Fixed all TypeScript errors in test scripts
+  - Build completes successfully
+
+### Previous Changes (Jan 4-5)
 - ✅ **Raydium Monitor Fixed and Working** (Jan 4):
   - Fixed transaction parsing - now achieving ~85% parse rate
   - Created RaydiumTransactionFormatter to handle raw gRPC data format

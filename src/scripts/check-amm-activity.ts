@@ -60,7 +60,7 @@ async function checkAMMActivity() {
 
     if (nearGraduation.rows.length > 0) {
       console.log('🎯 Tokens Close to Graduation (>90% progress):');
-      nearGraduation.rows.forEach(token => {
+      nearGraduation.rows.forEach((token: any) => {
         console.log(`   ${token.symbol || 'UNKNOWN'} - ${token.max_progress}% - $${parseFloat(token.max_market_cap).toFixed(0)} MC`);
       });
     } else {
@@ -83,7 +83,7 @@ async function checkAMMActivity() {
   } catch (error) {
     console.error('Error checking AMM activity:', error);
   } finally {
-    await db.end();
+    await (db as any).close();
   }
 }
 

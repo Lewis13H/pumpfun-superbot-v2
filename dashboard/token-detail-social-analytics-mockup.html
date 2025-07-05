@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Detail - Social Analytics Mockup</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #0a0a0a;
+            color: #ffffff;
+            line-height: 1.6;
+        }
+
+        /* Header Styles */
+        .header {
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: #888;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            color: #1DA1F2;
+        }
+
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            color: #888;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #4CAF50;
+            border-radius: 50%;
+            animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Back Button */
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #888;
+            text-decoration: none;
+            margin-bottom: 24px;
+            transition: color 0.3s;
+        }
+
+        .back-button:hover {
+            color: #1DA1F2;
+        }
+
+        /* Token Header */
+        .token-header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+            border: 1px solid #333;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .token-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .token-icon {
+            width: 48px;
+            height: 48px;
+            background: #1DA1F2;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .token-name {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .token-symbol {
+            color: #888;
+        }
+
+        .graduated-badge {
+            background: #4CAF50;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 12px;
+        }
+
+        .token-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .metric {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .metric-label {
+            color: #888;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        .metric-value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .positive {
+            color: #4CAF50;
+        }
+
+        /* Social Score Section */
+        .social-score-section {
+            margin: 24px 0;
+        }
+
+        .social-score-badge {
+            background: linear-gradient(135deg, #15202B 0%, #192734 100%);
+            border: 1px solid #1DA1F2;
+            border-radius: 16px;
+            padding: 24px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .social-score-badge::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(29, 161, 242, 0.1) 0%, transparent 70%);
+            animation: twitter-pulse 8s infinite;
+        }
+
+        @keyframes twitter-pulse {
+            0%, 100% { transform: scale(0.8) rotate(0deg); opacity: 0.3; }
+            50% { transform: scale(1.2) rotate(180deg); opacity: 0.6; }
+        }
+
+        .score-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .score-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .twitter-icon {
+            font-size: 24px;
+        }
+
+        .score-value {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        #socialScore {
+            font-size: 36px;
+            font-weight: 700;
+            color: #1DA1F2;
+        }
+
+        .score-total {
+            font-size: 18px;
+            color: #666;
+        }
+
+        .score-rating {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .score-rating.excellent {
+            background: #1DA1F2;
+            color: white;
+        }
+
+        .score-rating.good {
+            background: #17BF63;
+            color: white;
+        }
+
+        .score-rating.fair {
+            background: #FFAD1F;
+            color: white;
+        }
+
+        .score-rating.poor {
+            background: #E1444D;
+            color: white;
+        }
+
+        /* Progress Bar */
+        .score-progress {
+            position: relative;
+            margin-bottom: 16px;
+            z-index: 1;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #1DA1F2 0%, #17BF63 100%);
+            transition: width 0.6s ease;
+            position: relative;
+            width: 83%;
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
+            animation: progress-shine 2s infinite;
+        }
+
+        @keyframes progress-shine {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .progress-label {
+            text-align: center;
+            margin-top: 8px;
+        }
+
+        .score-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .last-analyzed {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .refresh-btn {
+            background: rgba(29, 161, 242, 0.1);
+            border: 1px solid rgba(29, 161, 242, 0.3);
+            color: #1DA1F2;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(29, 161, 242, 0.2);
+            border-color: #1DA1F2;
+            transform: translateY(-1px);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 2px;
+            background: #1a1a1a;
+            border-radius: 12px 12px 0 0;
+            padding: 4px;
+            margin-bottom: -1px;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            transition: all 0.3s;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .tab:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab.active {
+            background: #2a2a2a;
+            color: #1DA1F2;
+            border-bottom: 2px solid #1DA1F2;
+        }
+
+        /* Tab Content */
+        .tab-content {
+            background: #1a1a1a;
+            border-radius: 0 0 12px 12px;
+            padding: 24px;
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Social Tab Content */
+        .social-overview {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .score-breakdown {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #333;
+        }
+
+        .score-components {
+            margin-top: 20px;
+        }
+
+        .score-item {
+            display: grid;
+            grid-template-columns: 140px 1fr 60px;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .score-bar-container {
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .score-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #1DA1F2 0%, #17BF63 100%);
+            transition: width 0.6s ease;
+        }
+
+        /* Engagement Chart */
+        .engagement-chart {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            border: 1px solid #333;
+        }
+
+        /* Twitter Metrics */
+        .twitter-metrics {
+            margin-bottom: 32px;
+        }
+
+        .metrics-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .metric-card {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid #333;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, rgba(29, 161, 242, 0.1) 0%, transparent 70%);
+        }
+
+        .metric-card .metric-label {
+            color: #888;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .metric-card .metric-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .metric-change {
+            font-size: 14px;
+        }
+
+        .metric-change.positive {
+            color: #17BF63;
+        }
+
+        .metric-change.negative {
+            color: #E1444D;
+        }
+
+        /* Influencer Analysis */
+        .influencer-section {
+            margin-bottom: 32px;
+        }
+
+        .influencer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .influencer-card {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #333;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: all 0.3s;
+        }
+
+        .influencer-card:hover {
+            transform: translateY(-2px);
+            border-color: #1DA1F2;
+        }
+
+        .influencer-avatar {
+            width: 48px;
+            height: 48px;
+            background: #1DA1F2;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .influencer-info {
+            flex: 1;
+        }
+
+        .influencer-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .influencer-handle {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .influencer-stats {
+            text-align: right;
+        }
+
+        .follower-count {
+            font-weight: 600;
+            color: #1DA1F2;
+        }
+
+        .verified-badge {
+            color: #1DA1F2;
+            margin-left: 4px;
+        }
+
+        /* Sentiment Analysis */
+        .sentiment-section {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+            border: 1px solid #333;
+        }
+
+        .sentiment-overview {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 32px;
+            margin-top: 20px;
+        }
+
+        .sentiment-score-display {
+            text-align: center;
+        }
+
+        .sentiment-gauge {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 16px;
+            position: relative;
+        }
+
+        .sentiment-label {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .sentiment-label.positive {
+            color: #17BF63;
+        }
+
+        .sentiment-label.neutral {
+            color: #FFAD1F;
+        }
+
+        .sentiment-label.negative {
+            color: #E1444D;
+        }
+
+        .sentiment-breakdown {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .sentiment-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+        }
+
+        .sentiment-bar {
+            flex: 1;
+            height: 24px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            margin: 0 16px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .sentiment-fill {
+            height: 100%;
+            transition: width 0.6s ease;
+        }
+
+        .sentiment-fill.positive {
+            background: #17BF63;
+        }
+
+        .sentiment-fill.neutral {
+            background: #FFAD1F;
+        }
+
+        .sentiment-fill.negative {
+            background: #E1444D;
+        }
+
+        /* Activity Timeline */
+        .activity-timeline {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+            border: 1px solid #333;
+        }
+
+        .timeline-chart-container {
+            height: 300px;
+            margin-top: 20px;
+        }
+
+        /* Recent Tweets */
+        .recent-tweets-section {
+            margin-bottom: 32px;
+        }
+
+        .tweets-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .tweet-card {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #333;
+            transition: all 0.3s;
+        }
+
+        .tweet-card:hover {
+            border-color: #1DA1F2;
+        }
+
+        .tweet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+
+        .tweet-author {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .tweet-avatar {
+            width: 40px;
+            height: 40px;
+            background: #1DA1F2;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .tweet-author-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tweet-author-name {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .tweet-author-handle {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .tweet-time {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .tweet-content {
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+
+        .tweet-metrics {
+            display: flex;
+            gap: 24px;
+            color: #888;
+            font-size: 14px;
+        }
+
+        .tweet-metric {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .tweet-metric:hover {
+            color: #1DA1F2;
+        }
+
+        /* Community Health */
+        .community-health {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #333;
+        }
+
+        .health-indicators {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .health-indicator {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+        }
+
+        .indicator-icon {
+            font-size: 24px;
+        }
+
+        .indicator-info {
+            flex: 1;
+        }
+
+        .indicator-label {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+
+        .indicator-value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .social-overview {
+                grid-template-columns: 1fr;
+            }
+            
+            .metrics-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .influencer-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .sentiment-overview {
+                grid-template-columns: 1fr;
+            }
+
+            .health-indicators {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="nav-links">
+            <span style="font-size: 20px; margin-right: 16px;">🚀 PumpMonitor</span>
+            <a href="#" class="active">Tokens</a>
+            <a href="#">AMM Analytics</a>
+            <a href="#">Stream</a>
+        </div>
+        <div class="header-info">
+            <span>SOL $180.50</span>
+            <div class="connection-status">
+                <span>Connected</span>
+                <div class="status-dot"></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Back Button -->
+        <a href="#" class="back-button">
+            <span>←</span>
+            <span>Back to Dashboard</span>
+        </a>
+
+        <!-- Token Header -->
+        <div class="token-header">
+            <div class="token-title">
+                <div class="token-icon">🪙</div>
+                <span class="token-name">TOKEN_NAME</span>
+                <span class="token-symbol">(SYMBOL)</span>
+                <span class="graduated-badge">🎓 GRADUATED</span>
+            </div>
+            <div class="token-metrics">
+                <div class="metric">
+                    <span class="metric-label">Price</span>
+                    <span class="metric-value">$0.0234 <span class="positive">(+15.3%)</span></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Market Cap</span>
+                    <span class="metric-value">$234,567</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">FDV</span>
+                    <span class="metric-value">$2.3M</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Volume 24h</span>
+                    <span class="metric-value">$45,678</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Liquidity</span>
+                    <span class="metric-value">$123,456</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Social Score Section -->
+        <div class="social-score-section">
+            <div class="social-score-badge">
+                <div class="score-header">
+                    <div class="score-title">
+                        <span class="twitter-icon">🐦</span>
+                        <h3>Social Analytics Score</h3>
+                    </div>
+                    <div class="score-value">
+                        <span id="socialScore">165</span>
+                        <span class="score-total">/ 200</span>
+                        <span class="score-rating excellent">Excellent</span>
+                    </div>
+                </div>
+                <div class="score-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <div class="progress-label">
+                        <span id="scorePercentage">83%</span>
+                    </div>
+                </div>
+                <div class="score-footer">
+                    <span class="last-analyzed">Last analyzed: <span id="lastAnalyzed">10 minutes ago</span></span>
+                    <button class="refresh-btn">
+                        <span class="refresh-icon">↻</span> Refresh Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab">Overview</button>
+            <button class="tab">Price Chart</button>
+            <button class="tab">📊 Holders</button>
+            <button class="tab active">🐦 Social</button>
+            <button class="tab">Transactions</button>
+            <button class="tab">Pool Info</button>
+        </div>
+
+        <!-- Social Tab Content -->
+        <div class="tab-content active">
+            <!-- Score Breakdown and Engagement -->
+            <div class="social-overview">
+                <div class="score-breakdown">
+                    <h3>Score Breakdown</h3>
+                    <div class="score-components">
+                        <div class="score-item">
+                            <label>Community Size</label>
+                            <div class="score-bar-container">
+                                <div class="score-bar" style="width: 85%"></div>
+                            </div>
+                            <span class="score-value">42/50</span>
+                        </div>
+                        <div class="score-item">
+                            <label>Engagement Rate</label>
+                            <div class="score-bar-container">
+                                <div class="score-bar" style="width: 90%"></div>
+                            </div>
+                            <span class="score-value">45/50</span>
+                        </div>
+                        <div class="score-item">
+                            <label>Influencer Support</label>
+                            <div class="score-bar-container">
+                                <div class="score-bar" style="width: 70%"></div>
+                            </div>
+                            <span class="score-value">28/40</span>
+                        </div>
+                        <div class="score-item">
+                            <label>Sentiment Score</label>
+                            <div class="score-bar-container">
+                                <div class="score-bar" style="width: 75%"></div>
+                            </div>
+                            <span class="score-value">30/40</span>
+                        </div>
+                        <div class="score-item">
+                            <label>Growth Momentum</label>
+                            <div class="score-bar-container">
+                                <div class="score-bar" style="width: 80%"></div>
+                            </div>
+                            <span class="score-value">20/20</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="engagement-chart">
+                    <h3>Engagement Distribution</h3>
+                    <canvas id="engagementChart" style="max-height: 250px;"></canvas>
+                    <div style="margin-top: 16px; color: #888; font-size: 14px;">
+                        Total Engagements: 45,678
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Twitter Metrics -->
+            <div class="twitter-metrics">
+                <h3>Twitter Metrics</h3>
+                <div class="metrics-container">
+                    <div class="metric-card">
+                        <div class="metric-label">Total Mentions</div>
+                        <div class="metric-value">12,456</div>
+                        <div class="metric-change positive">📈 +23.5%</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Unique Users</div>
+                        <div class="metric-value">3,892</div>
+                        <div class="metric-change positive">+15.2%</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Avg. Followers</div>
+                        <div class="metric-value">2,845</div>
+                        <div class="metric-change">Per User</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Total Reach</div>
+                        <div class="metric-value">11.2M</div>
+                        <div class="metric-change positive">+45.8%</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Engagement Rate</div>
+                        <div class="metric-value">4.8%</div>
+                        <div class="metric-change positive">High</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Verified Accounts</div>
+                        <div class="metric-value">24</div>
+                        <div class="metric-change">✓ Active</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Hashtag Trending</div>
+                        <div class="metric-value">#TOKEN</div>
+                        <div class="metric-change">#456 Rank</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">24h Volume</div>
+                        <div class="metric-value">8,234</div>
+                        <div class="metric-change positive">+12.3%</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Top Influencers -->
+            <div class="influencer-section">
+                <h3>Top Influencers Talking About This Token</h3>
+                <div class="influencer-grid">
+                    <div class="influencer-card">
+                        <div class="influencer-avatar">👤</div>
+                        <div class="influencer-info">
+                            <div class="influencer-name">
+                                CryptoWhale
+                                <span class="verified-badge">✓</span>
+                            </div>
+                            <div class="influencer-handle">@cryptowhale</div>
+                        </div>
+                        <div class="influencer-stats">
+                            <div class="follower-count">245K</div>
+                            <div style="font-size: 12px; color: #888;">followers</div>
+                        </div>
+                    </div>
+                    <div class="influencer-card">
+                        <div class="influencer-avatar">🐋</div>
+                        <div class="influencer-info">
+                            <div class="influencer-name">
+                                DeFi Master
+                                <span class="verified-badge">✓</span>
+                            </div>
+                            <div class="influencer-handle">@defimaster</div>
+                        </div>
+                        <div class="influencer-stats">
+                            <div class="follower-count">189K</div>
+                            <div style="font-size: 12px; color: #888;">followers</div>
+                        </div>
+                    </div>
+                    <div class="influencer-card">
+                        <div class="influencer-avatar">🚀</div>
+                        <div class="influencer-info">
+                            <div class="influencer-name">Moon Hunter</div>
+                            <div class="influencer-handle">@moonhunter</div>
+                        </div>
+                        <div class="influencer-stats">
+                            <div class="follower-count">92K</div>
+                            <div style="font-size: 12px; color: #888;">followers</div>
+                        </div>
+                    </div>
+                    <div class="influencer-card">
+                        <div class="influencer-avatar">💎</div>
+                        <div class="influencer-info">
+                            <div class="influencer-name">
+                                Gem Finder
+                                <span class="verified-badge">✓</span>
+                            </div>
+                            <div class="influencer-handle">@gemfinder</div>
+                        </div>
+                        <div class="influencer-stats">
+                            <div class="follower-count">156K</div>
+                            <div style="font-size: 12px; color: #888;">followers</div>
+                        </div>
+                    </div>
+                    <div class="influencer-card">
+                        <div class="influencer-avatar">📊</div>
+                        <div class="influencer-info">
+                            <div class="influencer-name">Chart Master</div>
+                            <div class="influencer-handle">@chartmaster</div>
+                        </div>
+                        <div class="influencer-stats">
+                            <div class="follower-count">78K</div>
+                            <div style="font-size: 12px; color: #888;">followers</div>
+                        </div>
+                    </div>
+                    <div class="influencer-card">
+                        <div class="influencer-avatar">🎯</div>
+                        <div class="influencer-info">
+                            <div class="influencer-name">Alpha Calls</div>
+                            <div class="influencer-handle">@alphacalls</div>
+                        </div>
+                        <div class="influencer-stats">
+                            <div class="follower-count">134K</div>
+                            <div style="font-size: 12px; color: #888;">followers</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sentiment Analysis -->
+            <div class="sentiment-section">
+                <h3>Community Sentiment Analysis</h3>
+                <div class="sentiment-overview">
+                    <div class="sentiment-score-display">
+                        <div class="sentiment-gauge">
+                            <canvas id="sentimentGauge"></canvas>
+                        </div>
+                        <div class="sentiment-label positive">75% Positive</div>
+                        <div style="color: #888; font-size: 14px;">Based on 8,234 posts</div>
+                    </div>
+                    <div class="sentiment-breakdown">
+                        <div class="sentiment-item">
+                            <span style="color: #17BF63;">Positive</span>
+                            <div class="sentiment-bar">
+                                <div class="sentiment-fill positive" style="width: 75%"></div>
+                            </div>
+                            <span>75%</span>
+                        </div>
+                        <div class="sentiment-item">
+                            <span style="color: #FFAD1F;">Neutral</span>
+                            <div class="sentiment-bar">
+                                <div class="sentiment-fill neutral" style="width: 18%"></div>
+                            </div>
+                            <span>18%</span>
+                        </div>
+                        <div class="sentiment-item">
+                            <span style="color: #E1444D;">Negative</span>
+                            <div class="sentiment-bar">
+                                <div class="sentiment-fill negative" style="width: 7%"></div>
+                            </div>
+                            <span>7%</span>
+                        </div>
+                        <div style="margin-top: 20px; padding: 16px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                            <h4 style="margin-bottom: 8px;">Key Topics</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                <span style="padding: 4px 12px; background: rgba(29, 161, 242, 0.2); border-radius: 16px; font-size: 14px;">🚀 moon</span>
+                                <span style="padding: 4px 12px; background: rgba(29, 161, 242, 0.2); border-radius: 16px; font-size: 14px;">💎 gem</span>
+                                <span style="padding: 4px 12px; background: rgba(29, 161, 242, 0.2); border-radius: 16px; font-size: 14px;">📈 bullish</span>
+                                <span style="padding: 4px 12px; background: rgba(29, 161, 242, 0.2); border-radius: 16px; font-size: 14px;">🔥 hot</span>
+                                <span style="padding: 4px 12px; background: rgba(29, 161, 242, 0.2); border-radius: 16px; font-size: 14px;">💰 profit</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Activity Timeline -->
+            <div class="activity-timeline">
+                <h3>Social Activity Timeline (7 Days)</h3>
+                <div class="timeline-chart-container">
+                    <canvas id="activityTimeline"></canvas>
+                </div>
+            </div>
+            
+            <!-- Recent High-Impact Tweets -->
+            <div class="recent-tweets-section">
+                <h3>Recent High-Impact Posts</h3>
+                <div class="tweets-container">
+                    <div class="tweet-card">
+                        <div class="tweet-header">
+                            <div class="tweet-author">
+                                <div class="tweet-avatar">🐋</div>
+                                <div class="tweet-author-info">
+                                    <div class="tweet-author-name">
+                                        CryptoWhale
+                                        <span class="verified-badge">✓</span>
+                                    </div>
+                                    <div class="tweet-author-handle">@cryptowhale</div>
+                                </div>
+                            </div>
+                            <div class="tweet-time">2 hours ago</div>
+                        </div>
+                        <div class="tweet-content">
+                            Just analyzed $TOKEN and the fundamentals are looking incredibly strong! 🚀 The team is delivering on their roadmap and community growth is organic. This could be the next big thing! DYOR #Crypto #TOKEN
+                        </div>
+                        <div class="tweet-metrics">
+                            <div class="tweet-metric">
+                                <span>💬</span> 234
+                            </div>
+                            <div class="tweet-metric">
+                                <span>🔁</span> 567
+                            </div>
+                            <div class="tweet-metric">
+                                <span>❤️</span> 1,234
+                            </div>
+                            <div class="tweet-metric">
+                                <span>📊</span> 45K views
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="tweet-card">
+                        <div class="tweet-header">
+                            <div class="tweet-author">
+                                <div class="tweet-avatar">💎</div>
+                                <div class="tweet-author-info">
+                                    <div class="tweet-author-name">
+                                        Gem Finder
+                                        <span class="verified-badge">✓</span>
+                                    </div>
+                                    <div class="tweet-author-handle">@gemfinder</div>
+                                </div>
+                            </div>
+                            <div class="tweet-time">5 hours ago</div>
+                        </div>
+                        <div class="tweet-content">
+                            $TOKEN is showing incredible momentum! 📈 Volume up 300% in the last 24 hours and holder count growing exponentially. The chart looks ready for a breakout. Adding to my position here! 💎🙌
+                        </div>
+                        <div class="tweet-metrics">
+                            <div class="tweet-metric">
+                                <span>💬</span> 189
+                            </div>
+                            <div class="tweet-metric">
+                                <span>🔁</span> 423
+                            </div>
+                            <div class="tweet-metric">
+                                <span>❤️</span> 892
+                            </div>
+                            <div class="tweet-metric">
+                                <span>📊</span> 32K views
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Community Health Indicators -->
+            <div class="community-health">
+                <h3>Community Health Indicators</h3>
+                <div class="health-indicators">
+                    <div class="health-indicator">
+                        <div class="indicator-icon">🌱</div>
+                        <div class="indicator-info">
+                            <div class="indicator-label">Organic Growth</div>
+                            <div class="indicator-value" style="color: #17BF63;">92%</div>
+                        </div>
+                    </div>
+                    <div class="health-indicator">
+                        <div class="indicator-icon">🤖</div>
+                        <div class="indicator-info">
+                            <div class="indicator-label">Bot Activity</div>
+                            <div class="indicator-value" style="color: #17BF63;">Low (8%)</div>
+                        </div>
+                    </div>
+                    <div class="health-indicator">
+                        <div class="indicator-icon">🔄</div>
+                        <div class="indicator-info">
+                            <div class="indicator-label">Engagement Quality</div>
+                            <div class="indicator-value" style="color: #1DA1F2;">High</div>
+                        </div>
+                    </div>
+                    <div class="health-indicator">
+                        <div class="indicator-icon">📈</div>
+                        <div class="indicator-info">
+                            <div class="indicator-label">Growth Rate</div>
+                            <div class="indicator-value" style="color: #17BF63;">+23.5%/day</div>
+                        </div>
+                    </div>
+                    <div class="health-indicator">
+                        <div class="indicator-icon">🎯</div>
+                        <div class="indicator-info">
+                            <div class="indicator-label">Influence Score</div>
+                            <div class="indicator-value" style="color: #1DA1F2;">8.7/10</div>
+                        </div>
+                    </div>
+                    <div class="health-indicator">
+                        <div class="indicator-icon">🌍</div>
+                        <div class="indicator-info">
+                            <div class="indicator-label">Geographic Diversity</div>
+                            <div class="indicator-value" style="color: #17BF63;">45 countries</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Engagement Distribution Chart
+        const engagementCtx = document.getElementById('engagementChart').getContext('2d');
+        const engagementChart = new Chart(engagementCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Likes', 'Retweets', 'Replies', 'Mentions', 'Quotes'],
+                datasets: [{
+                    data: [15234, 8956, 6789, 10234, 4465],
+                    backgroundColor: [
+                        '#E1444D',
+                        '#17BF63',
+                        '#1DA1F2',
+                        '#FFAD1F',
+                        '#794BC4'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#888',
+                            padding: 10,
+                            usePointStyle: true,
+                            font: {
+                                size: 12
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Sentiment Gauge
+        const gaugeCtx = document.getElementById('sentimentGauge').getContext('2d');
+        const sentimentGauge = new Chart(gaugeCtx, {
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [75, 25],
+                    backgroundColor: ['#17BF63', 'rgba(255,255,255,0.1)'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                circumference: 180,
+                rotation: 270,
+                cutout: '75%',
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        enabled: false
+                    }
+                }
+            }
+        });
+
+        // Activity Timeline
+        const timelineCtx = document.getElementById('activityTimeline').getContext('2d');
+        const activityTimeline = new Chart(timelineCtx, {
+            type: 'line',
+            data: {
+                labels: ['7d ago', '6d ago', '5d ago', '4d ago', '3d ago', '2d ago', '1d ago', 'Today'],
+                datasets: [{
+                    label: 'Mentions',
+                    data: [1234, 1456, 1678, 1890, 2234, 2678, 3456, 4234],
+                    borderColor: '#1DA1F2',
+                    backgroundColor: 'rgba(29, 161, 242, 0.1)',
+                    tension: 0.4,
+                    borderWidth: 3
+                }, {
+                    label: 'Engagements',
+                    data: [3456, 3890, 4234, 4678, 5234, 6456, 7890, 8956],
+                    borderColor: '#17BF63',
+                    backgroundColor: 'rgba(23, 191, 99, 0.1)',
+                    tension: 0.4,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: '#888'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: '#888'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#888'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Refresh button functionality
+        document.querySelector('.refresh-btn').addEventListener('click', function() {
+            this.disabled = true;
+            const icon = this.querySelector('.refresh-icon');
+            icon.style.animation = 'spin 1s linear infinite';
+            
+            // Simulate refresh
+            setTimeout(() => {
+                this.disabled = false;
+                icon.style.animation = '';
+                
+                // Update last analyzed time
+                document.getElementById('lastAnalyzed').textContent = 'just now';
+            }, 2000);
+        });
+
+        // Tab switching (for demo purposes)
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>
