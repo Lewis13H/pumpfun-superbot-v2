@@ -299,6 +299,16 @@ export class ConnectionPool extends EventEmitter {
     }, 1000);
   }
 
+  getConnection(connectionId: string): PooledConnection | undefined {
+    return this.connections.get(connectionId);
+  }
+
+  getActiveConnections(): PooledConnection[] {
+    return Array.from(this.connections.values()).filter(
+      conn => conn.status !== ConnectionStatus.DISCONNECTED
+    );
+  }
+
   getConnectionStats(): Record<string, any> {
     const stats = {
       total: this.connections.size,

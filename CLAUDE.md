@@ -170,6 +170,22 @@ Main tables:
   - Subscription merging for efficient resource usage
   - Metrics tracking per subscription group
   - Test script verifies all functionality
+- ✅ **Load Balancing & Monitoring (Session 3)**:
+  - Created `LoadBalancer` class with comprehensive metrics tracking
+  - Real-time metrics collection:
+    - TPS (transactions per second) per connection
+    - Parse rates and error tracking
+    - Latency measurements with exponential moving average
+    - Bytes processed and message counts
+  - Intelligent load calculation based on multiple factors:
+    - 40% TPS, 30% latency, 20% error rate, 10% bytes processed
+  - Automatic rebalancing with configurable thresholds
+  - Load prediction using linear regression on historical data
+  - SmartStreamManager integration:
+    - Automatic metrics tracking for all messages
+    - Migration support for overloaded connections
+    - Enhanced statistics with load summary
+  - Test demonstrates 95%+ parse rate tracking and load distribution
 
 ### Previous Changes (Jan 4-5)
 - ✅ **Raydium Monitor Fixed and Working** (Jan 4):

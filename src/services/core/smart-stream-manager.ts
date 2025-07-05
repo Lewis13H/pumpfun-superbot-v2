@@ -6,10 +6,12 @@ import {
   subscriptionBuilder, 
   MonitorGroup
 } from './subscription-builder';
+import { LoadBalancer, LoadBalancerConfig, MigrationRequest } from './load-balancer';
 import chalk from 'chalk';
 
 export interface SmartStreamManagerOptions extends Omit<StreamManagerOptions, 'streamClient'> {
   poolConfig: ConnectionPoolConfig;
+  loadBalancerConfig?: Partial<LoadBalancerConfig>;
 }
 
 export interface MonitorRegistration {
@@ -24,9 +26,11 @@ export interface MonitorRegistration {
 
 export class SmartStreamManager extends StreamManager {
   private pool: ConnectionPool;
+  private loadBalancer: LoadBalancer;
   private monitorRegistrations: Map<string, MonitorRegistration> = new Map();
   private connectionStreams: Map<string, StreamManager> = new Map();
   private smartLogger: Logger;
+  private messageTracking: Map<string, string> = new Map(); // messageId -> connectionId
 
   constructor(options: SmartStreamManagerOptions) {
     // Create a dummy client for base class (won't be used)
@@ -37,9 +41,11 @@ export class SmartStreamManager extends StreamManager {
     
     this.smartLogger = new Logger({ context: 'SmartStreamManager', color: chalk.cyan });
     this.pool = new ConnectionPool(options.poolConfig);
+    this.loadBalancer = new LoadBalancer(options.loadBalancerConfig);
     
-    // Set up pool event listeners
+    // Set up event listeners
     this.setupPoolEventHandlers();
+    this.setupLoadBalancerHandlers();
   }
 
   private setupPoolEventHandlers(): void {
@@ -62,9 +68,30 @@ export class SmartStreamManager extends StreamManager {
     });
   }
 
+  private setupLoadBalancerHandlers(): void {
+    // Handle migration requests from load balancer
+    this.loadBalancer.on('migrationRequired', async (migration: MigrationRequest) => {
+      this.smartLogger.info('Load balancer requested migration', migration);
+      await this.handleMigrationRequest(migration);
+    });
+
+    // Handle metrics updates
+    this.loadBalancer.on('metricsUpdate', (data: any) => {
+      this.smartLogger.debug('Load metrics updated', {
+        totalTps: data.summary.totalTps.toFixed(2),
+        avgLoad: data.summary.averageLoad.toFixed(1),
+        maxLoad: data.summary.maxLoad.toFixed(1)
+      });
+    });
+  }
+
   async initialize(): Promise<void> {
     this.smartLogger.info('Initializing SmartStreamManager with connection pool');
     await this.pool.initialize();
+    
+    // Initialize load balancer with connections
+    const connections = this.pool.getActiveConnections();
+    this.loadBalancer.initialize(connections);
   }
 
   /**
@@ -128,20 +155,54 @@ export class SmartStreamManager extends StreamManager {
     
     // Update subscription metrics
     subscriptionBuilder.updateMetrics(enhancedSub.id, 'message');
+    
+    // Update connection subscription count in load balancer
+    this.updateConnectionSubscriptionCounts();
   }
 
   private createStreamManagerForConnection(connection: PooledConnection): StreamManager {
-    // Create a custom event bus that adds connection metadata
+    const connectionId = connection.id;
     const originalEventBus = (this as any).options.eventBus;
+    
+    // Create a wrapped event bus that tracks metrics
     const wrappedEventBus = {
       emit: (event: string, data: any) => {
         if (event === EVENTS.STREAM_DATA) {
-          // Add connection metadata to help monitors identify their data
-          originalEventBus.emit(event, {
+          // Generate unique message ID
+          const messageId = `${connectionId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          
+          // Track message start
+          this.loadBalancer.recordMessageStart(connectionId, messageId);
+          this.messageTracking.set(messageId, connectionId);
+          
+          // Add connection metadata and message ID
+          const enhancedData = {
             ...data,
-            connectionId: connection.id,
-            connectionPriority: connection.priority
-          });
+            connectionId,
+            connectionPriority: connection.priority,
+            _messageId: messageId
+          };
+          
+          // Emit to original bus
+          originalEventBus.emit(event, enhancedData);
+          
+          // Track message completion after a short delay
+          // In practice, monitors would call back when done processing
+          setTimeout(() => {
+            const bytesProcessed = JSON.stringify(data).length;
+            this.loadBalancer.recordMessageComplete(connectionId, messageId, true, bytesProcessed);
+            this.messageTracking.delete(messageId);
+          }, 10);
+          
+        } else if (event === EVENTS.MONITOR_ERROR) {
+          // Track errors
+          const messageId = data._messageId;
+          if (messageId && this.messageTracking.has(messageId)) {
+            const connId = this.messageTracking.get(messageId)!;
+            this.loadBalancer.recordMessageComplete(connId, messageId, false);
+            this.messageTracking.delete(messageId);
+          }
+          originalEventBus.emit(event, data);
         } else {
           originalEventBus.emit(event, data);
         }
@@ -190,6 +251,62 @@ export class SmartStreamManager extends StreamManager {
     return 'amm_pool';
   }
 
+  private async handleMigrationRequest(migration: MigrationRequest): Promise<void> {
+    // Find monitors to migrate based on the request
+    const monitorsToMigrate = Array.from(this.monitorRegistrations.values())
+      .filter(reg => reg.connectionId === migration.fromConnectionId)
+      .slice(0, 2); // Migrate up to 2 monitors at a time
+
+    if (monitorsToMigrate.length === 0) {
+      this.smartLogger.warn('No monitors found for migration request', migration);
+      return;
+    }
+
+    for (const monitor of monitorsToMigrate) {
+      try {
+        // Update registration
+        const oldConnectionId = monitor.connectionId;
+        monitor.connectionId = migration.toConnectionId;
+        
+        // Get or create stream manager for target connection
+        let targetStreamManager = this.connectionStreams.get(migration.toConnectionId);
+        if (!targetStreamManager) {
+          const targetConnection = this.pool.getConnection(migration.toConnectionId);
+          if (!targetConnection) {
+            throw new Error(`Target connection ${migration.toConnectionId} not found`);
+          }
+          targetStreamManager = this.createStreamManagerForConnection(targetConnection);
+          this.connectionStreams.set(migration.toConnectionId, targetStreamManager);
+        }
+        
+        // Re-subscribe on new connection
+        await targetStreamManager.subscribeTo(monitor.programId, monitor.subscriptionConfig);
+        
+        this.smartLogger.info(`Migrated monitor ${monitor.monitorId} from ${oldConnectionId} to ${migration.toConnectionId}`);
+      } catch (error) {
+        this.smartLogger.error(`Failed to migrate monitor ${monitor.monitorId}:`, error);
+        // Revert connection ID on failure
+        monitor.connectionId = migration.fromConnectionId;
+      }
+    }
+    
+    // Update subscription counts
+    this.updateConnectionSubscriptionCounts();
+  }
+
+  private updateConnectionSubscriptionCounts(): void {
+    const counts = new Map<string, number>();
+    
+    for (const registration of this.monitorRegistrations.values()) {
+      const connId = registration.connectionId || '';
+      counts.set(connId, (counts.get(connId) || 0) + 1);
+    }
+    
+    for (const [connId, count] of counts) {
+      this.loadBalancer.updateSubscriptionCount(connId, count);
+    }
+  }
+
   private async handleConnectionFailure(connectionId: string): Promise<void> {
     // Find monitors using this connection
     const affectedMonitors = Array.from(this.monitorRegistrations.values())
@@ -236,6 +353,7 @@ export class SmartStreamManager extends StreamManager {
     const baseStats = super.getStats();
     const poolStats = this.pool.getConnectionStats();
     const subscriptionStats = subscriptionBuilder.getStatistics();
+    const loadStats = this.loadBalancer.getLoadSummary();
     const monitorsByConnection: Record<string, number> = {};
     const monitorsByGroup: Record<string, number> = {};
 
@@ -252,6 +370,7 @@ export class SmartStreamManager extends StreamManager {
       ...baseStats,
       pool: poolStats,
       subscriptions: subscriptionStats,
+      load: loadStats,
       monitors: {
         total: this.monitorRegistrations.size,
         byConnection: monitorsByConnection,
@@ -292,49 +411,48 @@ export class SmartStreamManager extends StreamManager {
     // Clear registrations
     this.connectionStreams.clear();
     this.monitorRegistrations.clear();
+    this.messageTracking.clear();
+    
+    // Shutdown load balancer
+    this.loadBalancer.shutdown();
     
     // Shutdown pool
     await this.pool.shutdown();
   }
 
   /**
-   * Load balancing: Get least loaded connection for a monitor type
+   * Load balancing: Force a rebalance check
    */
   async rebalanceConnections(): Promise<void> {
-    this.smartLogger.info('Rebalancing connections across pool');
+    this.smartLogger.info('Requesting connection rebalance');
+    this.loadBalancer.forceRebalance();
+  }
 
-    const stats = this.pool.getConnectionStats();
+  /**
+   * Get detailed load metrics for monitoring
+   */
+  getLoadMetrics() {
+    const summary = this.loadBalancer.getLoadSummary();
+    const connections: any[] = [];
     
-    // Only rebalance if load is uneven
-    if (stats.averageLoad < 50) {
-      this.smartLogger.debug('Load is balanced, no rebalancing needed');
-      return;
-    }
-
-    // Group monitors by connection
-    const monitorsByConnection = new Map<string, MonitorRegistration[]>();
-    
-    for (const monitor of this.monitorRegistrations.values()) {
-      const connId = monitor.connectionId || '';
-      if (!monitorsByConnection.has(connId)) {
-        monitorsByConnection.set(connId, []);
-      }
-      monitorsByConnection.get(connId)!.push(monitor);
-    }
-
-    // Find overloaded connections and migrate some monitors
-    for (const [connectionId, monitors] of monitorsByConnection) {
-      if (monitors.length > 3) { // Arbitrary threshold
-        const toMigrate = monitors.slice(3);
-        
-        for (const _monitor of toMigrate) {
-          try {
-            await this.handleConnectionFailure(connectionId);
-          } catch (error) {
-            this.smartLogger.error(`Failed to migrate monitor during rebalancing:`, error);
-          }
-        }
+    for (const conn of this.pool.getActiveConnections()) {
+      const metrics = this.loadBalancer.getConnectionMetrics(conn.id);
+      if (metrics) {
+        connections.push({
+          id: conn.id,
+          priority: conn.priority,
+          ...metrics
+        });
       }
     }
+    
+    return {
+      summary,
+      connections,
+      predictions: connections.map(c => ({
+        connectionId: c.id,
+        predictedLoad: this.loadBalancer.predictLoad(c.id)
+      }))
+    };
   }
 }
