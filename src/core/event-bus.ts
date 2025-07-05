@@ -207,6 +207,11 @@ export const EVENTS = {
   GRADUATION_PROCESSED: 'graduation:processed',
   GRADUATION_FIXED: 'graduation:fixed',
   
+  // Token lifecycle events
+  TOKEN_LIFECYCLE_CREATED: 'token_lifecycle:created',
+  TOKEN_LIFECYCLE_PHASE_CHANGE: 'token_lifecycle:phase_change',
+  TOKEN_MILESTONE_REACHED: 'token_lifecycle:milestone_reached',
+  
   // Pool events
   POOL_CREATED: 'pool:created',
   POOL_STATE_UPDATED: 'pool:state_updated',

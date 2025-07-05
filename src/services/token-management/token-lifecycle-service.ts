@@ -50,6 +50,12 @@ export class TokenLifecycleService {
     graduated: number;
     abandoned: number;
   }> = new Map();
+  
+  // Graduation fixer properties
+  private graduationCheckInterval: NodeJS.Timeout | null = null;
+  private isCheckingGraduation = false;
+  private lastGraduationCheckTime: Date | null = null;
+  private fixedGraduationCount = 0;
 
   private constructor(container: Container) {
     this.logger = new Logger({ context: 'TokenLifecycleService' });
@@ -82,7 +88,18 @@ export class TokenLifecycleService {
     setInterval(() => this.detectAbandonedTokens(), 300000); // Every 5 minutes
     setInterval(() => this.cleanupOldData(), 3600000); // Every hour
     
-    this.logger.info('Token lifecycle service initialized');
+    // Initialize graduation fixer
+    await this.checkAndFixGraduatedTokens(); // Initial check
+    this.graduationCheckInterval = setInterval(() => {
+      this.checkAndFixGraduatedTokens().catch(error => {
+        this.logger.error('Error in periodic graduation check', error);
+      });
+    }, 5 * 60 * 1000); // Every 5 minutes
+    
+    this.logger.info('Token lifecycle service initialized', {
+      graduationCheckInterval: '5 minutes',
+      initialFixedCount: this.fixedGraduationCount
+    });
   }
 
   /**
@@ -587,5 +604,133 @@ export class TokenLifecycleService {
     if (removed > 0) {
       this.logger.info('Cleaned up old lifecycles', { removed });
     }
+  }
+
+  /**
+   * Check and fix graduated tokens (from graduation-fixer-service)
+   */
+  private async checkAndFixGraduatedTokens(): Promise<void> {
+    if (this.isCheckingGraduation) {
+      this.logger.debug('Graduation check already in progress, skipping');
+      return;
+    }
+
+    this.isCheckingGraduation = true;
+    const startTime = Date.now();
+
+    try {
+      // Find tokens with AMM trades that aren't marked as graduated
+      const findQuery = `
+        WITH graduated_tokens AS (
+          SELECT DISTINCT 
+            t.mint_address,
+            tok.symbol,
+            MIN(CASE WHEN t.program = 'amm_pool' THEN t.block_time END) as first_amm_trade,
+            COUNT(CASE WHEN t.program = 'amm_pool' THEN 1 END) as amm_trade_count,
+            MAX(t.bonding_curve_progress) as max_bc_progress
+          FROM trades_unified t
+          INNER JOIN tokens_unified tok ON tok.mint_address = t.mint_address
+          WHERE tok.graduated_to_amm = false
+          GROUP BY t.mint_address, tok.symbol
+          HAVING COUNT(CASE WHEN t.program = 'amm_pool' THEN 1 END) > 0
+        )
+        SELECT * FROM graduated_tokens
+        ORDER BY first_amm_trade DESC
+        LIMIT 100;
+      `;
+
+      const result = await db.query(findQuery);
+      const tokensToFix = result.rows;
+
+      if (tokensToFix.length === 0) {
+        if (this.lastGraduationCheckTime && Date.now() - this.lastGraduationCheckTime.getTime() > 60 * 60 * 1000) {
+          // Log once per hour if no tokens need fixing
+          this.logger.debug('No graduated tokens need fixing');
+        }
+        return;
+      }
+
+      this.logger.warn(`Found ${tokensToFix.length} tokens that need graduation fixing`);
+
+      // Update tokens in batches
+      const updateQuery = `
+        UPDATE tokens_unified
+        SET 
+          graduated_to_amm = true,
+          graduation_at = subquery.first_amm_trade,
+          current_program = 'amm_pool',
+          updated_at = NOW()
+        FROM (
+          SELECT DISTINCT 
+            t.mint_address,
+            MIN(CASE WHEN t.program = 'amm_pool' THEN t.block_time END) as first_amm_trade
+          FROM trades_unified t
+          INNER JOIN tokens_unified tok ON tok.mint_address = t.mint_address
+          WHERE tok.graduated_to_amm = false
+            AND t.program = 'amm_pool'
+          GROUP BY t.mint_address
+        ) AS subquery
+        WHERE tokens_unified.mint_address = subquery.mint_address
+        RETURNING tokens_unified.mint_address, tokens_unified.symbol;
+      `;
+
+      const updateResult = await db.query(updateQuery);
+      const fixedTokens = updateResult.rows;
+
+      if (fixedTokens.length > 0) {
+        this.fixedGraduationCount += fixedTokens.length;
+        
+        this.logger.warn(`🔧 Fixed ${fixedTokens.length} graduated tokens:`, {
+          tokens: fixedTokens.map((t: any) => ({
+            symbol: t.symbol,
+            mint: t.mint_address.substring(0, 8) + '...'
+          })).slice(0, 5), // Show first 5
+          totalFixed: this.fixedGraduationCount,
+          duration: Date.now() - startTime + 'ms'
+        });
+
+        // Emit event for each fixed token
+        for (const token of fixedTokens) {
+          this.eventBus.emit(EVENTS.TOKEN_GRADUATED, {
+            mintAddress: token.mint_address,
+            symbol: token.symbol,
+            timestamp: new Date(),
+            source: 'graduation_fixer'
+          });
+        }
+      }
+
+      this.lastGraduationCheckTime = new Date();
+    } catch (error) {
+      this.logger.error('Error checking graduated tokens', error as Error);
+    } finally {
+      this.isCheckingGraduation = false;
+    }
+  }
+
+  /**
+   * Get graduation fixer statistics
+   */
+  getGraduationFixerStats() {
+    return {
+      fixedCount: this.fixedGraduationCount,
+      lastCheckTime: this.lastGraduationCheckTime,
+      isChecking: this.isCheckingGraduation
+    };
+  }
+
+  /**
+   * Shutdown the service (enhanced)
+   */
+  async shutdown(): Promise<void> {
+    // Clear graduation check interval
+    if (this.graduationCheckInterval) {
+      clearInterval(this.graduationCheckInterval);
+      this.graduationCheckInterval = null;
+    }
+    
+    this.logger.info('Token lifecycle service shut down', {
+      totalGraduationFixed: this.fixedGraduationCount
+    });
   }
 }

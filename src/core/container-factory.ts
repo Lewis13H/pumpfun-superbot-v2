@@ -199,17 +199,14 @@ export async function createContainer(): Promise<Container> {
     return enricher;
   });
   
-  // Register graduation fixer service
-  container.registerSingleton(TOKENS.GraduationFixerService, async () => {
-    const { GraduationFixerService } = await import('../services/token-management/graduation-fixer-service');
-    const tokenRepo = await container.resolve(TOKENS.TokenRepository);
-    const eventBus = await container.resolve(TOKENS.EventBus);
-    
-    const service = new GraduationFixerService(tokenRepo, eventBus);
-    await service.initialize();
-    
-    return service;
+  // Token Lifecycle Service
+  container.registerSingleton(TOKENS.TokenLifecycleService, async () => {
+    const { TokenLifecycleService } = await import('../services/token-management/token-lifecycle-service');
+    return await TokenLifecycleService.create(container);
   });
+  
+  // Graduation fixer is now integrated into TokenLifecycleService
+  // No longer need separate GraduationFixerService registration
   
   // Initialize critical services
   const config = await container.resolve(TOKENS.ConfigService);

@@ -24,8 +24,8 @@ import {
   GET_AMM_POOLS,
   GET_AMM_POOL_RESERVES,
 } from '../../graphql/queries/amm-pool.queries';
-import { calculateBondingCurveProgress, calculateTokenPrice } from '../pricing/bc-price-calculator';
-import { calculateAmmTokenPrice, isValidAmmPool } from '../pricing/amm-graphql-price-calculator';
+import { PriceCalculator } from '../pricing/price-calculator';
+import { EnhancedAmmPriceCalculator } from '../pricing/enhanced-amm-price-calculator';
 import { GRAPHQL_CONFIG } from '../../config/graphql.config';
 import { deriveBondingCurveAddresses } from '../../utils/config/pump-addresses';
 import chalk from 'chalk';
@@ -39,11 +39,15 @@ export class UnifiedGraphQLPriceRecovery {
   private static instance: UnifiedGraphQLPriceRecovery;
   private client: ShyftGraphQLClient;
   private solPriceService: SolPriceService;
+  private priceCalculator: PriceCalculator;
+  private ammPriceCalculator: EnhancedAmmPriceCalculator;
   private cache: Map<string, { data: PriceUpdate; timestamp: number }> = new Map();
 
   private constructor() {
     this.client = ShyftGraphQLClient.getInstance();
     this.solPriceService = SolPriceService.getInstance();
+    this.priceCalculator = new PriceCalculator();
+    this.ammPriceCalculator = EnhancedAmmPriceCalculator.getInstance();
   }
 
   static getInstance(): UnifiedGraphQLPriceRecovery {
@@ -286,7 +290,7 @@ export class UnifiedGraphQLPriceRecovery {
         // Get all token accounts for reserves
         const tokenAccounts: string[] = [];
         pools.forEach(pool => {
-          if (isValidAmmPool(pool)) {
+          if (this.ammPriceCalculator.isValidAmmPool(pool)) {
             tokenAccounts.push(pool.baseAccount, pool.quoteAccount);
           }
         });
@@ -306,7 +310,7 @@ export class UnifiedGraphQLPriceRecovery {
 
           // Process pools with reserves
           pools.forEach(pool => {
-            if (!isValidAmmPool(pool)) {
+            if (!this.ammPriceCalculator.isValidAmmPool(pool)) {
               failed.push({
                 mintAddress: pool.tokenMint,
                 reason: 'Invalid AMM pool',
@@ -383,13 +387,13 @@ export class UnifiedGraphQLPriceRecovery {
     const virtualSolReserves = BigInt(data.virtualSolReserves);
     const virtualTokenReserves = BigInt(data.virtualTokenReserves);
 
-    const priceResult = calculateTokenPrice(
+    const priceResult = this.priceCalculator.calculateTokenPrice(
       virtualSolReserves,
       virtualTokenReserves,
       solPriceUsd
     );
 
-    const progress = calculateBondingCurveProgress(virtualSolReserves);
+    const progress = this.priceCalculator.calculateBondingCurveProgress(virtualSolReserves);
 
     return {
       mintAddress,
@@ -415,7 +419,7 @@ export class UnifiedGraphQLPriceRecovery {
     tokenReserves: bigint,
     solPriceUsd: number
   ): AmmPriceUpdate {
-    const priceResult = calculateAmmTokenPrice(
+    const priceResult = this.ammPriceCalculator.calculateAmmTokenPrice(
       solReserves,
       tokenReserves,
       solPriceUsd

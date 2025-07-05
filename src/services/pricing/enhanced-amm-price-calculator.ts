@@ -9,6 +9,7 @@ import { getSolPrice } from './sol-price-service';
 import { db } from '../../database';
 import { Logger } from '../../core/logger';
 import chalk from 'chalk';
+import { AmmPoolData } from '../../types/graphql.types';
 
 export interface PriceImpactDetails extends PriceImpact {
   priceImpactPercent: number;
@@ -50,6 +51,13 @@ export interface SlippageProfile {
   expectedSlippage: number;
   maxSlippage: number;
   recommendedSlippageTolerance: number;
+}
+
+export interface AmmPriceResult {
+  priceInSol: number;
+  priceInUsd: number;
+  marketCapUsd: number;
+  poolLiquidityUsd: number;
 }
 
 export class EnhancedAmmPriceCalculator extends AmmPriceCalculator {
@@ -410,6 +418,95 @@ export class EnhancedAmmPriceCalculator extends AmmPriceCalculator {
     if (absImpact < 0.02) return 'medium';
     if (absImpact < 0.05) return 'high';
     return 'severe';
+  }
+
+  /**
+   * Calculate token price from AMM pool reserves (GraphQL data)
+   * Uses constant product formula: price = reserveSOL / reserveToken
+   */
+  calculateAmmTokenPrice(
+    solReserves: bigint,
+    tokenReserves: bigint,
+    solPriceUsd: number
+  ): AmmPriceResult {
+    // Handle edge cases
+    if (tokenReserves === 0n || solReserves === 0n) {
+      return {
+        priceInSol: 0,
+        priceInUsd: 0,
+        marketCapUsd: 0,
+        poolLiquidityUsd: 0,
+      };
+    }
+    
+    // Calculate price in SOL (SOL per token)
+    // Price = SOL reserves / Token reserves
+    const priceInSol = Number(solReserves) / Number(tokenReserves);
+    
+    // Calculate price in USD
+    const priceInUsd = priceInSol * solPriceUsd;
+    
+    // Calculate market cap (assuming 1B token supply as standard)
+    const TOTAL_SUPPLY = 1_000_000_000;
+    const marketCapUsd = priceInUsd * TOTAL_SUPPLY;
+    
+    // Calculate pool liquidity (2x SOL value as it's balanced)
+    const solValueUsd = (Number(solReserves) / 1e9) * solPriceUsd;
+    const poolLiquidityUsd = solValueUsd * 2;
+    
+    return {
+      priceInSol,
+      priceInUsd,
+      marketCapUsd,
+      poolLiquidityUsd,
+    };
+  }
+
+  /**
+   * Parse reserves from GraphQL response
+   */
+  parseReserves(
+    baseReserves?: { amount: string }[],
+    quoteReserves?: { amount: string }[]
+  ): { solReserves: bigint; tokenReserves: bigint } | null {
+    if (!baseReserves?.length || !quoteReserves?.length) {
+      return null;
+    }
+    
+    try {
+      const solReserves = BigInt(baseReserves[0].amount);
+      const tokenReserves = BigInt(quoteReserves[0].amount);
+      
+      return { solReserves, tokenReserves };
+    } catch (error) {
+      this.logger.error('Error parsing reserves:', error as Error);
+      return null;
+    }
+  }
+
+  /**
+   * Validate AMM pool data
+   */
+  isValidAmmPool(pool: AmmPoolData): boolean {
+    return !!(
+      pool.baseAccount &&
+      pool.quoteAccount &&
+      pool.quoteMint &&
+      pool.lpSupply !== '0'
+    );
+  }
+
+  /**
+   * Format pool liquidity for display
+   */
+  formatPoolLiquidity(liquidityUsd: number): string {
+    if (liquidityUsd >= 1_000_000) {
+      return `$${(liquidityUsd / 1_000_000).toFixed(2)}M`;
+    } else if (liquidityUsd >= 1_000) {
+      return `$${(liquidityUsd / 1_000).toFixed(2)}K`;
+    } else {
+      return `$${liquidityUsd.toFixed(2)}`;
+    }
   }
 }
 

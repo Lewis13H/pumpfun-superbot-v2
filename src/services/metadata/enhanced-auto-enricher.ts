@@ -6,8 +6,7 @@
 
 import { db } from '../../database';
 import { HeliusService } from './providers/helius';
-import { ShyftMetadataService } from './providers/shyft-metadata-service';
-import { ShyftDASService } from './providers/shyft-das-service';
+import { ShyftProvider } from './providers/shyft-provider';
 import { TokenCreationTimeService } from '../token-management/token-creation-time-service';
 // import { graphqlMetadataEnricher } from './graphql-metadata-enricher';
 import chalk from 'chalk';
@@ -26,8 +25,7 @@ interface EnrichmentResult {
 export class EnhancedAutoEnricher {
   private static instance: EnhancedAutoEnricher;
   private heliusService: HeliusService;
-  private shyftService: ShyftMetadataService;
-  private shyftDASService: ShyftDASService;
+  private shyftProvider: ShyftProvider;
   private creationTimeService: TokenCreationTimeService;
   private isRunning = false;
   private enrichmentQueue: Set<string> = new Set();
@@ -49,8 +47,7 @@ export class EnhancedAutoEnricher {
   
   private constructor() {
     this.heliusService = HeliusService.getInstance();
-    this.shyftService = ShyftMetadataService.getInstance();
-    this.shyftDASService = ShyftDASService.getInstance();
+    this.shyftProvider = ShyftProvider.getInstance();
     this.creationTimeService = TokenCreationTimeService.getInstance();
   }
   
@@ -176,7 +173,7 @@ export class EnhancedAutoEnricher {
     try {
       // Use DAS service with priority for comprehensive metadata
       console.log(chalk.blue('🔹 Fetching metadata from Shyft DAS API...'));
-      const dasBulkResults = await this.shyftDASService.getBulkMetadataWithPriority(batch);
+      const dasBulkResults = await this.shyftProvider.getBulkMetadata(batch.map(t => t.mintAddress));
       
       // Process DAS results
       const stillNeedEnrichment: string[] = [];
@@ -186,7 +183,7 @@ export class EnhancedAutoEnricher {
         const dasData = dasBulkResults.get(req.mintAddress);
         if (dasData && (dasData.name || dasData.symbol)) {
           // Update database with comprehensive metadata
-          await this.shyftDASService.updateDatabaseMetadata(dasData);
+          await this.shyftProvider.storeEnrichedMetadata(dasData);
           
           this.stats.shyftSuccess++;
           this.stats.totalEnriched++;
@@ -255,10 +252,29 @@ export class EnhancedAutoEnricher {
     
     try {
       // Try Shyft DAS first (comprehensive metadata with holder counts)
-      const dasMetadata = await this.shyftDASService.getTokenInfoDAS(mintAddress);
+      const dasMetadata = await this.shyftProvider.getTokenInfoDAS(mintAddress);
       if (dasMetadata && (dasMetadata.name || dasMetadata.symbol)) {
         // Update database with comprehensive metadata
-        await this.shyftDASService.updateDatabaseMetadata(dasMetadata);
+        await db.query(`
+          UPDATE tokens_unified
+          SET 
+            holder_count = $2,
+            twitter = $3,
+            telegram = $4,
+            discord = $5,
+            website = $6,
+            metadata_score = $7,
+            metadata_last_updated = NOW()
+          WHERE mint_address = $1
+        `, [
+          dasMetadata.address,
+          dasMetadata.current_holder_count,
+          dasMetadata.twitter,
+          dasMetadata.telegram,
+          dasMetadata.discord,
+          dasMetadata.website,
+          dasMetadata.metadata_score
+        ]);
         
         result = {
           mintAddress,
@@ -285,7 +301,7 @@ export class EnhancedAutoEnricher {
         }
       } else {
         // Fallback to regular Shyft API
-        const shyftMetadata = await this.shyftService.getTokenMetadata(mintAddress);
+        const shyftMetadata = await this.shyftProvider.getTokenMetadata(mintAddress);
         if (shyftMetadata && (shyftMetadata.name || shyftMetadata.symbol)) {
           result = {
             mintAddress,
@@ -366,7 +382,7 @@ export class EnhancedAutoEnricher {
       // Get additional metadata from Shyft if available
       let additionalData: any = {};
       if (result.source === 'shyft') {
-        const shyftData = await this.shyftService.getTokenMetadata(result.mintAddress);
+        const shyftData = await this.shyftProvider.getTokenMetadata(result.mintAddress);
         if (shyftData) {
           additionalData = {
             creators: shyftData.creators ? JSON.stringify(shyftData.creators) : null,

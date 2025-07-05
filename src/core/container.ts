@@ -158,8 +158,9 @@ export const TOKENS = {
   LpPositionCalculator: 'LpPositionCalculator' as ServiceToken<any>,
   AmmPoolAnalytics: 'AmmPoolAnalytics' as ServiceToken<any>,
   
-  // Graduation services
-  GraduationFixerService: 'GraduationFixerService' as ServiceToken<any>,
+  // Token Lifecycle
+  TokenLifecycleService: 'TokenLifecycleService' as ServiceToken<any>,
+  
 } as const;
 
 // Global container instance (can be replaced for testing)

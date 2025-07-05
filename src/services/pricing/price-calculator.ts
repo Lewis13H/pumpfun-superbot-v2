@@ -150,28 +150,6 @@ export class PriceCalculator {
     return Math.abs((actualPrice - expectedPrice) / expectedPrice) * 100;
   }
 
-  /**
-   * Validate reserves are reasonable
-   */
-  validateReserves(reserves: ReserveInfo): boolean {
-    // Check for zero reserves
-    if (reserves.solReserves === 0n || reserves.tokenReserves === 0n) {
-      this.logger.warn('Invalid reserves: zero values', reserves);
-      return false;
-    }
-
-    // Check for extreme ratios (potential manipulation)
-    const ratio = Number(reserves.solReserves) / Number(reserves.tokenReserves);
-    if (ratio < 1e-10 || ratio > 1e10) {
-      this.logger.warn('Invalid reserves: extreme ratio', { ratio, reserves });
-      return false;
-    }
-
-    // Check constant K hasn't decreased (for AMM)
-    // This would need historical K value to properly validate
-
-    return true;
-  }
 
 
   /**
@@ -313,7 +291,7 @@ export class PriceCalculator {
   /**
    * Enhanced format price for display (from BC calculator)
    */
-  formatPrice(price: number, decimals: number = 6): string {
+  formatPrice(price: number, _decimals: number = 6): string {
     if (price === 0) return '$0';
     
     if (price >= 1) {

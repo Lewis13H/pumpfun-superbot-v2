@@ -7,6 +7,7 @@ import { db } from '../../database';
 import { AmmPoolStateService } from './amm-pool-state-service';
 import { Logger } from '../../core/logger';
 import chalk from 'chalk';
+import { SolPriceService } from '../pricing/sol-price-service';
 
 interface PoolMetrics {
   tvl: {
@@ -103,14 +104,84 @@ interface MarketComparison {
   similarPools: Array<{ address: string; symbol: string; tvl: number }>;
 }
 
+// Fee tracking interfaces (from amm-fee-service)
+export interface FeeMetrics {
+  totalFeesUSD: number;
+  protocolFeesUSD: number;
+  lpFeesUSD: number;
+  creatorFeesUSD: number;
+  feeAPY: number;
+  avgDailyFees: number;
+  topFeeGenerators: UserFeeContribution[];
+  last24hFees: number;
+  last7dFees: number;
+}
+
+export interface UserFeeContribution {
+  userAddress: string;
+  totalFeesGenerated: number;
+  tradeCount: number;
+  avgFeePerTrade: number;
+}
+
+export interface PoolFeeAccumulator {
+  totalCoinFees: bigint;
+  totalPcFees: bigint;
+  protocolCoinFees: bigint;
+  protocolPcFees: bigint;
+  lpCoinFees: bigint;
+  lpPcFees: bigint;
+  creatorCoinFees: bigint;
+  creatorPcFees: bigint;
+  lastUpdate: Date;
+}
+
+// LP position interfaces (from lp-position-calculator)
+export interface PositionValue {
+  baseAmount: number;
+  quoteAmount: number;
+  totalValueUSD: number;
+  sharePercentage: number;
+}
+
+export interface TokenPrices {
+  base: number; // SOL price in USD
+  quote: number; // Token price in USD
+}
+
+export interface DepositInfo {
+  baseAmount: number;
+  quoteAmount: number;
+  basePrice: number;
+  quotePrice: number;
+  lpTokensReceived: bigint;
+  timestamp: Date;
+}
+
+export interface LpPositionDetails {
+  poolAddress: string;
+  userAddress: string;
+  lpBalance: bigint;
+  currentValue: PositionValue;
+  initialDeposit: DepositInfo;
+  impermanentLoss: number;
+  realizedPnl: number;
+  unrealizedPnl: number;
+  totalPnl: number;
+}
+
 export class AmmPoolAnalytics {
   private static instance: AmmPoolAnalytics | null = null;
   private logger: Logger;
   private poolStateService: AmmPoolStateService;
+  private solPriceService: SolPriceService;
+  private feeAccumulator: Map<string, PoolFeeAccumulator>;
   
   private constructor() {
     this.logger = new Logger({ context: 'AmmPoolAnalytics', color: chalk.cyan });
     this.poolStateService = AmmPoolStateService.getInstance();
+    this.solPriceService = SolPriceService.getInstance();
+    this.feeAccumulator = new Map();
   }
   
   static getInstance(): AmmPoolAnalytics {
@@ -742,6 +813,483 @@ export class AmmPoolAnalytics {
       
     } catch (error) {
       this.logger.error('Error storing pool metrics', error as Error);
+    }
+  }
+
+  // ========== Fee Service Methods (from amm-fee-service) ==========
+
+  /**
+   * Process fee event and accumulate
+   */
+  async processFeeEvent(
+    feeType: 'lp' | 'protocol' | 'creator',
+    poolAddress: string,
+    coinAmount: string,
+    pcAmount: string,
+    signature: string,
+    slot: number,
+    blockTime: Date
+  ): Promise<void> {
+    try {
+      // Get or create accumulator for pool
+      let accumulator = this.feeAccumulator.get(poolAddress);
+      if (!accumulator) {
+        accumulator = {
+          totalCoinFees: 0n,
+          totalPcFees: 0n,
+          protocolCoinFees: 0n,
+          protocolPcFees: 0n,
+          lpCoinFees: 0n,
+          lpPcFees: 0n,
+          creatorCoinFees: 0n,
+          creatorPcFees: 0n,
+          lastUpdate: new Date()
+        };
+        this.feeAccumulator.set(poolAddress, accumulator);
+      }
+
+      // Update accumulator based on fee type
+      const coinAmountBn = BigInt(coinAmount);
+      const pcAmountBn = BigInt(pcAmount);
+      
+      accumulator.totalCoinFees += coinAmountBn;
+      accumulator.totalPcFees += pcAmountBn;
+      
+      switch (feeType) {
+        case 'lp':
+          accumulator.lpCoinFees += coinAmountBn;
+          accumulator.lpPcFees += pcAmountBn;
+          break;
+        case 'protocol':
+          accumulator.protocolCoinFees += coinAmountBn;
+          accumulator.protocolPcFees += pcAmountBn;
+          break;
+        case 'creator':
+          accumulator.creatorCoinFees += coinAmountBn;
+          accumulator.creatorPcFees += pcAmountBn;
+          break;
+      }
+      
+      accumulator.lastUpdate = blockTime;
+
+      // Store fee event in database
+      await this.storeFeeEvent(
+        feeType,
+        poolAddress,
+        coinAmount,
+        pcAmount,
+        signature,
+        slot,
+        blockTime
+      );
+
+      // Update accumulated fees periodically
+      if (Date.now() - accumulator.lastUpdate.getTime() > 60000) { // Every minute
+        await this.updateAccumulatedFees(poolAddress);
+      }
+
+    } catch (error) {
+      this.logger.error('Error processing fee event', error as Error);
+    }
+  }
+
+  /**
+   * Store fee event in database
+   */
+  private async storeFeeEvent(
+    feeType: 'lp' | 'protocol' | 'creator',
+    poolAddress: string,
+    coinAmount: string,
+    pcAmount: string,
+    signature: string,
+    slot: number,
+    blockTime: Date
+  ): Promise<void> {
+    try {
+      // Get current SOL price for USD conversion
+      const solPrice = await this.solPriceService.getPrice();
+      const coinAmountNum = Number(coinAmount) / 1e9; // Convert to SOL
+      const pcAmountNum = Number(pcAmount) / 1e6; // Assuming 6 decimals for token
+      
+      // For simplicity, assume coin is SOL and calculate USD value
+      const feeValueUsd = coinAmountNum * solPrice;
+
+      await db.query(
+        `INSERT INTO amm_fee_events (
+          pool_address, fee_type, coin_amount, pc_amount,
+          fee_value_usd, transaction_signature, slot, block_time
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [poolAddress, feeType, coinAmount, pcAmount, feeValueUsd, signature, slot, blockTime]
+      );
+    } catch (error) {
+      this.logger.error('Error storing fee event', error as Error);
+    }
+  }
+
+  /**
+   * Update accumulated fees in database
+   */
+  private async updateAccumulatedFees(poolAddress: string): Promise<void> {
+    const accumulator = this.feeAccumulator.get(poolAddress);
+    if (!accumulator) return;
+
+    try {
+      const solPrice = await this.solPriceService.getPrice();
+      
+      // Convert fees to USD
+      const totalFeesUsd = (Number(accumulator.totalCoinFees) / 1e9) * solPrice;
+      const lpFeesUsd = (Number(accumulator.lpCoinFees) / 1e9) * solPrice;
+      const protocolFeesUsd = (Number(accumulator.protocolCoinFees) / 1e9) * solPrice;
+      const creatorFeesUsd = (Number(accumulator.creatorCoinFees) / 1e9) * solPrice;
+
+      await db.query(
+        `INSERT INTO pool_fee_accumulator (
+          pool_address, total_fees_usd, lp_fees_usd, 
+          protocol_fees_usd, creator_fees_usd, last_update
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (pool_address) DO UPDATE SET
+          total_fees_usd = pool_fee_accumulator.total_fees_usd + EXCLUDED.total_fees_usd,
+          lp_fees_usd = pool_fee_accumulator.lp_fees_usd + EXCLUDED.lp_fees_usd,
+          protocol_fees_usd = pool_fee_accumulator.protocol_fees_usd + EXCLUDED.protocol_fees_usd,
+          creator_fees_usd = pool_fee_accumulator.creator_fees_usd + EXCLUDED.creator_fees_usd,
+          last_update = EXCLUDED.last_update`,
+        [poolAddress, totalFeesUsd, lpFeesUsd, protocolFeesUsd, creatorFeesUsd, accumulator.lastUpdate]
+      );
+
+      // Reset accumulator
+      this.feeAccumulator.delete(poolAddress);
+    } catch (error) {
+      this.logger.error('Error updating accumulated fees', error as Error);
+    }
+  }
+
+  /**
+   * Get comprehensive fee metrics for a pool
+   */
+  async getPoolFeeMetrics(poolAddress: string): Promise<FeeMetrics | null> {
+    try {
+      const [dailyFees, weeklyFees, totalFees, topUsers] = await Promise.all([
+        this.getFees24h(poolAddress),
+        this.getFees7d(poolAddress),
+        this.getTotalFees(poolAddress),
+        this.getTopFeeGenerators(poolAddress)
+      ]);
+
+      const poolState = this.poolStateService.getPoolStateByAddress(poolAddress);
+      const tvl = poolState ? poolState.tvlUsd : 0;
+      
+      // Calculate fee APY based on 7d average
+      const avgDailyFees = weeklyFees / 7;
+      const feeAPY = tvl > 0 ? (avgDailyFees * 365 / tvl) * 100 : 0;
+
+      return {
+        totalFeesUSD: totalFees.total,
+        protocolFeesUSD: totalFees.protocol,
+        lpFeesUSD: totalFees.lp,
+        creatorFeesUSD: totalFees.creator,
+        feeAPY,
+        avgDailyFees,
+        topFeeGenerators: topUsers,
+        last24hFees: dailyFees,
+        last7dFees: weeklyFees
+      };
+    } catch (error) {
+      this.logger.error('Error getting pool fee metrics', error as Error);
+      return null;
+    }
+  }
+
+  /**
+   * Get fees generated in last 24 hours
+   */
+  private async getFees24h(poolAddress: string): Promise<number> {
+    const result = await db.query(
+      `SELECT COALESCE(SUM(fee_value_usd), 0) as total
+       FROM amm_fee_events
+       WHERE pool_address = $1 AND block_time > NOW() - INTERVAL '24 hours'`,
+      [poolAddress]
+    );
+    return parseFloat(result.rows[0].total);
+  }
+
+  /**
+   * Get fees generated in last 7 days
+   */
+  private async getFees7d(poolAddress: string): Promise<number> {
+    const result = await db.query(
+      `SELECT COALESCE(SUM(fee_value_usd), 0) as total
+       FROM amm_fee_events
+       WHERE pool_address = $1 AND block_time > NOW() - INTERVAL '7 days'`,
+      [poolAddress]
+    );
+    return parseFloat(result.rows[0].total);
+  }
+
+  /**
+   * Get total fees by type
+   */
+  private async getTotalFees(poolAddress: string): Promise<{
+    total: number;
+    lp: number;
+    protocol: number;
+    creator: number;
+  }> {
+    const result = await db.query(
+      `SELECT 
+        COALESCE(SUM(total_fees_usd), 0) as total,
+        COALESCE(SUM(lp_fees_usd), 0) as lp,
+        COALESCE(SUM(protocol_fees_usd), 0) as protocol,
+        COALESCE(SUM(creator_fees_usd), 0) as creator
+       FROM pool_fee_accumulator
+       WHERE pool_address = $1`,
+      [poolAddress]
+    );
+    
+    const row = result.rows[0];
+    return {
+      total: parseFloat(row.total),
+      lp: parseFloat(row.lp),
+      protocol: parseFloat(row.protocol),
+      creator: parseFloat(row.creator)
+    };
+  }
+
+  /**
+   * Get top fee generators
+   */
+  private async getTopFeeGenerators(poolAddress: string, limit: number = 10): Promise<UserFeeContribution[]> {
+    const result = await db.query(
+      `SELECT 
+        user_address,
+        COUNT(*) as trade_count,
+        SUM(volume_usd * 0.003) as total_fees_generated
+       FROM trades_unified
+       WHERE pool_address = $1 AND volume_usd > 0
+       GROUP BY user_address
+       ORDER BY total_fees_generated DESC
+       LIMIT $2`,
+      [poolAddress, limit]
+    );
+
+    return result.rows.map(row => ({
+      userAddress: row.user_address,
+      totalFeesGenerated: parseFloat(row.total_fees_generated),
+      tradeCount: parseInt(row.trade_count),
+      avgFeePerTrade: parseFloat(row.total_fees_generated) / parseInt(row.trade_count)
+    }));
+  }
+
+  // ========== LP Position Calculator Methods (from lp-position-calculator) ==========
+
+  /**
+   * Calculate position value based on LP token balance
+   */
+  calculatePositionValue(
+    lpBalance: bigint,
+    lpSupply: bigint,
+    poolReserves: { base: number; quote: number },
+    prices: TokenPrices
+  ): PositionValue {
+    if (lpSupply === 0n) {
+      return {
+        baseAmount: 0,
+        quoteAmount: 0,
+        totalValueUSD: 0,
+        sharePercentage: 0
+      };
+    }
+    
+    const shareOfPool = Number(lpBalance) / Number(lpSupply);
+    const baseShare = poolReserves.base * shareOfPool;
+    const quoteShare = poolReserves.quote * shareOfPool;
+    
+    return {
+      baseAmount: baseShare,
+      quoteAmount: quoteShare,
+      totalValueUSD: (baseShare * prices.base) + (quoteShare * prices.quote),
+      sharePercentage: shareOfPool * 100
+    };
+  }
+
+  /**
+   * Calculate impermanent loss
+   */
+  calculateImpermanentLoss(
+    initialDeposit: DepositInfo,
+    currentPosition: PositionValue,
+    currentPrices: TokenPrices
+  ): number {
+    // Hold value: What the tokens would be worth if just held
+    const holdValue = 
+      (initialDeposit.baseAmount * currentPrices.base) +
+      (initialDeposit.quoteAmount * currentPrices.quote);
+    
+    // LP value: Current value of the LP position
+    const lpValue = currentPosition.totalValueUSD;
+    
+    // IL = (LP Value / Hold Value - 1) * 100
+    const impermanentLoss = ((lpValue / holdValue) - 1) * 100;
+    
+    return impermanentLoss;
+  }
+
+  /**
+   * Store LP position snapshot
+   */
+  async storeLpPosition(
+    userAddress: string,
+    poolAddress: string,
+    lpBalance: bigint,
+    positionValue: PositionValue,
+    blockTime: Date
+  ): Promise<void> {
+    try {
+      await db.query(
+        `INSERT INTO lp_positions (
+          user_address, pool_address, lp_balance,
+          base_amount, quote_amount, total_value_usd,
+          share_percentage, timestamp
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (user_address, pool_address) DO UPDATE SET
+          lp_balance = $3,
+          base_amount = $4,
+          quote_amount = $5,
+          total_value_usd = $6,
+          share_percentage = $7,
+          timestamp = $8`,
+        [
+          userAddress,
+          poolAddress,
+          lpBalance.toString(),
+          positionValue.baseAmount,
+          positionValue.quoteAmount,
+          positionValue.totalValueUSD,
+          positionValue.sharePercentage,
+          blockTime
+        ]
+      );
+    } catch (error) {
+      this.logger.error('Error storing LP position', error as Error);
+    }
+  }
+
+  /**
+   * Get user's LP position details
+   */
+  async getUserLpPosition(
+    userAddress: string,
+    poolAddress: string,
+    lpBalance: bigint
+  ): Promise<LpPositionDetails | null> {
+    try {
+      const poolState = this.poolStateService.getPoolStateByAddress(poolAddress);
+      if (!poolState) return null;
+
+      // Get current prices
+      const solPrice = await this.solPriceService.getPrice();
+      const tokenPrice = poolState.currentPrice * solPrice;
+      const prices: TokenPrices = {
+        base: solPrice,
+        quote: tokenPrice
+      };
+
+      // Calculate current position value
+      const currentValue = this.calculatePositionValue(
+        lpBalance,
+        poolState.lpSupply,
+        {
+          base: Number(poolState.reserves.virtualSolReserves) / 1e9,
+          quote: Number(poolState.reserves.virtualTokenReserves) / 1e6
+        },
+        prices
+      );
+
+      // Get initial deposit info from database
+      const depositResult = await db.query(
+        `SELECT base_amount, quote_amount, base_price, quote_price, 
+                lp_tokens_received, block_time as timestamp
+         FROM liquidity_events
+         WHERE user_address = $1 AND pool_address = $2 
+         AND event_type = 'add'
+         ORDER BY block_time ASC
+         LIMIT 1`,
+        [userAddress, poolAddress]
+      );
+
+      if (depositResult.rows.length === 0) {
+        return null;
+      }
+
+      const deposit = depositResult.rows[0];
+      const initialDeposit: DepositInfo = {
+        baseAmount: parseFloat(deposit.base_amount),
+        quoteAmount: parseFloat(deposit.quote_amount),
+        basePrice: parseFloat(deposit.base_price),
+        quotePrice: parseFloat(deposit.quote_price),
+        lpTokensReceived: BigInt(deposit.lp_tokens_received),
+        timestamp: new Date(deposit.timestamp)
+      };
+
+      // Calculate impermanent loss
+      const impermanentLoss = this.calculateImpermanentLoss(
+        initialDeposit,
+        currentValue,
+        prices
+      );
+
+      // Calculate PnL
+      const initialValue = 
+        (initialDeposit.baseAmount * initialDeposit.basePrice) +
+        (initialDeposit.quoteAmount * initialDeposit.quotePrice);
+      
+      const unrealizedPnl = currentValue.totalValueUSD - initialValue;
+      const realizedPnl = 0; // Would need to track withdrawals for this
+
+      return {
+        poolAddress,
+        userAddress,
+        lpBalance,
+        currentValue,
+        initialDeposit,
+        impermanentLoss,
+        realizedPnl,
+        unrealizedPnl,
+        totalPnl: realizedPnl + unrealizedPnl
+      };
+    } catch (error) {
+      this.logger.error('Error getting user LP position', error as Error);
+      return null;
+    }
+  }
+
+  /**
+   * Get top LP providers for a pool
+   */
+  async getTopLpProviders(poolAddress: string, limit: number = 10): Promise<Array<{
+    userAddress: string;
+    lpBalance: bigint;
+    sharePercentage: number;
+    totalValueUSD: number;
+  }>> {
+    try {
+      const result = await db.query(
+        `SELECT user_address, lp_balance, share_percentage, total_value_usd
+         FROM lp_positions
+         WHERE pool_address = $1
+         ORDER BY share_percentage DESC
+         LIMIT $2`,
+        [poolAddress, limit]
+      );
+
+      return result.rows.map(row => ({
+        userAddress: row.user_address,
+        lpBalance: BigInt(row.lp_balance),
+        sharePercentage: parseFloat(row.share_percentage),
+        totalValueUSD: parseFloat(row.total_value_usd)
+      }));
+    } catch (error) {
+      this.logger.error('Error getting top LP providers', error as Error);
+      return [];
     }
   }
 }

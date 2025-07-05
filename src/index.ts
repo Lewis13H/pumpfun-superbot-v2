@@ -191,10 +191,7 @@ async function startMonitors() {
     stats.activeMonitors.add('StaleDetector');
     logger.debug('Enhanced stale token detector started');
     
-    // Start graduation fixer service
-    await container.resolve(TOKENS.GraduationFixerService);
-    stats.activeMonitors.add('GraduationFixer');
-    logger.debug('Graduation fixer service started');
+    // Graduation fixer is now integrated into TokenLifecycleService
     
     clearLine();
     console.log(chalk.green('✅ All systems operational\n'));
@@ -334,15 +331,7 @@ function setupGracefulShutdown(monitors: any[], logger: Logger, container?: any)
     
     // Stop graduation fixer service
     if (container) {
-      try {
-        const graduationFixer = await container.resolve(TOKENS.GraduationFixerService);
-        if (graduationFixer && typeof graduationFixer.shutdown === 'function') {
-          await graduationFixer.shutdown();
-          console.log(chalk.yellow('Graduation fixer service stopped'));
-        }
-      } catch (error) {
-        logger.error('Error stopping graduation fixer', error as Error);
-      }
+      // Graduation fixer is now integrated into TokenLifecycleService
     }
     
     // Print final stats
