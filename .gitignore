@@ -179,3 +179,24 @@ shyft-code-examples/
 test-bc-monitor.sh
 test-mc-values.sh
 bc-monitor-test.log
+src/tests/
+vitest.config.ts
+*.test.ts
+*.spec.ts
+
+# Temporary/Development files
+app.pid
+checkpoints/
+test-checkpoints/
+backups/
+*.mockup*
+*_TEST_RESULTS.md
+capture-*.sh
+
+# Session documentation
+docs/SESSION*.md
+docs/SESSIONS*.md
+MIGRATION_GUIDE.md
+IMPLEMENTATION_PLAN.md
+*_IMPLEMENTATION_PLAN.md
+SERVICE_UTILS_REBUILD_PLAN.md
