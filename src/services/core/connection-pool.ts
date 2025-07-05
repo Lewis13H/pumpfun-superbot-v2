@@ -84,18 +84,19 @@ export class ConnectionPool extends EventEmitter {
       formattedEndpoint = `https://${endpoint}`;
     }
     
-    // Configure gRPC channel options for better connection stability
+    // Configure gRPC channel options based on Shyft examples
     const channelOptions: ChannelOptions = {
-      'grpc.keepalive_time_ms': 60000,
-      'grpc.keepalive_timeout_ms': 20000,
+      'grpc.keepalive_time_ms': 10000,  // Shyft recommended: 10s
+      'grpc.keepalive_timeout_ms': 1000, // Shyft recommended: 1s
       'grpc.keepalive_permit_without_calls': 1,
-      'grpc.initial_reconnect_backoff_ms': 2000,
-      'grpc.max_reconnect_backoff_ms': 60000,
+      'grpc.default_compression_algorithm': 2, // Enable compression
+      'grpc.initial_reconnect_backoff_ms': 1000, // Start with 1s
+      'grpc.max_reconnect_backoff_ms': 30000,    // Max 30s backoff
       'grpc.client_idle_timeout_ms': 600000,
       'grpc.max_receive_message_length': 50 * 1024 * 1024,
       'grpc.max_send_message_length': 50 * 1024 * 1024,
-      'grpc.http2.min_time_between_pings_ms': 60000,
-      'grpc.http2.max_pings_without_data': 2,
+      'grpc.http2.min_time_between_pings_ms': 10000,
+      'grpc.http2.max_pings_without_data': 0, // Allow unlimited pings
     };
     
     const client = new Client(formattedEndpoint, token, channelOptions);
@@ -214,73 +215,69 @@ export class ConnectionPool extends EventEmitter {
 
   private async checkConnectionHealth(connection: PooledConnection): Promise<void> {
     try {
-      const startTime = Date.now();
+      // Don't create test subscriptions - this counts towards rate limit!
+      // Instead, use connection state and metrics to determine health
       
-      // Perform health check - try to create a stream and immediately close it
-      let isHealthy = false;
-      try {
-        const testStream = await connection.client.subscribe();
-        if (testStream) {
-          testStream.cancel();
-          isHealthy = true;
-        }
-      } catch (streamError) {
-        // Stream creation failed, connection is unhealthy
+      const now = Date.now();
+      const timeSinceLastUse = now - connection.lastUsedAt.getTime();
+      const isStale = timeSinceLastUse > 300000; // 5 minutes
+      
+      // Update health check timestamp
+      connection.metrics.lastHealthCheck = new Date();
+      
+      // Determine health based on metrics and staleness
+      let isHealthy = true;
+      
+      // Check if connection is stale
+      if (isStale && connection.status === ConnectionStatus.IDLE) {
+        logger.warn(`Connection ${connection.id} is stale (${Math.round(timeSinceLastUse / 1000)}s since last use)`);
         isHealthy = false;
       }
       
-      const latency = Date.now() - startTime;
+      // Check error rate
+      if (connection.metrics.errorRate > 0.5) {
+        logger.warn(`Connection ${connection.id} has high error rate: ${(connection.metrics.errorRate * 100).toFixed(1)}%`);
+        isHealthy = false;
+      }
       
-      // Update metrics
-      connection.metrics.lastHealthCheck = new Date();
-      connection.metrics.averageLatency = 
-        (connection.metrics.averageLatency * 0.9) + (latency * 0.1);
+      // Check if we're getting stream errors frequently
+      if (connection.status === ConnectionStatus.UNHEALTHY) {
+        // Give it time to recover naturally through actual usage
+        const timeSinceUnhealthy = now - (connection.metrics.lastHealthCheck?.getTime() || now);
+        if (timeSinceUnhealthy < 60000) { // Less than 1 minute
+          return; // Don't change status yet
+        }
+      }
 
-      if (!isHealthy) {
+      if (!isHealthy && connection.status !== ConnectionStatus.UNHEALTHY) {
         connection.status = ConnectionStatus.UNHEALTHY;
         this.emit('connectionUnhealthy', connection);
         
-        // Attempt reconnection
-        await this.reconnectConnection(connection);
-      } else if (connection.status === ConnectionStatus.UNHEALTHY) {
+        // Don't attempt reconnection here - let actual usage trigger it
+        logger.info(`Connection ${connection.id} marked unhealthy, will recover on next use`);
+      } else if (isHealthy && connection.status === ConnectionStatus.UNHEALTHY) {
+        // Connection recovered through actual usage
         connection.status = ConnectionStatus.IDLE;
+        connection.metrics.errorRate = Math.max(0, connection.metrics.errorRate - 0.1);
         this.emit('connectionRecovered', connection);
       }
     } catch (error) {
       logger.error(`Health check failed for connection ${connection.id}:`, error);
-      connection.status = ConnectionStatus.DISCONNECTED;
       connection.metrics.errorRate = Math.min(connection.metrics.errorRate + 0.1, 1);
     }
   }
 
   private async reconnectConnection(connection: PooledConnection): Promise<void> {
-    let retries = 0;
+    // Don't try to reconnect here - this would create unnecessary subscriptions
+    // Instead, mark for recovery and let actual usage attempt reconnection
     
-    while (retries < this.config.maxRetries) {
-      try {
-        // Test the connection by trying to create a stream
-        const testStream = await connection.client.subscribe();
-        if (testStream) {
-          testStream.cancel();
-          
-          connection.status = ConnectionStatus.IDLE;
-          connection.metrics.errorRate = 0;
-          
-          logger.info(`Successfully verified connection ${connection.id}`);
-          return;
-        }
-      } catch (error) {
-        retries++;
-        logger.warn(`Reconnection attempt ${retries} failed for ${connection.id}`);
-        
-        // Exponential backoff
-        await new Promise(resolve => setTimeout(resolve, Math.pow(2, retries) * 1000));
-      }
-    }
+    logger.info(`Connection ${connection.id} marked for recovery on next use`);
     
-    // Mark as disconnected after all retries fail
-    connection.status = ConnectionStatus.DISCONNECTED;
-    this.emit('connectionFailed', connection);
+    // Reset error rate gradually
+    connection.metrics.errorRate = Math.max(0, connection.metrics.errorRate - 0.2);
+    
+    // The connection will be tested when actually used by a monitor
+    // This avoids creating test subscriptions that count towards rate limit
   }
 
   private startMetricsCollection(): void {

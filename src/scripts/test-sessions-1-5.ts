@@ -89,6 +89,12 @@ async function testSessions() {
     console.log('Average Load:', finalLoadMetrics.averageLoad?.toFixed(2) || '0.00');
     console.log('Max Load:', finalLoadMetrics.maxLoad?.toFixed(2) || '0.00');
     
+    // Show subscription rate stats
+    const rateStats = streamManager.getSubscriptionRateStats();
+    console.log(chalk.cyan('\n📊 Subscription Rate Stats:'));
+    console.log(`Subscriptions: ${rateStats.current}/${rateStats.limit} (${rateStats.percentage.toFixed(1)}%)`);
+    console.log('By Connection:', rateStats.byConnection);
+    
     // Cleanup
     await tokenMonitor.stop();
     await tradingMonitor.stop();

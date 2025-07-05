@@ -7,6 +7,7 @@ import {
   MonitorGroup
 } from './subscription-builder';
 import { LoadBalancer, LoadBalancerConfig, MigrationRequest } from './load-balancer';
+import { SubscriptionRateLimiter } from './subscription-rate-limiter';
 import chalk from 'chalk';
 
 export interface SmartStreamManagerOptions extends Omit<StreamManagerOptions, 'streamClient'> {
@@ -27,6 +28,7 @@ export interface MonitorRegistration {
 export class SmartStreamManager extends StreamManager {
   private pool: ConnectionPool;
   private loadBalancer: LoadBalancer;
+  private rateLimiter: SubscriptionRateLimiter;
   private monitorRegistrations: Map<string, MonitorRegistration> = new Map();
   private connectionStreams: Map<string, StreamManager> = new Map();
   private smartLogger: Logger;
@@ -44,6 +46,7 @@ export class SmartStreamManager extends StreamManager {
     this.smartLogger = new Logger({ context: 'SmartStreamManager', color: chalk.cyan });
     this.pool = new ConnectionPool(options.poolConfig);
     this.loadBalancer = new LoadBalancer(options.loadBalancerConfig);
+    this.rateLimiter = new SubscriptionRateLimiter();
     
     // Set up event listeners
     this.setupPoolEventHandlers();
@@ -152,8 +155,14 @@ export class SmartStreamManager extends StreamManager {
       this.connectionStreams.set(connection.id, streamManager);
     }
 
+    // Check rate limit before subscribing
+    await this.rateLimiter.waitForSlot();
+    
     // Subscribe through the connection's stream manager
     await streamManager.subscribeTo(registration.programId, registration.subscriptionConfig);
+    
+    // Record the subscription
+    this.rateLimiter.recordSubscription(connection.id);
     
     // Update subscription metrics
     subscriptionBuilder.updateMetrics(enhancedSub.id, 'message');
@@ -405,10 +414,29 @@ export class SmartStreamManager extends StreamManager {
   }
 
   /**
+   * Get subscription rate limiter stats
+   */
+  getSubscriptionRateStats() {
+    const rate = this.rateLimiter.getCurrentRate();
+    const connectionStats = this.rateLimiter.getConnectionStats();
+    
+    return {
+      current: rate.count,
+      limit: rate.limit,
+      percentage: rate.percentage,
+      byConnection: Object.fromEntries(connectionStats)
+    };
+  }
+
+  /**
    * Override stop to stop all streams and shutdown pool
    */
   async stop(): Promise<void> {
     this.smartLogger.info('Stopping SmartStreamManager');
+    
+    // Log final rate limiter stats
+    const rateStats = this.getSubscriptionRateStats();
+    this.smartLogger.info('Final subscription rate stats', rateStats);
 
     // Stop all streams
     const stopPromises = Array.from(this.connectionStreams.values()).map(

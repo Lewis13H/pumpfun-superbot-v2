@@ -79,16 +79,40 @@ export class StreamManager {
     if (this.stream) {
       try {
         this.logger.info('Stopping shared stream...');
-        this.stream.cancel();
-        if (typeof this.stream.end === 'function') {
-          this.stream.end();
-        }
-        if (typeof this.stream.destroy === 'function') {
-          this.stream.destroy();
-        }
+        
+        // Use Shyft's recommended pattern for closing streams
+        await new Promise<void>((resolve, reject) => {
+          // Set up listeners before canceling
+          this.stream.on("error", (err: any) => {
+            if (err.code === 1 || err.message.includes("Cancelled")) {
+              // User cancellation, not an error
+              resolve();
+            } else {
+              reject(err);
+            }
+          });
+          
+          this.stream.on("close", () => resolve());
+          this.stream.on("end", () => resolve());
+          
+          // Cancel the stream
+          this.stream.cancel();
+          
+          // Also try end/destroy as fallback
+          if (typeof this.stream.end === 'function') {
+            this.stream.end();
+          }
+          
+          // Set a timeout to ensure we don't hang
+          setTimeout(() => resolve(), 5000);
+        });
+        
         this.stream = null;
+        this.logger.info('Stream closed successfully');
       } catch (error: any) {
-        if (error.code !== "ERR_STREAM_PREMATURE_CLOSE") {
+        if (error.code !== "ERR_STREAM_PREMATURE_CLOSE" && 
+            error.code !== 1 && 
+            !error.message?.includes("Cancelled")) {
           this.logger.error('Error stopping stream', error as Error);
         }
       }
