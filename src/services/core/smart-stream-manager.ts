@@ -8,11 +8,13 @@ import {
 } from './subscription-builder';
 import { LoadBalancer, LoadBalancerConfig, MigrationRequest } from './load-balancer';
 import { SubscriptionRateLimiter } from './subscription-rate-limiter';
+import { DataPipeline, PipelineConfig } from '../pipeline/data-pipeline';
 import chalk from 'chalk';
 
 export interface SmartStreamManagerOptions extends Omit<StreamManagerOptions, 'streamClient'> {
   poolConfig: ConnectionPoolConfig;
   loadBalancerConfig?: Partial<LoadBalancerConfig>;
+  pipelineConfig?: PipelineConfig;
 }
 
 export interface MonitorRegistration {
@@ -29,12 +31,14 @@ export class SmartStreamManager extends StreamManager {
   private pool: ConnectionPool;
   private loadBalancer: LoadBalancer;
   private rateLimiter: SubscriptionRateLimiter;
+  private dataPipeline?: DataPipeline;
   private monitorRegistrations: Map<string, MonitorRegistration> = new Map();
   private connectionStreams: Map<string, StreamManager> = new Map();
   private smartLogger: Logger;
   private messageTracking: Map<string, string> = new Map(); // messageId -> connectionId
   private subscriptionCounts: Map<string, number> = new Map(); // connectionId -> count
   private subscriptionGroups: Map<string, string> = new Map(); // subscriptionId -> group
+  private smartOptions: SmartStreamManagerOptions;
 
   constructor(options: SmartStreamManagerOptions) {
     // Create a dummy client for base class (won't be used)
@@ -43,6 +47,7 @@ export class SmartStreamManager extends StreamManager {
       streamClient: { subscribe: () => Promise.resolve() }
     });
     
+    this.smartOptions = options;
     this.smartLogger = new Logger({ context: 'SmartStreamManager', color: chalk.cyan });
     this.pool = new ConnectionPool(options.poolConfig);
     this.loadBalancer = new LoadBalancer(options.loadBalancerConfig);
@@ -97,6 +102,15 @@ export class SmartStreamManager extends StreamManager {
     // Initialize load balancer with connections
     const connections = this.pool.getActiveConnections();
     this.loadBalancer.initialize(connections);
+    
+    // Initialize data pipeline if config provided
+    if (this.smartOptions.pipelineConfig) {
+      this.smartLogger.info('Initializing data pipeline');
+      // Inject EventBus into DataPipeline
+      DataPipeline.setEventBus((this as any).options.eventBus);
+      this.dataPipeline = DataPipeline.getInstance(this.smartOptions.pipelineConfig);
+      await this.dataPipeline.initialize();
+    }
   }
 
   /**
@@ -372,6 +386,7 @@ export class SmartStreamManager extends StreamManager {
     const poolStats = this.pool.getConnectionStats();
     const subscriptionStats = subscriptionBuilder.getStatistics();
     const loadStats = this.loadBalancer.getLoadSummary();
+    const pipelineStats = this.dataPipeline?.getStats();
     const monitorsByConnection: Record<string, number> = {};
     const monitorsByGroup: Record<string, number> = {};
 
@@ -389,6 +404,7 @@ export class SmartStreamManager extends StreamManager {
       pool: poolStats,
       subscriptions: subscriptionStats,
       load: loadStats,
+      pipeline: pipelineStats,
       monitors: {
         total: this.monitorRegistrations.size,
         byConnection: monitorsByConnection,
@@ -449,6 +465,12 @@ export class SmartStreamManager extends StreamManager {
     this.connectionStreams.clear();
     this.monitorRegistrations.clear();
     this.messageTracking.clear();
+    
+    // Shutdown data pipeline
+    if (this.dataPipeline) {
+      this.smartLogger.info('Shutting down data pipeline');
+      await this.dataPipeline.shutdown();
+    }
     
     // Shutdown load balancer
     this.loadBalancer.shutdown();

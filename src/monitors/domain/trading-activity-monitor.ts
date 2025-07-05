@@ -23,7 +23,7 @@ import { UnifiedEventParser } from '../../utils/parsers/unified-event-parser';
 import { TradeHandler } from '../../handlers/trade-handler';
 import { MonitorGroup } from '../../services/core/subscription-builder';
 import { MonitorStats } from '../../core/base-monitor';
-import { TradeEvent, TradeType } from '../../utils/parsers/types';
+import { TradeEvent, TradeType, EventType } from '../../utils/parsers/types';
 
 interface TradingStats extends MonitorStats {
   totalTrades: number;
@@ -219,8 +219,11 @@ export class TradingActivityMonitor extends BaseMonitor {
     // Parse the event
     const event = this.parser.parse(context);
     
-    if (event && (event.type === 'bc_trade' || event.type === 'amm_trade' || event.type === 'raydium_swap')) {
-      await this.processTrade(event, venue);
+    if (event) {
+      const eventType = event.type as string;
+      if (eventType === EventType.BC_TRADE || eventType === EventType.AMM_TRADE || eventType === EventType.RAYDIUM_SWAP || eventType === 'raydium_swap') {
+        await this.processTrade(event, venue);
+      }
     }
   }
 

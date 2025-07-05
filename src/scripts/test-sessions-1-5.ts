@@ -53,7 +53,7 @@ async function testSessions() {
       connectionCount: loadMetrics.connectionLoads.size,
       averageLoad: loadMetrics.summary?.averageLoad?.toFixed(2) || '0.00',
       maxLoad: loadMetrics.summary?.maxLoad?.toFixed(2) || '0.00',
-      loadVariance: loadMetrics.summary?.loadVariance?.toFixed(2) || '0.00'
+      minLoad: loadMetrics.summary?.minLoad?.toFixed(2) || '0.00'
     });
     
     // Session 4: TokenLifecycle Monitor

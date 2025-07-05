@@ -267,18 +267,19 @@ export class ConnectionPool extends EventEmitter {
     }
   }
 
-  private async reconnectConnection(connection: PooledConnection): Promise<void> {
-    // Don't try to reconnect here - this would create unnecessary subscriptions
-    // Instead, mark for recovery and let actual usage attempt reconnection
-    
-    logger.info(`Connection ${connection.id} marked for recovery on next use`);
-    
-    // Reset error rate gradually
-    connection.metrics.errorRate = Math.max(0, connection.metrics.errorRate - 0.2);
-    
-    // The connection will be tested when actually used by a monitor
-    // This avoids creating test subscriptions that count towards rate limit
-  }
+  // Unused for now - reconnection handled differently to avoid rate limit issues
+  // private async reconnectConnection(connection: PooledConnection): Promise<void> {
+  //   // Don't try to reconnect here - this would create unnecessary subscriptions
+  //   // Instead, mark for recovery and let actual usage attempt reconnection
+  //   
+  //   logger.info(`Connection ${connection.id} marked for recovery on next use`);
+  //   
+  //   // Reset error rate gradually
+  //   connection.metrics.errorRate = Math.max(0, connection.metrics.errorRate - 0.2);
+  //   
+  //   // The connection will be tested when actually used by a monitor
+  //   // This avoids creating test subscriptions that count towards rate limit
+  // }
 
   private startMetricsCollection(): void {
     this.metricsCollectionTimer = setInterval(() => {

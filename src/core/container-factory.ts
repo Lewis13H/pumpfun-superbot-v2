@@ -49,7 +49,8 @@ export async function createContainer(): Promise<Container> {
             medium: ['amm_pool'],
             low: ['external_amm']
           }
-        }
+        },
+        pipelineConfig: (container as any).pipelineConfig
       });
       
       return manager;

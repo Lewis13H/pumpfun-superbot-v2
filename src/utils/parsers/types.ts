@@ -101,6 +101,7 @@ export interface ParseContext {
   accountKeys?: (string | Buffer)[];
   userAddress?: string;
   fullTransaction?: any; // Full gRPC transaction data for IDL parsing
+  programId?: string; // Program ID for event parsing
 }
 
 export interface ParseStrategy {

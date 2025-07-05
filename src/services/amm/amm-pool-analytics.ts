@@ -909,7 +909,7 @@ export class AmmPoolAnalytics {
       // Get current SOL price for USD conversion
       const solPrice = await this.solPriceService.getPrice();
       const coinAmountNum = Number(coinAmount) / 1e9; // Convert to SOL
-      const pcAmountNum = Number(pcAmount) / 1e6; // Assuming 6 decimals for token
+      // const pcAmountNum = Number(pcAmount) / 1e6; // Assuming 6 decimals for token
       
       // For simplicity, assume coin is SOL and calculate USD value
       const feeValueUsd = coinAmountNum * solPrice;
@@ -976,7 +976,7 @@ export class AmmPoolAnalytics {
       ]);
 
       const poolState = this.poolStateService.getPoolStateByAddress(poolAddress);
-      const tvl = poolState ? poolState.tvlUsd : 0;
+      const tvl = poolState ? poolState.metrics.liquidityUsd : 0;
       
       // Calculate fee APY based on 7d average
       const avgDailyFees = weeklyFees / 7;
@@ -1071,7 +1071,7 @@ export class AmmPoolAnalytics {
       [poolAddress, limit]
     );
 
-    return result.rows.map(row => ({
+    return result.rows.map((row: any) => ({
       userAddress: row.user_address,
       totalFeesGenerated: parseFloat(row.total_fees_generated),
       tradeCount: parseInt(row.trade_count),
@@ -1187,7 +1187,7 @@ export class AmmPoolAnalytics {
 
       // Get current prices
       const solPrice = await this.solPriceService.getPrice();
-      const tokenPrice = poolState.currentPrice * solPrice;
+      const tokenPrice = poolState.metrics.pricePerTokenSol * solPrice;
       const prices: TokenPrices = {
         base: solPrice,
         quote: tokenPrice
@@ -1196,7 +1196,7 @@ export class AmmPoolAnalytics {
       // Calculate current position value
       const currentValue = this.calculatePositionValue(
         lpBalance,
-        poolState.lpSupply,
+        BigInt(poolState.reserves.lpSupply),
         {
           base: Number(poolState.reserves.virtualSolReserves) / 1e9,
           quote: Number(poolState.reserves.virtualTokenReserves) / 1e6
@@ -1281,7 +1281,7 @@ export class AmmPoolAnalytics {
         [poolAddress, limit]
       );
 
-      return result.rows.map(row => ({
+      return result.rows.map((row: any) => ({
         userAddress: row.user_address,
         lpBalance: BigInt(row.lp_balance),
         sharePercentage: parseFloat(row.share_percentage),

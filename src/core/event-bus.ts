@@ -197,10 +197,14 @@ export const EVENTS = {
   BC_TRADE: 'bc:trade',
   AMM_TRADE: 'amm:trade',
   TRADE_PROCESSED: 'trade:processed',
+  TRADE_EXECUTED: 'trade:executed',
+  MEV_DETECTED: 'mev:detected',
+  HIGH_SLIPPAGE_TRADE: 'trade:high_slippage',
   
   // Token events
   TOKEN_DISCOVERED: 'token:discovered',
   TOKEN_GRADUATED: 'token:graduated',
+  TOKEN_CREATED: 'token:created',
   TOKEN_THRESHOLD_CROSSED: 'token:threshold_crossed',
   TOKEN_METADATA_UPDATED: 'token:metadata_updated',
   BONDING_CURVE_CREATED: 'bonding_curve:created',
@@ -237,6 +241,7 @@ export const EVENTS = {
   MONITOR_STOPPED: 'monitor:stopped',
   MONITOR_ERROR: 'monitor:error',
   MONITOR_STATS_UPDATED: 'monitor:stats_updated',
+  PIPELINE_STATS_UPDATED: 'pipeline:stats_updated',
   
   // Stream events
   STREAM_DATA: 'stream:data',

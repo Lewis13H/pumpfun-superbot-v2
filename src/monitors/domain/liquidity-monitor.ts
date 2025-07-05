@@ -9,7 +9,7 @@ import { UnifiedEventParser } from '../../utils/parsers/unified-event-parser';
 // import { AmmPoolStateService } from '../../services/amm/amm-pool-state-service';
 // import { AmmFeeService } from '../../services/amm/amm-fee-service';
 // import { LpPositionCalculator } from '../../services/amm/lp-position-calculator';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import bs58 from 'bs58';
 
 // Program IDs
@@ -67,7 +67,7 @@ export class LiquidityMonitor extends BaseMonitor {
       monitorGroup: 'amm_pool',
       priority: 'medium',
       isAccountMonitor: true,
-      color: chalk.blue
+      color: chalk
     }, container);
     
     this.eventParser = new UnifiedEventParser({ useIDLParsing: true });
@@ -145,6 +145,14 @@ export class LiquidityMonitor extends BaseMonitor {
     this.metrics.messagesProcessed++;
     
     try {
+      // Debug: Log data type
+      const dataType = data.account ? 'ACCOUNT' : data.transaction ? 'TRANSACTION' : 'UNKNOWN';
+      this.logger.debug(`Processing ${dataType} data`, {
+        hasAccount: !!data.account,
+        hasTransaction: !!data.transaction,
+        slot: data.account?.slot || data.transaction?.slot
+      });
+      
       // Check if it's an account update
       if (data.account) {
         await this.processAccountUpdate(data);
@@ -167,6 +175,16 @@ export class LiquidityMonitor extends BaseMonitor {
    */
   private async processAccountUpdate(data: any): Promise<void> {
     try {
+      // Debug: Log account update details
+      const accountPubkey = data.account?.account?.pubkey;
+      const owner = data.account?.account?.owner;
+      this.logger.debug('Account update:', {
+        pubkey: accountPubkey?.slice(0, 10) + '...' || 'unknown',
+        owner: owner,
+        slot: data.account?.slot,
+        dataLength: data.account?.account?.data?.length
+      });
+      
       // Create parse context from gRPC data
       const context = this.createParseContext(data);
       const event = this.eventParser.parse(context);
@@ -176,6 +194,10 @@ export class LiquidityMonitor extends BaseMonitor {
         if ((event as any).type === 'amm_pool_state') {
           // Update pool state
           const poolData = (event as any).data;
+          this.logger.info('🏊 Pool state update detected!', {
+            pool: poolData.poolAddress,
+            tokenMint: poolData.tokenMint
+          });
           const poolMetrics: PoolMetrics = {
             poolAddress: poolData.poolAddress,
             tokenMint: poolData.tokenMint,
@@ -213,25 +235,66 @@ export class LiquidityMonitor extends BaseMonitor {
     try {
       // Create parse context from gRPC data
       const context = this.createParseContext(data);
+      
+      // Debug: Log transaction details
+      const logs = context.logs || [];
+      this.logger.debug('Transaction logs:', {
+        signature: context.signature.slice(0, 10) + '...',
+        logCount: logs.length,
+        programs: context.accounts.slice(0, 3),
+        firstLog: logs[0]?.slice(0, 100)
+      });
+      
+      // Check for liquidity-related logs
+      const hasLiquidityLog = logs.some((log: string) => 
+        log.toLowerCase().includes('liquidity') ||
+        log.toLowerCase().includes('mint_lp') ||
+        log.toLowerCase().includes('burn_lp') ||
+        log.toLowerCase().includes('fee')
+      );
+      
+      if (hasLiquidityLog) {
+        this.logger.info('🎯 Potential liquidity transaction detected!', {
+          signature: context.signature,
+          logs: logs.filter((log: string) => 
+            log.toLowerCase().includes('liquidity') ||
+            log.toLowerCase().includes('mint_lp') ||
+            log.toLowerCase().includes('burn_lp') ||
+            log.toLowerCase().includes('fee')
+          )
+        });
+      }
+      
       const event = this.eventParser.parse(context);
       const events = event ? [event] : [];
       
       for (const event of events) {
         // Handle different liquidity-related events
         const eventType = (event as any).type;
+        this.logger.debug('Parsed event type:', eventType);
+        
         switch (eventType) {
           case 'amm_liquidity_add':
           case 'amm_liquidity_remove':
             this.metrics.totalLiquidityEvents++;
+            this.logger.info('💧 Liquidity event detected!', { type: eventType, event });
             break;
             
           case 'amm_fee_collect':
             this.metrics.totalFeeEvents++;
+            this.logger.info('💰 Fee collection event detected!', { type: eventType, event });
             break;
             
           case 'lp_position':
             this.metrics.lpPositions++;
+            this.logger.info('📊 LP position event detected!', { type: eventType, event });
             break;
+            
+          default:
+            // Log other event types to understand what we're seeing
+            if (eventType) {
+              this.logger.debug('Other event type:', { type: eventType });
+            }
         }
       }
     } catch (error) {
@@ -444,14 +507,14 @@ export class LiquidityMonitor extends BaseMonitor {
   /**
    * Should log error
    */
-  protected shouldLogError(_error: Error): boolean {
+  shouldLogError(_error: Error): boolean {
     return true;
   }
   
   /**
    * Cleanup on shutdown
    */
-  protected async onShutdown(): Promise<void> {
+  async onShutdown(): Promise<void> {
     // Cleanup any resources
   }
 }

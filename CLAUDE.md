@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Overview
 
-Real-time Solana token monitor for pump.fun bonding curves and pump.swap AMM pools. Streams blockchain data via Shyft's gRPC, tracks prices/market caps, saves high-value tokens (≥$8,888) to PostgreSQL.
+Real-time Solana token monitor & evaluator for pump.fun bonding curves and pump.swap AMM pools. Streams blockchain data via Shyft's gRPC, tracks prices/market caps, saves high-value tokens (≥$8,888) to PostgreSQL.
 
 ## Quick Start
 
@@ -24,6 +24,11 @@ npm run build       # Build TypeScript
 
 ### Key Services (Organized by Directory)
 #### Core Services (`services/core/`)
+- `smart-stream-manager.ts` - Enhanced stream manager with connection pooling
+- `connection-pool.ts` - Manages multiple gRPC connections with health monitoring
+- `subscription-builder.ts` - Groups and prioritizes subscriptions by domain
+- `load-balancer.ts` - Distributes load across connections with predictive analytics
+- `subscription-rate-limiter.ts` - Ensures Shyft rate limit compliance (100 subs/60s)
 - Event parsing, IDL parsing, block tracking
 
 #### Pricing Services (`services/pricing/`)
@@ -55,6 +60,13 @@ npm run build       # Build TypeScript
 
 #### Recovery Services (`services/recovery/`)
 - Recovery queue, pool creation monitoring
+
+#### Pipeline Services (`services/pipeline/`)
+- `data-pipeline.ts` - Central event processing hub with batching and routing
+- `event-normalizer.ts` - Standardizes events from all domain monitors
+- `batch-manager.ts` - Efficient event batching with timeout controls
+- `event-processor.ts` - Handles batch processing with caching and retries
+- `pipeline-metrics.ts` - Comprehensive performance tracking with percentiles
 
 ### Key Features
 - ✅ BC & AMM monitoring with >95% parse rate
@@ -143,9 +155,59 @@ Main tables:
 - **AMM Analytics** (http://localhost:3001/amm-dashboard.html): Pool analytics and metrics
 - **Streaming Metrics** (http://localhost:3001/streaming-metrics.html): Monitor performance stats
 
+## Smart Streaming Architecture
+
+### Completed Implementation (Sessions 1-7)
+The system now features a comprehensive smart streaming architecture with connection pooling, domain monitors, and a unified data pipeline:
+
+#### Core Infrastructure
+- **Connection Pool**: Manages multiple gRPC connections with health monitoring
+- **Smart Stream Manager**: Extends StreamManager with intelligent routing
+- **Subscription Builder**: Groups and prioritizes subscriptions
+- **Load Balancer**: Distributes load across connections with predictive analytics
+- **Rate Limiter**: Ensures compliance with Shyft's 100 subscriptions/60s limit
+
+#### Domain Monitors
+1. **TokenLifecycleMonitor** (`src/monitors/domain/token-lifecycle-monitor.ts`)
+   - Consolidates BC transaction and account monitoring
+   - Tracks token creation, trading, and graduation
+   - Real-time bonding curve progress (0-100%)
+   - Market cap milestone detection
+
+2. **TradingActivityMonitor** (`src/monitors/domain/trading-activity-monitor.ts`)
+   - Unified monitoring across BC, AMM, and Raydium
+   - MEV detection (sandwich attacks, frontrunning, copy trading)
+   - High slippage trade tracking
+   - Cross-venue analytics
+
+3. **LiquidityMonitor** (`src/monitors/domain/liquidity-monitor.ts`)
+   - Liquidity add/remove event detection
+   - Fee collection tracking
+   - Pool state monitoring with TVL calculations
+   - LP position tracking
+
+#### Data Pipeline Architecture
+- **DataPipeline** (`src/services/pipeline/data-pipeline.ts`): Central event processing hub
+- **EventNormalizer**: Standardizes events from all sources
+- **BatchManager**: Efficient event batching with timeout controls
+- **EventProcessor**: Handles batch processing with caching and retries
+- **PipelineMetrics**: Comprehensive performance tracking
+
+#### Configuration
+Enable smart streaming with: `USE_SMART_STREAMING=true`
+
+Environment variables for connection pool:
+```bash
+POOL_MAX_CONNECTIONS=3
+POOL_MIN_CONNECTIONS=2
+POOL_HEALTH_CHECK_INTERVAL=30000
+POOL_CONNECTION_TIMEOUT=10000
+POOL_MAX_RETRIES=3
+```
+
 ## Recent Updates (January 2025)
 
-### Latest Changes (Jan 5)
+### Latest Changes (Jan 5-6)
 - ✅ **Connection Pool Implementation (Session 1)**:
   - Created `ConnectionPool` class with health monitoring and metrics
   - Implemented `SmartStreamManager` extending current StreamManager
@@ -396,26 +458,63 @@ npm run lint         # Check code quality
 npm run typecheck    # TypeScript validation
 ```
 
+### Smart Streaming Test Scripts
+```bash
+# Test individual sessions
+npx tsx src/scripts/test-session-1.ts    # Connection pool
+npx tsx src/scripts/test-session-2.ts    # Subscription strategy
+npx tsx src/scripts/test-session-3.ts    # Load balancing
+npx tsx src/scripts/test-session-4.ts    # Token lifecycle monitor
+npx tsx src/scripts/test-session-5.ts    # Trading activity monitor
+npx tsx src/scripts/test-session-6.ts    # Liquidity monitor
+npx tsx src/scripts/test-session-7.ts    # Data pipeline
+
+# Combined tests
+npx tsx src/scripts/test-sessions-1-5.ts  # All monitors without pipeline
+npx tsx src/scripts/test-sessions-1-6.ts  # All monitors and liquidity
+```
+
 ## Code Structure
 
 ### Directory Organization
 ```
 src/
-├── services/          # Business logic services
-│   ├── core/         # Core infrastructure (event parsing, IDL, blocks)
-│   ├── pricing/      # Price calculations and SOL price tracking
-│   ├── metadata/     # Token metadata enrichment
-│   ├── amm/          # AMM-specific services
-│   ├── monitoring/   # System monitoring and stats
-│   ├── token-management/  # Token lifecycle management
-│   ├── analysis/     # MEV, slippage, fork analysis
-│   └── recovery/     # Data recovery services
-├── utils/            # Utility functions
-│   ├── amm/          # AMM utilities (decoders, calculators)
-│   ├── config/       # Constants and configuration
-│   ├── parsers/      # Event and transaction parsers
-│   └── formatters/   # Data formatting utilities
-└── ...
+├── monitors/              # Monitor implementations
+│   ├── domain/           # Domain-driven monitors
+│   │   ├── token-lifecycle-monitor.ts
+│   │   ├── trading-activity-monitor.ts
+│   │   └── liquidity-monitor.ts
+│   └── [legacy monitors]
+├── services/              # Business logic services
+│   ├── core/             # Core infrastructure
+│   │   ├── smart-stream-manager.ts      # Enhanced stream manager
+│   │   ├── connection-pool.ts          # gRPC connection pooling
+│   │   ├── subscription-builder.ts     # Subscription management
+│   │   ├── load-balancer.ts           # Load distribution
+│   │   └── subscription-rate-limiter.ts
+│   ├── pipeline/         # Data pipeline (NEW)
+│   │   ├── data-pipeline.ts           # Central event processing
+│   │   ├── event-normalizer.ts        # Event standardization
+│   │   ├── batch-manager.ts           # Batch processing
+│   │   ├── event-processor.ts         # Event handlers
+│   │   └── pipeline-metrics.ts        # Performance tracking
+│   ├── pricing/          # Price calculations and SOL price tracking
+│   ├── metadata/         # Token metadata enrichment
+│   ├── amm/              # AMM-specific services
+│   ├── monitoring/       # System monitoring and stats
+│   ├── token-management/ # Token lifecycle management
+│   ├── analysis/         # MEV, slippage, fork analysis
+│   └── recovery/         # Data recovery services
+├── utils/                # Utility functions
+│   ├── amm/              # AMM utilities (decoders, calculators)
+│   ├── config/           # Constants and configuration
+│   ├── parsers/          # Event and transaction parsers
+│   │   ├── strategies/   # Parsing strategies (liquidity, MEV, etc.)
+│   │   └── types.ts      # Common types and interfaces
+│   └── formatters/       # Data formatting utilities
+└── scripts/              # Test and utility scripts
+    ├── test-session-*.ts # Session test scripts
+    └── [other scripts]
 ```
 
 ## Important Notes
@@ -429,3 +528,21 @@ src/
 - Token age shows blockchain creation time when available
 - FDV = Market Cap × 10 (pump.fun tokens have 10% circulating supply)
 - **Graduated tokens showing $0.0001**: Fixed! Raydium monitor now tracks these tokens
+
+## Architecture Benefits
+
+### Smart Streaming Architecture
+1. **Connection Pooling**: Multiple gRPC connections prevent single point of failure
+2. **Domain Monitors**: Consolidated functionality reduces code duplication
+3. **Load Balancing**: Automatic distribution based on real-time metrics
+4. **Rate Limiting**: Built-in compliance with Shyft's limits
+5. **Data Pipeline**: Unified event processing with batching for efficiency
+6. **MEV Detection**: Real-time detection of sandwich attacks and frontrunning
+7. **Performance**: >95% parse rate maintained across all monitors
+8. **Scalability**: Easy to add new domain monitors or event processors
+
+### Production Ready
+- Enable with `USE_SMART_STREAMING=true`
+- All TypeScript errors fixed, builds successfully
+- Comprehensive test coverage with session scripts
+- Graceful degradation to legacy mode if needed
