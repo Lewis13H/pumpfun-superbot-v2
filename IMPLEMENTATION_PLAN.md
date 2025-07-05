@@ -1,0 +1,331 @@
+# Subscription & Monitoring System Architecture Implementation Plan
+
+## Overview
+This 10-session plan transforms the current single-stream architecture into a scalable, fault-tolerant system with intelligent connection pooling and domain-driven monitors.
+
+## Current State
+- Single shared gRPC stream for all monitors
+- 6 separate monitors (BC Transaction/Account, AMM Transaction/Account, Raydium Transaction/Account)
+- ~38 TPS combined throughput
+- >95% parse rate
+
+## Target State
+- 2-3 connection pool with intelligent routing
+- 3 domain-driven monitors (TokenLifecycle, Trading, Liquidity)
+- 50-70% performance improvement
+- 99.9% uptime with auto-recovery
+
+---
+
+## Session 1: Connection Pool Foundation
+**Goal**: Create the base connection pool infrastructure
+
+### Tasks
+1. Create `src/services/core/connection-pool.ts`
+   - Implement `ConnectionPool` interface
+   - Basic pool management (acquire/release)
+   - Connection health monitoring
+
+2. Create `src/services/core/smart-stream-manager.ts`
+   - Extend current StreamManager
+   - Add connection routing logic
+   - Maintain backward compatibility
+
+3. Update configuration
+   - Add pool settings to environment
+   - Create pool configuration types
+
+### Deliverables
+- [ ] Working connection pool with 2 connections
+- [ ] Health check mechanism
+- [ ] Basic routing between primary/secondary
+
+---
+
+## Session 2: Subscription Strategy Implementation
+**Goal**: Implement grouped isolation for subscriptions
+
+### Tasks
+1. Create `src/services/core/subscription-builder.ts`
+   - Enhanced subscription builder with grouping
+   - Priority-based routing
+   - Subscription merging logic
+
+2. Implement subscription groups
+   - Group 1: BC monitors (high priority)
+   - Group 2: AMM monitors (medium priority)
+   - Group 3: External AMMs (low priority)
+
+3. Update monitor base class
+   - Add subscription group metadata
+   - Implement priority handling
+
+### Deliverables
+- [ ] Subscription grouping system
+- [ ] Priority-based connection assignment
+- [ ] Monitors using appropriate connection groups
+
+---
+
+## Session 3: Load Balancing & Monitoring
+**Goal**: Add intelligent load balancing and connection monitoring
+
+### Tasks
+1. Create `src/services/core/load-balancer.ts`
+   - Connection load monitoring
+   - Dynamic subscription migration
+   - Load prediction algorithms
+
+2. Implement metrics collection
+   - TPS per connection
+   - Parse rates per connection
+   - Latency tracking
+
+3. Create rebalancing logic
+   - Threshold-based migration
+   - Smooth transition without data loss
+
+### Deliverables
+- [ ] Working load balancer
+- [ ] Real-time connection metrics
+- [ ] Automatic rebalancing on high load
+
+---
+
+## Session 4: Domain Monitor - TokenLifecycle
+**Goal**: Consolidate BC and graduation monitoring
+
+### Tasks
+1. Create `src/monitors/domain/token-lifecycle-monitor.ts`
+   - Combine BC transaction + account monitors
+   - Integrate graduation detection
+   - Unified token state tracking
+
+2. Implement lifecycle events
+   - Token creation
+   - Trading milestones
+   - Graduation events
+
+3. Migrate existing logic
+   - Port BC monitor functionality
+   - Ensure backward compatibility
+
+### Deliverables
+- [ ] Unified TokenLifecycleMonitor
+- [ ] Complete token state tracking
+- [ ] Graduation detection integrated
+
+---
+
+## Session 5: Domain Monitor - TradingActivity
+**Goal**: Unify all trading monitors across venues
+
+### Tasks
+1. Create `src/monitors/domain/trading-activity-monitor.ts`
+   - Consolidate BC, AMM, Raydium trade monitoring
+   - Unified trade event structure
+   - Cross-venue trade tracking
+
+2. Implement trade pipeline
+   - Parse all trade types
+   - Normalize trade data
+   - Calculate unified metrics
+
+3. Add advanced features
+   - MEV detection
+   - Slippage analysis
+   - Trade pattern recognition
+
+### Deliverables
+- [ ] Unified TradingActivityMonitor
+- [ ] Cross-venue trade tracking
+- [ ] Advanced trade analytics
+
+---
+
+## Session 6: Domain Monitor - Liquidity
+**Goal**: Centralize liquidity and pool state monitoring
+
+### Tasks
+1. Create `src/monitors/domain/liquidity-monitor.ts`
+   - AMM account monitoring
+   - Pool state tracking
+   - LP position monitoring
+
+2. Implement liquidity events
+   - Add/remove liquidity
+   - Pool creation
+   - Fee collection
+
+3. Add pool analytics
+   - TVL tracking
+   - Volume metrics
+   - Fee analysis
+
+### Deliverables
+- [ ] Unified LiquidityMonitor
+- [ ] Complete pool state tracking
+- [ ] Liquidity analytics
+
+---
+
+## Session 7: Data Pipeline Architecture
+**Goal**: Implement staged data processing pipeline
+
+### Tasks
+1. Create pipeline stages
+   - `src/services/pipeline/ingestion-layer.ts`
+   - `src/services/pipeline/parsing-layer.ts`
+   - `src/services/pipeline/enrichment-layer.ts`
+   - `src/services/pipeline/processing-layer.ts`
+
+2. Implement stage features
+   - Deduplication in ingestion
+   - Multi-strategy parsing
+   - Cached enrichment
+   - Event-driven processing
+
+3. Connect monitors to pipeline
+   - Route monitor data through pipeline
+   - Maintain performance metrics
+
+### Deliverables
+- [ ] 4-stage data pipeline
+- [ ] Improved data quality
+- [ ] Performance metrics per stage
+
+---
+
+## Session 8: Fault Tolerance & Recovery
+**Goal**: Add circuit breakers and auto-recovery
+
+### Tasks
+1. Create `src/services/recovery/fault-tolerant-manager.ts`
+   - Circuit breaker implementation
+   - Connection failover logic
+   - State checkpointing
+
+2. Implement recovery mechanisms
+   - Automatic reconnection
+   - State recovery from checkpoint
+   - Missed data replay
+
+3. Add monitoring alerts
+   - Connection failure alerts
+   - Recovery success tracking
+   - Performance degradation warnings
+
+### Deliverables
+- [ ] Circuit breakers for all connections
+- [ ] Automatic failover system
+- [ ] State recovery mechanism
+
+---
+
+## Session 9: Performance Optimization
+**Goal**: Implement adaptive performance features
+
+### Tasks
+1. Create `src/services/optimization/performance-optimizer.ts`
+   - Dynamic batching logic
+   - Adaptive cache strategies
+   - Resource allocation
+
+2. Implement caching layers
+   - Price cache optimization
+   - Metadata cache tuning
+   - Pool state caching
+
+3. Add performance monitoring
+   - Throughput tracking
+   - Latency analysis
+   - Resource usage metrics
+
+### Deliverables
+- [ ] Adaptive batching system
+- [ ] Optimized caching strategy
+- [ ] 50%+ performance improvement
+
+---
+
+## Session 10: Migration & Testing
+**Goal**: Safely migrate to new architecture
+
+### Tasks
+1. Create migration plan
+   - Phased rollout strategy
+   - Rollback procedures
+   - Data validation
+
+2. Implement comprehensive tests
+   - Unit tests for new components
+   - Integration tests for monitors
+   - Load tests for connection pool
+
+3. Deploy and monitor
+   - Gradual migration
+   - Performance comparison
+   - Issue tracking
+
+### Deliverables
+- [ ] Complete migration to new architecture
+- [ ] Full test coverage
+- [ ] Production deployment
+
+---
+
+## Success Metrics
+
+### Performance
+- [ ] 50-70% throughput improvement
+- [ ] <100ms average latency
+- [ ] >98% parse rate maintained
+
+### Reliability
+- [ ] 99.9% uptime
+- [ ] <30s recovery from failures
+- [ ] Zero data loss during failover
+
+### Scalability
+- [ ] Support for 100+ TPS
+- [ ] Dynamic scaling capability
+- [ ] Efficient resource usage
+
+---
+
+## Risk Mitigation
+
+### Technical Risks
+1. **Connection limit breaches**
+   - Mitigation: Careful connection management, staggered startup
+   
+2. **Data loss during migration**
+   - Mitigation: Parallel run period, data validation
+
+3. **Performance regression**
+   - Mitigation: Extensive load testing, gradual rollout
+
+### Operational Risks
+1. **Complex deployment**
+   - Mitigation: Automated deployment scripts, rollback plan
+
+2. **Monitoring gaps**
+   - Mitigation: Comprehensive metrics from day 1
+
+---
+
+## Next Steps
+
+1. Review and approve plan
+2. Set up development branch
+3. Begin Session 1 implementation
+4. Schedule weekly progress reviews
+
+---
+
+## Notes
+
+- Each session estimated at 4-6 hours of development
+- Testing included in each session
+- Documentation updates required after each session
+- Regular checkpoint reviews recommended
