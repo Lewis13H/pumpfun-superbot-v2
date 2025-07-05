@@ -8,6 +8,7 @@ import { BCTradeStrategy } from './strategies/bc-trade-strategy';
 import { AMMTradeStrategy } from './strategies/amm-trade-strategy';
 import { BCTradeIDLStrategy } from './strategies/bc-trade-idl-strategy';
 import { MigrationDetectionStrategy } from './strategies/migration-detection-strategy';
+import { LiquidityStrategy } from './strategies/liquidity-strategy';
 import { Logger } from '../../core/logger';
 import { EventBus } from '../../core/event-bus';
 import bs58 from 'bs58';
@@ -38,10 +39,12 @@ export class UnifiedEventParser {
       new BCTradeIDLStrategy(),      // IDL-based BC parsing
       new MigrationDetectionStrategy(), // Migration detection
       new BCTradeStrategy(),          // Fallback simple parsing
-      new AMMTradeStrategy()          // AMM parsing
+      new AMMTradeStrategy(),         // AMM parsing
+      new LiquidityStrategy()         // Liquidity events
     ] : [
       new BCTradeStrategy(),
-      new AMMTradeStrategy()
+      new AMMTradeStrategy(),
+      new LiquidityStrategy()
     ]);
     
     this.eventBus = options.eventBus;

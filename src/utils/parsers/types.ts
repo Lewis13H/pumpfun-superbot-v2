@@ -9,6 +9,9 @@ export enum EventType {
   POOL_CREATED = 'pool_created',
   RAYDIUM_SWAP = 'raydium_swap',
   RAYDIUM_LIQUIDITY = 'raydium_liquidity',
+  AMM_LIQUIDITY_ADD = 'amm_liquidity_add',
+  AMM_LIQUIDITY_REMOVE = 'amm_liquidity_remove',
+  AMM_FEE_COLLECT = 'amm_fee_collect',
   UNKNOWN = 'unknown'
 }
 

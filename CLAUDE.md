@@ -221,12 +221,34 @@ Main tables:
   - Trade window analysis for pattern detection
   - Cross-venue trade metrics and statistics
   - Located at: `src/monitors/domain/trading-activity-monitor.ts`
-- ✅ **Sessions 1-5 Fully Tested**:
+- ✅ **Sessions 1-5 Fully Tested & Operational**:
   - All components operational: Connection Pool, Subscription Strategy, Load Balancing
   - Domain monitors (TokenLifecycle, TradingActivity) working correctly
   - Test results: 2 active connections, >90% parse rate maintained
   - Ready for production with `USE_SMART_STREAMING=true`
   - Test command: `npx tsx src/scripts/test-sessions-1-5.ts`
+- ✅ **Domain Monitor - Liquidity (Session 6)**:
+  - Created `LiquidityMonitor` consolidating AMM liquidity tracking
+  - Implemented liquidity event parsing strategy
+  - Features:
+    - Liquidity add/remove event detection
+    - Fee collection tracking
+    - Pool state monitoring with TVL calculations
+    - LP position tracking
+    - Integration with existing AMM services
+  - Added new event types: `AMM_LIQUIDITY_ADD`, `AMM_LIQUIDITY_REMOVE`, `AMM_FEE_COLLECT`
+  - Real-time TVL aggregation across all pools
+  - Located at: `src/monitors/domain/liquidity-monitor.ts`
+  - Test command: `npx tsx src/scripts/test-session-6.ts`
+- ✅ **Shyft gRPC Rate Limit Compliance (Critical Fix)**:
+  - Fixed connection pool to prevent exceeding 100 subscriptions/60s limit
+  - Removed health check subscriptions that were consuming rate limit
+  - Added `SubscriptionRateLimiter` class for global rate enforcement
+  - Updated keepalive settings to Shyft recommendations (10s/1s)
+  - Implemented proper stream closure pattern from Shyft examples
+  - Health checks now use metrics instead of creating test streams
+  - Real-time subscription rate monitoring with warnings
+  - See `CONNECTION_POOL_FIXES.md` for detailed implementation
 
 ### Previous Changes (Jan 4-5)
 - ✅ **Raydium Monitor Fixed and Working** (Jan 4):
