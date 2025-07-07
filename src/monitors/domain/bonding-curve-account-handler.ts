@@ -14,6 +14,7 @@ export class BondingCurveAccountHandler {
   private logger = new Logger({ context: 'BondingCurveAccountHandler' });
   private accountCoder: BorshAccountsCoder;
   private bondingCurveDiscriminator: Buffer;
+  private lastProgressUpdate: Map<string, { progress: number; complete: boolean }> = new Map();
   
   // Constants from Shyft examples
   private readonly GRADUATION_SOL_TARGET = 84; // 84 SOL for graduation
@@ -22,7 +23,8 @@ export class BondingCurveAccountHandler {
   constructor(
     programIdl: any,
     private eventBus: EventBus,
-    private bondingCurveToMint: Map<string, string> = new Map()
+    private bondingCurveToMint: Map<string, string> = new Map(),
+    private database?: any // Optional database service for direct updates
   ) {
     this.accountCoder = new BorshAccountsCoder(programIdl);
     this.bondingCurveDiscriminator = (this.accountCoder as any).accountDiscriminator('BondingCurve');
@@ -103,6 +105,42 @@ export class BondingCurveAccountHandler {
         });
       }
 
+      // Check if progress or complete status changed
+      const lastUpdate = this.lastProgressUpdate.get(pubkey);
+      const hasChanged = !lastUpdate || 
+                        lastUpdate.progress !== progress || 
+                        lastUpdate.complete !== decodedData.complete;
+      
+      if (hasChanged) {
+        // Update database directly if available
+        if (this.database && mintAddress) {
+          try {
+            await this.database.query(
+              `UPDATE tokens_unified 
+               SET bonding_curve_complete = $1,
+                   latest_bonding_curve_progress = $2,
+                   graduated_to_amm = $3,
+                   updated_at = NOW()
+               WHERE mint_address = $4
+                  OR (bonding_curve_key = $5 AND bonding_curve_key IS NOT NULL)`,
+              [decodedData.complete, progress, decodedData.complete, mintAddress, pubkey]
+            );
+            
+            this.logger.debug('Direct DB update from account handler', {
+              bondingCurve: pubkey.substring(0, 8) + '...',
+              mint: mintAddress.substring(0, 8) + '...',
+              progress: progress.toFixed(2),
+              complete: decodedData.complete
+            });
+          } catch (error) {
+            this.logger.error('Failed to update database directly', error as Error);
+          }
+        }
+        
+        // Track this update
+        this.lastProgressUpdate.set(pubkey, { progress, complete: decodedData.complete });
+      }
+      
       // Emit progress update event
       this.eventBus.emit(EVENTS.BONDING_CURVE_PROGRESS_UPDATE, bondingCurveData);
 

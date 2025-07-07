@@ -108,6 +108,7 @@ export class TokenLifecycleMonitor extends BaseMonitor {
   private bcAccountHandler?: BondingCurveAccountHandler;
   private accountCoder?: BorshAccountsCoder;
   private bondingCurveToMint: Map<string, string> = new Map();
+  private lastProgressUpdate: Map<string, { progress: number; complete: boolean }> = new Map();
 
   constructor(container: Container, options?: Partial<MonitorOptions>) {
     super(
@@ -263,11 +264,15 @@ export class TokenLifecycleMonitor extends BaseMonitor {
         // Initialize account coder for direct use
         this.accountCoder = new BorshAccountsCoder(programIdl);
         
-        // Initialize BondingCurveAccountHandler with IDL
+        // Get database service for direct updates
+        const database = await this.container.resolve(TOKENS.DatabaseService);
+        
+        // Initialize BondingCurveAccountHandler with IDL and database
         this.bcAccountHandler = new BondingCurveAccountHandler(
           programIdl,
           this.eventBus,
-          this.bondingCurveToMint
+          this.bondingCurveToMint,
+          database
         );
         
         this.logger.info('IDL loaded successfully', {
@@ -367,21 +372,45 @@ export class TokenLifecycleMonitor extends BaseMonitor {
         // Update database with bonding curve complete status
         if (data.mintAddress) {
           try {
-            const db = await this.container.resolve(TOKENS.DatabaseService);
-            await db.query(
-              `UPDATE tokens_unified 
-               SET bonding_curve_complete = $1,
-                   latest_bonding_curve_progress = $2,
-                   updated_at = NOW()
-               WHERE mint_address = $3`,
-              [data.complete, data.progress, data.mintAddress]
-            );
+            // Check if this is actually a change
+            const lastUpdate = this.lastProgressUpdate.get(data.mintAddress);
+            const hasChanged = !lastUpdate || 
+                             lastUpdate.progress !== data.progress || 
+                             lastUpdate.complete !== data.complete;
             
-            this.logger.debug('Updated BC complete status in DB', {
-              mint: data.mintAddress.substring(0, 8) + '...',
-              complete: data.complete,
-              progress: data.progress.toFixed(2)
-            });
+            if (hasChanged) {
+              const db = await this.container.resolve(TOKENS.DatabaseService);
+              
+              // Update by mint address and optionally by bonding curve key
+              const updateResult = await db.query(
+                `UPDATE tokens_unified 
+                 SET bonding_curve_complete = $1,
+                     latest_bonding_curve_progress = $2,
+                     graduated_to_amm = $3,
+                     updated_at = NOW()
+                 WHERE mint_address = $4
+                    OR (bonding_curve_key = $5 AND bonding_curve_key IS NOT NULL)
+                 RETURNING mint_address`,
+                [data.complete, data.progress, data.complete, data.mintAddress, data.bondingCurveAddress]
+              );
+              
+              if (updateResult.rows.length > 0) {
+                // Track this update
+                this.lastProgressUpdate.set(data.mintAddress, {
+                  progress: data.progress,
+                  complete: data.complete
+                });
+                
+                this.logger.info('Updated BC progress in database', {
+                  mint: data.mintAddress.substring(0, 8) + '...',
+                  bondingCurve: data.bondingCurveAddress?.substring(0, 8) + '...',
+                  complete: data.complete,
+                  progress: data.progress.toFixed(2),
+                  graduated: data.complete,
+                  rowsUpdated: updateResult.rows.length
+                });
+              }
+            }
           } catch (error) {
             this.logger.error('Failed to update BC complete status', error as Error);
           }

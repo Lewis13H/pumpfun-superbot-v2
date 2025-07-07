@@ -302,6 +302,14 @@ POOL_MAX_RETRIES=3
     - Fallback parsing enhanced to use accountCoder when available
     - BondingCurveAccountHandler uses the same IDL
     - Verified BondingCurve type has all required fields including `complete`
+  - **Step 5 ✅**: Update Database on Progress Changes
+    - Implemented change detection to avoid unnecessary updates
+    - Updates both `bonding_curve_complete` and `latest_bonding_curve_progress`
+    - Also updates `graduated_to_amm` when complete flag is true
+    - Can update by mint_address or bonding_curve_key
+    - BondingCurveAccountHandler can perform direct DB updates
+    - Event listener in TokenLifecycleMonitor also updates DB
+    - Test script confirms updates are working: 6 updates in last hour
   - Created BondingCurveAccountHandler for modular account processing
   - Updated graduation threshold from 85 to 84 SOL (as per Shyft examples)
   - Account monitoring uses lamports for accurate progress calculation
