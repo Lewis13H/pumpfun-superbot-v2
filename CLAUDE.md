@@ -281,6 +281,7 @@ POOL_MAX_RETRIES=3
   - The actual graduation trigger is more complex (possibly market cap based)
   - We're not monitoring the bonding curve account's `complete` field
   - Dashboard now shows "~100%" for tokens at or above the threshold to indicate estimation
+  - See `docs/BONDING_CURVE_PROGRESS_ISSUE.md` for detailed analysis and implementation guide
 
 ### Latest Changes (July 5-6)
 - ✅ **Connection Pool Implementation (Session 1)**:
