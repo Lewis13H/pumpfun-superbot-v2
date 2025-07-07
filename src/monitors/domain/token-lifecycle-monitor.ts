@@ -18,6 +18,9 @@ import { enableErrorSuppression } from '../../utils/parsers/error-suppressor';
 import { performanceMonitor } from '../../services/monitoring/performance-monitor';
 import { SmartStreamManager } from '../../services/core/smart-stream-manager';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { BorshAccountsCoder } from '@coral-xyz/anchor';
+import { BondingCurveAccountHandler } from './bonding-curve-account-handler';
+import * as fs from 'fs';
 
 // Bonding curve account schema
 const BONDING_CURVE_SCHEMA = borsh.struct([
@@ -102,6 +105,8 @@ export class TokenLifecycleMonitor extends BaseMonitor {
   private tokenStates: Map<string, TokenState> = new Map();
   private parseTimings: number[] = [];
   private smartStreamManager?: SmartStreamManager;
+  private bcAccountHandler?: BondingCurveAccountHandler;
+  private bondingCurveToMint: Map<string, string> = new Map();
 
   constructor(container: Container, options?: Partial<MonitorOptions>) {
     super(
@@ -181,10 +186,12 @@ export class TokenLifecycleMonitor extends BaseMonitor {
     });
     
     // Add account subscription for bonding curve state changes
+    // Using owner filter to get all pump.fun owned accounts (including bonding curves)
     builder.addAccountSubscription('token_lifecycle_acc', {
-      owner: [this.options.programId],
+      account: [], // Empty array to subscribe to all accounts owned by pump.fun
+      owner: [this.options.programId], // This will capture all pump.fun accounts including bonding curves
       filters: this.buildAccountFilters(),
-      nonemptyTxnSignature: true
+      nonemptyTxnSignature: false // We want all account updates, not just from transactions
     });
     
     // Set group priority if available
@@ -213,8 +220,9 @@ export class TokenLifecycleMonitor extends BaseMonitor {
    * Get data slice configuration for BC accounts
    */
   protected getDataSliceConfig(): { offset: string; length: string } | null {
-    // Bonding curve account is 165 bytes
-    return { offset: '0', length: '165' };
+    // Bonding curve account data - we need the full account to decode it
+    // The account is ~165 bytes but we'll get all data to be safe
+    return null; // Get full account data
   }
 
   /**
@@ -244,6 +252,24 @@ export class TokenLifecycleMonitor extends BaseMonitor {
       }
     } catch {
       // SmartStreamManager not available
+    }
+    
+    // Initialize BondingCurveAccountHandler if IDL is available
+    try {
+      const idlPath = './src/idls/pump_0.1.0.json';
+      if (fs.existsSync(idlPath)) {
+        const programIdl = JSON.parse(fs.readFileSync(idlPath, 'utf8'));
+        this.bcAccountHandler = new BondingCurveAccountHandler(
+          programIdl,
+          this.eventBus,
+          this.bondingCurveToMint
+        );
+        this.logger.info('BondingCurveAccountHandler initialized with pump.fun IDL');
+      } else {
+        this.logger.warn('pump.fun IDL not found at ' + idlPath + ', using basic account parsing');
+      }
+    } catch (error) {
+      this.logger.error('Failed to initialize BondingCurveAccountHandler', error as Error);
     }
     
     // Setup event listeners
@@ -308,6 +334,27 @@ export class TokenLifecycleMonitor extends BaseMonitor {
         threshold: data.threshold
       });
     });
+    
+    // Listen for bonding curve updates from the account handler
+    if (this.bcAccountHandler) {
+      this.eventBus.on(EVENTS.BONDING_CURVE_PROGRESS_UPDATE, (data) => {
+        const state = this.tokenStates.get(data.mintAddress);
+        if (state) {
+          state.progress = data.progress;
+          state.complete = data.complete;
+          state.virtualSolReserves = data.virtualSolReserves;
+          state.virtualTokenReserves = data.virtualTokenReserves;
+          state.lastUpdate = new Date();
+          
+          // Update phase based on progress
+          if (data.complete) {
+            state.phase = 'graduated';
+          } else if (data.progress >= 90) {
+            state.phase = 'near-graduation';
+          }
+        }
+      });
+    }
   }
 
   /**
@@ -389,12 +436,23 @@ export class TokenLifecycleMonitor extends BaseMonitor {
   private async processAccountUpdate(data: any): Promise<void> {
     this.stats.accountUpdates++;
     
+    // If we have the account handler, use it for more robust parsing
+    if (this.bcAccountHandler) {
+      await this.bcAccountHandler.processAccountUpdate(data);
+      return;
+    }
+    
+    // Fallback to basic parsing if no handler
     const accountInfo = data.account;
-    if (!accountInfo || !accountInfo.data) return;
+    if (!accountInfo || !accountInfo.account) return;
     
     try {
-      // Convert base64 data to buffer
-      const accountData = Buffer.from(accountInfo.data[0], 'base64');
+      // Get the actual account data - structure matches Shyft examples
+      const account = accountInfo.account;
+      if (!account.data || account.data.length === 0) return;
+      
+      // Convert base64 data to buffer - data is an array, take first element
+      const accountData = Buffer.from(account.data[0], 'base64');
       
       // Check discriminator
       const discriminator = accountData.slice(0, 8);
@@ -407,12 +465,19 @@ export class TokenLifecycleMonitor extends BaseMonitor {
       // Parse bonding curve data
       const bcData = BONDING_CURVE_SCHEMA.decode(accountData.slice(8));
       
-      // Calculate progress
-      const solReserves = Number(bcData.virtualSolReserves) / LAMPORTS_PER_SOL;
-      const progress = (solReserves / 85) * 100; // 85 SOL for graduation
+      // Calculate progress using account lamports (as per Shyft examples)
+      const lamports = account.lamports || 0;
+      const solInCurve = lamports / LAMPORTS_PER_SOL;
+      const GRADUATION_SOL_TARGET = 84; // 84 SOL as per Shyft examples, not 85
+      const progress = Math.min((solInCurve / GRADUATION_SOL_TARGET) * 100, 100);
+      
+      // Get the bonding curve address
+      const bondingCurveAddress = account.pubkey ? 
+        (typeof account.pubkey === 'string' ? account.pubkey : Buffer.from(account.pubkey).toString('base64')) : 
+        'unknown';
       
       // Get or find mint address for this bonding curve
-      const mintAddress = await this.findMintForBondingCurve(accountInfo.pubkey);
+      const mintAddress = await this.findMintForBondingCurve(bondingCurveAddress);
       if (!mintAddress) return;
       
       // Update token state
@@ -461,8 +526,10 @@ export class TokenLifecycleMonitor extends BaseMonitor {
         
         this.logger.info('🎓 Graduation detected via account update!', {
           mint: mintAddress,
+          bondingCurve: bondingCurveAddress.substring(0, 8) + '...',
           progress: progress.toFixed(2) + '%',
-          slot: data.slot
+          slot: data.slot,
+          finalSol: solInCurve.toFixed(2)
         });
       } else if (progress > 90 && state.phase !== 'near-graduation') {
         state.phase = 'near-graduation';
@@ -573,6 +640,16 @@ export class TokenLifecycleMonitor extends BaseMonitor {
     if ('bondingCurveKey' in event) {
       state.bondingCurveKey = event.bondingCurveKey;
       
+      // Track bonding curve to mint mapping for account updates
+      if (event.bondingCurveKey && event.mintAddress) {
+        this.bondingCurveToMint.set(event.bondingCurveKey, event.mintAddress);
+        
+        // Also update the handler if available
+        if (this.bcAccountHandler) {
+          this.bcAccountHandler.addMapping(event.bondingCurveKey, event.mintAddress);
+        }
+      }
+      
       if (event.vSolInBondingCurve) {
         state.virtualSolReserves = event.vSolInBondingCurve;
         const progress = this.calculateBondingCurveProgress(event.vSolInBondingCurve);
@@ -642,7 +719,8 @@ export class TokenLifecycleMonitor extends BaseMonitor {
    */
   private calculateBondingCurveProgress(virtualSolReserves: bigint): number {
     const solInCurve = Number(virtualSolReserves) / LAMPORTS_PER_SOL;
-    const progress = (solInCurve / 85) * 100; // 85 SOL for graduation
+    const GRADUATION_SOL_TARGET = 84; // 84 SOL as per Shyft examples
+    const progress = (solInCurve / GRADUATION_SOL_TARGET) * 100;
     return Math.min(progress, 100);
   }
 
@@ -735,7 +813,12 @@ export class TokenLifecycleMonitor extends BaseMonitor {
    */
   private async findMintForBondingCurve(bondingCurveKey: string): Promise<string | null> {
     try {
-      // First check our in-memory state
+      // First check our in-memory mapping
+      if (this.bondingCurveToMint.has(bondingCurveKey)) {
+        return this.bondingCurveToMint.get(bondingCurveKey)!;
+      }
+      
+      // Then check our token states
       for (const [mint, state] of this.tokenStates) {
         if (state.bondingCurveKey === bondingCurveKey) {
           return mint;

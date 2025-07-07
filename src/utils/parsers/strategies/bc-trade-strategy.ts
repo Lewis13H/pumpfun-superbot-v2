@@ -258,7 +258,7 @@ export class BCTradeStrategy implements ParseStrategy {
 
       // Calculate bonding curve progress
       const solInCurve = Number(vSolInBondingCurve) / 1e9;
-      const GRADUATION_THRESHOLD = 85; // SOL
+      const GRADUATION_THRESHOLD = 84; // SOL - as per Shyft examples
       const bondingCurveProgress = Math.min((solInCurve / GRADUATION_THRESHOLD) * 100, 100);
 
       return {

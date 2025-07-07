@@ -208,6 +208,8 @@ export const EVENTS = {
   TOKEN_THRESHOLD_CROSSED: 'token:threshold_crossed',
   TOKEN_METADATA_UPDATED: 'token:metadata_updated',
   BONDING_CURVE_CREATED: 'bonding_curve:created',
+  BONDING_CURVE_UPDATE: 'bonding_curve:update',
+  BONDING_CURVE_PROGRESS_UPDATE: 'bonding_curve:progress_update',
   GRADUATION_PROCESSED: 'graduation:processed',
   GRADUATION_FIXED: 'graduation:fixed',
   

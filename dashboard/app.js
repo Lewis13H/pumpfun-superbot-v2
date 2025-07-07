@@ -372,7 +372,7 @@ function renderTokens() {
                 <td class="price-cell">
                     <div class="price-value">$${formatPrice(priceUsd)}</div>
                 </td>
-                <td class="age-cell" title="${ageTooltip}">${age}</td>
+                <td class="age-cell" title="${ageTooltip}" style="color: ${token.token_created_at ? 'var(--green)' : 'var(--red)'};">${age}</td>
                 <td class="liquidity-cell">${calculateLiquidity(token)}</td>
                 <td>
                     <div class="progress-container">

@@ -283,6 +283,17 @@ POOL_MAX_RETRIES=3
   - Dashboard now shows "~100%" for tokens at or above the threshold to indicate estimation
   - See `docs/BONDING_CURVE_PROGRESS_ISSUE.md` for detailed analysis and implementation guide
 
+- ✅ **Bonding Curve Account Monitoring Integration (July 7)**:
+  - Integrated account-based monitoring into TokenLifecycleMonitor
+  - Added subscription to pump.fun owned accounts using owner filter
+  - Created BondingCurveAccountHandler for modular account processing
+  - Updated graduation threshold from 85 to 84 SOL (as per Shyft examples)
+  - Account monitoring uses lamports for accurate progress calculation
+  - Detects graduation via the `complete` boolean field in bonding curve accounts
+  - Added BONDING_CURVE_UPDATE and BONDING_CURVE_PROGRESS_UPDATE events
+  - Handler requires pump.fun IDL file at `src/idls/pump_0.1.0.json`
+  - More accurate than transaction-based progress tracking
+
 ### Latest Changes (July 5-6)
 - ✅ **Connection Pool Implementation (Session 1)**:
   - Created `ConnectionPool` class with health monitoring and metrics

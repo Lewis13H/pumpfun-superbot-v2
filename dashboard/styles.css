@@ -554,9 +554,16 @@ td {
     font-size: 12px;
 }
 
+.sol-mcap {
+    font-size: 11px;
+    color: var(--purple);
+    margin-top: 2px;
+}
+
 .fdv-label {
     font-size: 10px;
     color: var(--text-dim);
+    margin-top: 2px;
 }
 
 /* Volume Column */
@@ -601,9 +608,9 @@ td {
 
 .progress-fill {
     height: 100%;
-    background: var(--yellow);
+    background: var(--yellow); /* Default, will be overridden by inline style */
     border-radius: 2px;
-    transition: width 0.3s;
+    transition: width 0.3s, background 0.3s;
 }
 
 .progress-fill.complete {
