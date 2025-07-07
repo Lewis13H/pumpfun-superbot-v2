@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Data Integration Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #0a0a0a;
+            color: #e0e0e0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1, h2 {
+            color: #3b82f6;
+        }
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            background: #1e293b;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #6b7280;
+        }
+        .status-dot.connected {
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+        .status-dot.error {
+            background: #ef4444;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .data-section {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .data-section h3 {
+            margin-top: 0;
+            color: #94a3b8;
+        }
+        pre {
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .event-log {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .event-item {
+            padding: 10px;
+            margin-bottom: 5px;
+            background: #0f172a;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .event-time {
+            color: #64748b;
+            font-size: 11px;
+        }
+        .control-panel {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 8px 16px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        button:disabled {
+            background: #64748b;
+            cursor: not-allowed;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .metric-box {
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3b82f6;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Real-time Data Integration Test</h1>
+        
+        <div class="status">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Disconnected</span>
+        </div>
+
+        <div class="control-panel">
+            <button onclick="connect()">Connect</button>
+            <button onclick="disconnect()">Disconnect</button>
+            <button onclick="testPolling()">Test Polling</button>
+            <button onclick="clearLogs()">Clear Logs</button>
+            <button onclick="testMemoryCleanup()">Test Memory Cleanup</button>
+        </div>
+
+        <div class="data-section">
+            <h3>Live Metrics</h3>
+            <div class="metrics-grid">
+                <div class="metric-box">
+                    <div class="metric-value" id="cpuUsage">--</div>
+                    <div class="metric-label">CPU Usage %</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-value" id="memoryUsage">--</div>
+                    <div class="metric-label">Memory Usage %</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-value" id="throughput">--</div>
+                    <div class="metric-label">Throughput/s</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-value" id="cacheHitRate">--</div>
+                    <div class="metric-label">Cache Hit Rate %</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="data-section">
+            <h3>Event Log</h3>
+            <div class="event-log" id="eventLog"></div>
+        </div>
+
+        <div class="data-section">
+            <h3>SSE Stream Data</h3>
+            <pre id="sseData">No data received yet...</pre>
+        </div>
+
+        <div class="data-section">
+            <h3>Polling Data</h3>
+            <pre id="pollingData">No data received yet...</pre>
+        </div>
+    </div>
+
+    <script src="js/realtime-data-manager.js"></script>
+    <script>
+        let realtimeManager = null;
+        const eventLog = document.getElementById('eventLog');
+        const maxLogItems = 50;
+
+        function logEvent(type, message, data) {
+            const item = document.createElement('div');
+            item.className = 'event-item';
+            item.innerHTML = `
+                <strong>[${type}]</strong> ${message}
+                <div class="event-time">${new Date().toLocaleTimeString()}</div>
+                ${data ? `<pre style="margin-top: 5px; font-size: 11px;">${JSON.stringify(data, null, 2)}</pre>` : ''}
+            `;
+            
+            eventLog.insertBefore(item, eventLog.firstChild);
+            
+            // Keep only recent events
+            while (eventLog.children.length > maxLogItems) {
+                eventLog.removeChild(eventLog.lastChild);
+            }
+        }
+
+        function updateStatus(connected) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            
+            if (connected) {
+                dot.className = 'status-dot connected';
+                text.textContent = 'Connected';
+            } else {
+                dot.className = 'status-dot error';
+                text.textContent = 'Disconnected';
+            }
+        }
+
+        function connect() {
+            if (realtimeManager) {
+                logEvent('INFO', 'Already connected');
+                return;
+            }
+
+            logEvent('INFO', 'Creating RealtimeDataManager...');
+            realtimeManager = new RealtimeDataManager();
+
+            // Set up event listeners
+            realtimeManager.on('connection-status', (status) => {
+                logEvent('CONNECTION', `Status changed to: ${status}`);
+                updateStatus(status === 'connected');
+            });
+
+            realtimeManager.on('metrics', (data) => {
+                logEvent('SSE', 'Metrics received', data);
+                document.getElementById('sseData').textContent = JSON.stringify(data, null, 2);
+                
+                // Update live metrics
+                if (data.resources) {
+                    document.getElementById('cpuUsage').textContent = Math.round(data.resources.cpu || 0);
+                    document.getElementById('memoryUsage').textContent = Math.round(data.resources.memory || 0);
+                }
+                if (data.batch) {
+                    document.getElementById('throughput').textContent = Math.round(data.batch.throughput || 0);
+                }
+                if (data.cache) {
+                    document.getElementById('cacheHitRate').textContent = Math.round((data.cache.hitRate || 0) * 100);
+                }
+            });
+
+            realtimeManager.on('alert', (alert) => {
+                logEvent('ALERT', `${alert.severity}: ${alert.message}`, alert);
+            });
+
+            realtimeManager.on('circuit-breaker', (data) => {
+                logEvent('CIRCUIT_BREAKER', 'State change', data);
+            });
+
+            realtimeManager.on('optimization', (data) => {
+                logEvent('OPTIMIZATION', 'Update received', data);
+            });
+
+            realtimeManager.on('fault-tolerance-status', (data) => {
+                logEvent('POLLING', 'Fault tolerance status', data);
+                document.getElementById('pollingData').textContent = JSON.stringify(data, null, 2);
+            });
+
+            realtimeManager.on('circuit-breakers', (data) => {
+                logEvent('POLLING', 'Circuit breakers update', data);
+            });
+
+            realtimeManager.on('optimization-status', (data) => {
+                logEvent('POLLING', 'Optimization status', data);
+            });
+
+            realtimeManager.on('suggestions', (data) => {
+                logEvent('POLLING', `${data.length} suggestions received`, data);
+            });
+
+            // Connect
+            realtimeManager.connect();
+            logEvent('INFO', 'Connection initiated');
+        }
+
+        function disconnect() {
+            if (!realtimeManager) {
+                logEvent('ERROR', 'Not connected');
+                return;
+            }
+
+            realtimeManager.disconnect();
+            realtimeManager = null;
+            updateStatus(false);
+            logEvent('INFO', 'Disconnected');
+        }
+
+        async function testPolling() {
+            logEvent('TEST', 'Testing polling endpoints...');
+            
+            const endpoints = [
+                '/api/v1/performance/metrics',
+                '/api/v1/fault-tolerance/status',
+                '/api/v1/fault-tolerance/circuit-breakers',
+                '/api/v1/performance/optimization-status',
+                '/api/v1/performance/suggestions'
+            ];
+
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(endpoint);
+                    if (response.ok) {
+                        const data = await response.json();
+                        logEvent('POLL_TEST', `${endpoint} - SUCCESS`, data);
+                    } else {
+                        logEvent('POLL_TEST', `${endpoint} - FAILED: ${response.status}`);
+                    }
+                } catch (error) {
+                    logEvent('POLL_TEST', `${endpoint} - ERROR: ${error.message}`);
+                }
+            }
+        }
+
+        async function testMemoryCleanup() {
+            logEvent('TEST', 'Testing memory cleanup...');
+            
+            try {
+                const response = await fetch('/api/v1/performance/cleanup-memory', {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    logEvent('MEMORY_CLEANUP', 'Success', data);
+                    
+                    const freedMB = data.freed.heapUsed / 1024 / 1024;
+                    alert(`Memory cleanup successful!\nFreed: ${freedMB.toFixed(2)} MB`);
+                } else {
+                    logEvent('MEMORY_CLEANUP', `Failed: ${response.status}`);
+                }
+            } catch (error) {
+                logEvent('MEMORY_CLEANUP', `Error: ${error.message}`);
+            }
+        }
+
+        function clearLogs() {
+            eventLog.innerHTML = '';
+            logEvent('INFO', 'Logs cleared');
+        }
+
+        // Auto-connect on load
+        window.addEventListener('load', () => {
+            logEvent('INFO', 'Page loaded - ready to connect');
+        });
+    </script>
+</body>
+</html>

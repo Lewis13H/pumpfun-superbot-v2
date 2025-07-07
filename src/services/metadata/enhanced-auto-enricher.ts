@@ -1,14 +1,13 @@
 /**
  * Enhanced Auto Enricher
  * Uses multiple metadata sources with fallback strategy
- * Priority: GraphQL → Shyft API → Helius → On-chain
+ * Priority: Shyft API → Helius → On-chain
  */
 
 import { db } from '../../database';
 import { HeliusService } from './providers/helius';
 import { ShyftProvider } from './providers/shyft-provider';
 import { TokenCreationTimeService } from '../token-management/token-creation-time-service';
-// import { graphqlMetadataEnricher } from './graphql-metadata-enricher';
 import chalk from 'chalk';
 
 interface EnrichmentResult {
@@ -171,41 +170,41 @@ export class EnhancedAutoEnricher {
     console.log(chalk.cyan(`🔄 Processing batch of ${batch.length} tokens...`));
     
     try {
-      // Use DAS service with priority for comprehensive metadata
-      console.log(chalk.blue('🔹 Fetching metadata from Shyft DAS API...'));
-      const dasBulkResults = await this.shyftProvider.getBulkMetadata(batch.map(t => t.mintAddress));
+      // Use Shyft REST API with optimized batching
+      console.log(chalk.blue('🔹 Fetching metadata from Shyft API...'));
+      const shyftResults = await this.shyftProvider.getBulkMetadata(batch.map(t => t.mintAddress));
       
-      // Process DAS results
+      // Process Shyft results
       const stillNeedEnrichment: string[] = [];
-      let dasSuccessCount = 0;
+      let shyftSuccessCount = 0;
       
       for (const req of batch) {
-        const dasData = dasBulkResults.get(req.mintAddress);
-        if (dasData && (dasData.name || dasData.symbol)) {
-          // Update database with comprehensive metadata
-          await this.shyftProvider.storeEnrichedMetadata(dasData);
+        const shyftData = shyftResults.get(req.mintAddress);
+        if (shyftData && (shyftData.name || shyftData.symbol)) {
+          // Update database with metadata from Shyft
+          await this.shyftProvider.storeEnrichedMetadata(shyftData);
           
           this.stats.shyftSuccess++;
           this.stats.totalEnriched++;
-          dasSuccessCount++;
+          shyftSuccessCount++;
           
           console.log(
             chalk.green('✅'),
             chalk.white(`${req.mintAddress.slice(0, 8)}...`),
             chalk.gray('→'),
-            chalk.cyan(dasData.symbol || 'N/A'),
-            chalk.gray(`(DAS) Score: ${dasData.metadata_score}`)
+            chalk.cyan(shyftData.symbol || 'N/A'),
+            chalk.gray(`(Shyft) Score: ${shyftData.metadata_score}`)
           );
           
           // Log additional extracted data
-          if (dasData.current_holder_count) {
-            console.log(chalk.gray(`     Holders: ${dasData.current_holder_count}`));
+          if (shyftData.current_holder_count) {
+            console.log(chalk.gray(`     Holders: ${shyftData.current_holder_count}`));
           }
-          if (dasData.twitter || dasData.telegram || dasData.discord) {
+          if (shyftData.twitter || shyftData.telegram || shyftData.discord) {
             const socials = [];
-            if (dasData.twitter) socials.push('Twitter');
-            if (dasData.telegram) socials.push('Telegram');
-            if (dasData.discord) socials.push('Discord');
+            if (shyftData.twitter) socials.push('Twitter');
+            if (shyftData.telegram) socials.push('Telegram');
+            if (shyftData.discord) socials.push('Discord');
             console.log(chalk.gray(`     Socials: ${socials.join(', ')}`));
           }
         } else {
@@ -213,20 +212,46 @@ export class EnhancedAutoEnricher {
         }
       }
       
-      console.log(chalk.green(`   ✅ Shyft DAS enriched ${dasSuccessCount} tokens`));
+      console.log(chalk.green(`   ✅ Shyft enriched ${shyftSuccessCount} tokens`));
       
-      // Process remaining tokens with Helius (if configured)
-      if (stillNeedEnrichment.length > 0 && process.env.HELIUS_API_KEY) {
-        console.log(chalk.yellow(`   🔸 ${stillNeedEnrichment.length} tokens need Helius fallback...`));
+      // Try REST API for remaining tokens
+      if (stillNeedEnrichment.length > 0) {
+        console.log(chalk.yellow(`   🔸 ${stillNeedEnrichment.length} tokens need REST API fallback...`));
         
-        for (const mint of stillNeedEnrichment) {
-          await this.enrichToken(mint);
-          // Delay between Helius calls
-          await new Promise(resolve => setTimeout(resolve, 200));
+        // Use Shyft REST API as fallback
+        const restBatch = stillNeedEnrichment.slice(0, 10); // Process up to 10 with REST
+        for (const mint of restBatch) {
+          try {
+            const restData = await this.shyftProvider.getTokenInfoDAS(mint);
+            if (restData && (restData.name || restData.symbol)) {
+              await this.shyftProvider.storeEnrichedMetadata(restData);
+              this.stats.shyftSuccess++;
+              this.stats.totalEnriched++;
+              console.log(
+                chalk.green('✅'),
+                chalk.white(`${mint.slice(0, 8)}...`),
+                chalk.gray('→'),
+                chalk.cyan(restData.symbol || 'N/A'),
+                chalk.gray(`(REST) Score: ${restData.metadata_score}`)
+              );
+            }
+          } catch (error) {
+            // Continue with next token
+          }
         }
-      } else if (stillNeedEnrichment.length > 0) {
-        console.log(chalk.gray(`   ℹ️ ${stillNeedEnrichment.length} tokens could not be enriched (no Helius API key)`));
-        this.stats.failures += stillNeedEnrichment.length;
+        
+        // Try Helius for any still remaining
+        const finalRemaining = stillNeedEnrichment.filter(m => !restBatch.includes(m));
+        if (finalRemaining.length > 0 && process.env.HELIUS_API_KEY) {
+          console.log(chalk.yellow(`   🔸 ${finalRemaining.length} tokens trying Helius...`));
+          for (const mint of finalRemaining) {
+            await this.enrichToken(mint);
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        } else if (finalRemaining.length > 0) {
+          console.log(chalk.gray(`   ℹ️ ${finalRemaining.length} tokens could not be enriched`));
+          this.stats.failures += finalRemaining.length;
+        }
       }
       
     } catch (error) {

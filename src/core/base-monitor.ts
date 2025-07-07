@@ -213,7 +213,9 @@ export abstract class BaseMonitor {
       if (this.isShuttingDown) return;
       
       // Check if this transaction is relevant to our monitor
-      if (!this.isRelevantTransaction(data)) return;
+      if (!this.isRelevantTransaction(data)) {
+        return;
+      }
       
       try {
         await this.processStreamData(data);
@@ -247,14 +249,20 @@ export abstract class BaseMonitor {
    */
   protected isRelevantTransaction(data: any): boolean {
     // Check if this is a failed transaction and we're not including failed txs
-    if (data?.transaction?.meta?.err && !this.options.includeFailedTxs) {
+    if (data?.transaction?.transaction?.meta?.err && !this.options.includeFailedTxs) {
       return false;
     }
     
     // Check if this is account data
     if (data?.account) {
       // For account updates, check if the owner matches our program
-      const owner = data.account.owner;
+      // The account data is nested: data.account.account.owner
+      const accountData = data.account.account;
+      if (!accountData) {
+        return false;
+      }
+      
+      const owner = accountData.owner;
       if (owner) {
         const ownerStr = typeof owner === 'string' ? owner : bs58.encode(owner);
         return ownerStr === this.options.programId;
@@ -265,9 +273,9 @@ export abstract class BaseMonitor {
     // Check if this is transaction data
     if (data?.transaction) {
       // The structure from gRPC is: data.transaction.transaction.transaction.message.accountKeys
-      const tx = data.transaction.transaction;
-      const innerTx = tx?.transaction;
-      const accounts = innerTx?.message?.accountKeys || [];
+      const tx = data.transaction.transaction?.transaction;
+      const message = tx?.message;
+      const accounts = message?.accountKeys || [];
       
       // Convert accounts to strings for comparison
       const accountStrs = accounts.map((acc: any) => 

@@ -152,9 +152,9 @@ export class TradingActivityMonitor extends BaseMonitor {
     
     // Additionally check if ANY of our programs are in the transaction
     if (data?.transaction) {
-      const tx = data.transaction.transaction;
-      const innerTx = tx?.transaction;
-      const accounts = innerTx?.message?.accountKeys || [];
+      const tx = data.transaction.transaction?.transaction;
+      const message = tx?.message;
+      const accounts = message?.accountKeys || [];
       
       // Convert accounts to strings for comparison
       const accountStrs = accounts.map((acc: any) => 

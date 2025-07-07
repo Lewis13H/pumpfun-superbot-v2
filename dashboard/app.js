@@ -1,7 +1,7 @@
 // Configuration
 const API_BASE = '/api';
 const UPDATE_INTERVAL = 3000; // 3 seconds for more responsive updates
-const USE_REALTIME_PRICES = false; // Toggle to use real-time price endpoint - disabled due to precision issues
+const USE_REALTIME_PRICES = true; // Toggle to use real-time price endpoint
 
 // State
 let tokens = [];

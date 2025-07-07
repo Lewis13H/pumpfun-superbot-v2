@@ -25,6 +25,11 @@ export class StreamManager {
   private lastSubscriptionTime: number = 0;
   private subscribedPrograms: Set<string> = new Set();
   private monitorConfigs: Map<string, any> = new Map();
+  private stats = {
+    messagesReceived: 0,
+    lastMessageTime: null as Date | null,
+    connectionStatus: 'disconnected' as 'connected' | 'disconnected' | 'reconnecting'
+  };
 
   constructor(private options: StreamManagerOptions) {
     this.logger = new Logger({ context: 'StreamManager', color: chalk });
@@ -70,6 +75,7 @@ export class StreamManager {
    */
   async stop(): Promise<void> {
     this.isRunning = false;
+    this.stats.connectionStatus = 'disconnected';
     
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -147,22 +153,29 @@ export class StreamManager {
       
       this.stream = await this.options.streamClient.subscribe();
 
-      // Log request details for debugging
-      console.log('About to send subscription request');
-      console.log('Request type:', typeof request);
-      console.log('Request keys:', Object.keys(request));
+      // Log request details for debugging (only if needed)
+      // console.log('About to send subscription request');
+      // console.log('Full request:', JSON.stringify(request, null, 2));
       
       // Send the subscription request
       await new Promise<void>((resolve, reject) => {
-        this.stream.write(request, (err: any) => {
-          if (err === null || err === undefined) {
-            this.logger.info('Connected to shared gRPC stream');
-            this.reconnectAttempts = 0;
-            resolve();
-          } else {
-            reject(err);
-          }
-        });
+        try {
+          // Ensure request is properly formed before sending
+          const safeRequest = JSON.parse(JSON.stringify(request));
+          this.stream.write(safeRequest, (err: any) => {
+            if (err === null || err === undefined) {
+              this.logger.info('Connected to shared gRPC stream');
+              this.reconnectAttempts = 0;
+              this.stats.connectionStatus = 'connected';
+              resolve();
+            } else {
+              reject(err);
+            }
+          });
+        } catch (error) {
+          console.error('Error preparing request:', error);
+          reject(error);
+        }
       });
 
       // Process stream data
@@ -170,6 +183,10 @@ export class StreamManager {
         if (!this.isRunning) return;
 
         try {
+          
+          this.stats.messagesReceived++;
+          this.stats.lastMessageTime = new Date();
+          
           // Emit raw data for all monitors to process
           this.options.eventBus.emit(EVENTS.STREAM_DATA, data);
         } catch (error) {
@@ -180,6 +197,7 @@ export class StreamManager {
       // Handle stream end in background (don't block)
       this.stream.on('end', () => {
         this.logger.info('Stream ended');
+        this.stats.connectionStatus = 'disconnected';
         if (this.isRunning) {
           this.handleReconnect();
         }
@@ -195,6 +213,7 @@ export class StreamManager {
         }
         
         this.logger.error('Stream error', error);
+        this.stats.connectionStatus = 'disconnected';
         if (this.isRunning) {
           this.handleReconnect();
         }
@@ -234,6 +253,7 @@ export class StreamManager {
 
     this.logger.warn(`Reconnecting in ${nextDelay / 1000}s...`);
     this.reconnectAttempts++;
+    this.stats.connectionStatus = 'reconnecting';
 
     this.reconnectTimer = setTimeout(() => {
       this.startMonitoring(nextDelay);
@@ -286,28 +306,54 @@ export class StreamManager {
       if (mergedConfig.accounts) {
         for (const [key, accountConfig] of Object.entries(mergedConfig.accounts)) {
           const accConfig = accountConfig as any;
-          accounts[key] = {
-            account: [],
+          // Build account subscription with only the fields that are provided
+          const accSub: any = {
+            // Always include both account and owner fields (empty arrays if not provided)
+            account: accConfig.account || [],
             owner: accConfig.owner || [],
-            filters: [],
-            nonemptyTxnSignature: accConfig.nonemptyTxnSignature
+            filters: accConfig.filters || []
           };
+          
+          accounts[key] = accSub;
+        }
+      }
+      
+      // Convert transaction subscriptions to proper gRPC format
+      const transactions: any = {};
+      if (mergedConfig.transactions) {
+        for (const [key, txConfig] of Object.entries(mergedConfig.transactions)) {
+          const txCfg = txConfig as any;
+          // Use the config directly - no filter wrapper needed
+          const txSub: any = {
+            vote: txCfg.vote !== undefined ? txCfg.vote : false,
+            failed: txCfg.failed !== undefined ? txCfg.failed : false,
+            signature: undefined, // Explicitly set signature to undefined as required by gRPC
+            accountInclude: txCfg.accountInclude || [],
+            accountExclude: txCfg.accountExclude || [],
+            accountRequired: txCfg.accountRequired || []
+          };
+          
+          transactions[key] = txSub;
         }
       }
       
       // Build proper gRPC request
-      const request: SubscribeRequest = {
+      const request: any = {
         commitment: CommitmentLevel.CONFIRMED,
         accounts,
         slots: mergedConfig.slots || {},
-        transactions: mergedConfig.transactions || {},
+        transactions,
         transactionsStatus: {},
         blocks: {},
         blocksMeta: {},
         entry: {},
-        accountsDataSlice: [],
-        ping: undefined
+        accountsDataSlice: []
       };
+      
+      // Log the full request for debugging
+      this.logger.info('Full subscription request:', {
+        request: JSON.stringify(request, null, 2)
+      });
       
       return request;
     }
@@ -326,7 +372,7 @@ export class StreamManager {
       };
     }
 
-    const request: SubscribeRequest = {
+    const request: any = {
       commitment: CommitmentLevel.CONFIRMED,
       accounts: {},
       slots: {},
@@ -335,8 +381,7 @@ export class StreamManager {
       blocks: {},
       blocksMeta: {},
       entry: {},
-      accountsDataSlice: [],
-      ping: undefined
+      accountsDataSlice: []
     };
 
     this.logger.info('Built subscription request', {
@@ -356,7 +401,22 @@ export class StreamManager {
       isRunning: this.isRunning,
       hasActiveStream: !!this.stream,
       reconnectAttempts: this.reconnectAttempts,
-      subscribedPrograms: this.subscribedPrograms.size
+      subscribedPrograms: this.subscribedPrograms.size,
+      messagesReceived: this.stats.messagesReceived,
+      lastMessageTime: this.stats.lastMessageTime,
+      connectionStatus: this.stats.connectionStatus
+    };
+  }
+
+  /**
+   * Get connection status
+   */
+  getConnectionStatus() {
+    return {
+      status: this.stats.connectionStatus,
+      isConnected: this.stats.connectionStatus === 'connected',
+      messagesReceived: this.stats.messagesReceived,
+      lastMessageTime: this.stats.lastMessageTime
     };
   }
 }

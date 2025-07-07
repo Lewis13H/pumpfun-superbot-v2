@@ -136,8 +136,9 @@ export class RealtimePriceCache extends EventEmitter {
   }
   
   private logStats() {
-    const stats = this.getStats();
-    console.log(chalk.gray(`💾 Price cache: ${stats.totalTokens} tokens, ${stats.updateCount} updates`));
+    // Stats logging disabled to reduce console noise
+    // const stats = this.getStats();
+    // console.log(chalk.gray(`💾 Price cache: ${stats.totalTokens} tokens, ${stats.updateCount} updates`));
   }
   
   /**

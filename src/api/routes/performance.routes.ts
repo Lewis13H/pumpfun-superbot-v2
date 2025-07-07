@@ -5,7 +5,7 @@ export function createPerformanceRoutes(controller: PerformanceOptimizationContr
   const router = Router();
 
   // Optimization status
-  router.get('/optimization/status', (req, res) => controller.getOptimizationStatus(req, res));
+  router.get('/optimization-status', (req, res) => controller.getOptimizationStatus(req, res));
 
   // Batch metrics
   router.get('/batch/metrics', (req, res) => controller.getBatchMetrics(req, res));
@@ -21,6 +21,9 @@ export function createPerformanceRoutes(controller: PerformanceOptimizationContr
 
   // SSE streaming endpoint
   router.get('/stream', (req, res) => controller.setupSSE(req, res));
+
+  // Memory cleanup endpoint
+  router.post('/cleanup-memory', (req, res) => controller.cleanupMemory(req, res));
 
   return router;
 }

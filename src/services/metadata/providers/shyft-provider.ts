@@ -204,6 +204,13 @@ export class ShyftProvider {
       
       const basicInfo = tokenResponse.data.result;
       
+      // Log the response to debug
+      console.log('📊 Shyft API response for', mintAddress.slice(0, 8) + '...:', {
+        symbol: basicInfo.symbol,
+        name: basicInfo.name,
+        hasData: !!basicInfo.symbol || !!basicInfo.name
+      });
+      
       // Get holder count
       let holderCount: number | undefined;
       try {
@@ -242,14 +249,14 @@ export class ShyftProvider {
       
       const tokenInfo: TokenInfoDAS = {
         address: mintAddress,
-        symbol: basicInfo.symbol,
-        name: basicInfo.name,
+        symbol: basicInfo.symbol || 'Unknown',
+        name: basicInfo.name || 'Unknown Token',
         decimals: basicInfo.decimals || 6,
-        supply: basicInfo.supply || '0',
+        supply: basicInfo.supply || basicInfo.current_supply || '0',
         description: metadata?.description || basicInfo.description,
         image: metadata?.image || basicInfo.image,
         external_url: metadata?.external_url,
-        uri: basicInfo.uri,
+        uri: basicInfo.uri || basicInfo.metadata_uri,
         
         // Social links from metadata
         twitter: metadata?.twitter,
@@ -316,24 +323,34 @@ export class ShyftProvider {
     // Process uncached tokens with DAS API for comprehensive data
     console.log(chalk.yellow(`🔄 Fetching ${uncachedAddresses.length} tokens from Shyft API...`));
     
-    for (let i = 0; i < uncachedAddresses.length; i++) {
-      const mint = uncachedAddresses[i];
+    // Process in parallel batches to speed up fetching
+    const PARALLEL_BATCH_SIZE = 5; // Process 5 tokens simultaneously
+    
+    for (let i = 0; i < uncachedAddresses.length; i += PARALLEL_BATCH_SIZE) {
+      const batch = uncachedAddresses.slice(i, i + PARALLEL_BATCH_SIZE);
       
-      try {
-        const metadata = await this.getTokenInfoDAS(mint);
-        if (metadata) {
-          results.set(mint, metadata);
+      // Fetch batch in parallel
+      const batchPromises = batch.map(async (mint) => {
+        try {
+          const metadata = await this.getTokenInfoDAS(mint);
+          if (metadata) {
+            results.set(mint, metadata);
+          }
+        } catch (error) {
+          // Continue with next token on error
+          if (process.env.DEBUG) {
+            console.error(chalk.red(`Failed to fetch ${mint}:`), error);
+          }
         }
-        
-        // Progress update every 10 tokens
-        if ((i + 1) % 10 === 0) {
-          console.log(chalk.gray(`  Progress: ${i + 1}/${uncachedAddresses.length}`));
-        }
-      } catch (error) {
-        // Continue with next token on error
-        if (process.env.DEBUG) {
-          console.error(chalk.red(`Failed to fetch ${mint}:`), error);
-        }
+      });
+      
+      // Wait for batch to complete
+      await Promise.all(batchPromises);
+      
+      // Progress update
+      const processed = Math.min(i + PARALLEL_BATCH_SIZE, uncachedAddresses.length);
+      if (processed % 10 === 0 || processed === uncachedAddresses.length) {
+        console.log(chalk.gray(`  Progress: ${processed}/${uncachedAddresses.length}`));
       }
     }
     
@@ -391,19 +408,38 @@ export class ShyftProvider {
    */
   async storeEnrichedMetadata(tokenInfo: TokenInfoDAS): Promise<void> {
     try {
+      console.log('💾 Storing metadata for', tokenInfo.address.slice(0, 8) + '...:', {
+        symbol: tokenInfo.symbol,
+        name: tokenInfo.name,
+        hasSymbol: !!tokenInfo.symbol,
+        hasName: !!tokenInfo.name
+      });
+      
       await db.query(`
         UPDATE tokens_unified
         SET 
-          holder_count = $2,
-          twitter = $3,
-          telegram = $4,
-          discord = $5,
-          website = $6,
-          metadata_score = $7,
+          symbol = COALESCE($2, symbol),
+          name = COALESCE($3, name),
+          uri = COALESCE($4, uri),
+          image_uri = COALESCE($5, image_uri),
+          description = COALESCE($6, description),
+          holder_count = $7,
+          twitter = $8,
+          telegram = $9,
+          discord = $10,
+          website = $11,
+          metadata_score = $12,
+          metadata_enriched = true,
+          metadata_enriched_at = NOW(),
           metadata_last_updated = NOW()
         WHERE mint_address = $1
       `, [
         tokenInfo.address,
+        tokenInfo.symbol,
+        tokenInfo.name,
+        tokenInfo.uri,
+        tokenInfo.image,
+        tokenInfo.description,
         tokenInfo.current_holder_count,
         tokenInfo.twitter,
         tokenInfo.telegram,

@@ -4,7 +4,10 @@
  */
 
 import { ParseStrategy, ParseContext, ParsedEvent } from './types';
-// Keep liquidity strategy - used by new domain monitors
+// Import all parsing strategies
+import { BCTradeStrategy } from './strategies/bc-trade-strategy';
+import { BCTradeIDLStrategy } from './strategies/bc-trade-idl-strategy';
+import { AMMTradeStrategy } from './strategies/amm-trade-strategy';
 import { LiquidityStrategy } from './strategies/liquidity-strategy';
 import { Logger } from '../../core/logger';
 import { EventBus } from '../../core/event-bus';
@@ -29,9 +32,11 @@ export class UnifiedEventParser {
   };
 
   constructor(options: ParserOptions = {}) {
-    // With smart streaming, domain monitors handle their own parsing
-    // This parser is mainly used for liquidity events now
+    // Include all parsing strategies for domain monitors to use
     this.strategies = options.strategies || [
+      new BCTradeIDLStrategy(),       // BC trades using IDL (most accurate)
+      new BCTradeStrategy(),          // BC trades fallback
+      new AMMTradeStrategy(),         // AMM trades
       new LiquidityStrategy()         // Liquidity events
     ];
     

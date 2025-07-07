@@ -122,6 +122,9 @@ async function startMonitors() {
     // Create DI container
     const container = await createContainer();
     
+    // Make container globally accessible for API
+    (global as any).appContainer = container;
+    
     // Get core services
     const eventBus = await container.resolve('EventBus' as any) as EventBus;
     await container.resolve('ConfigService' as any) as ConfigService;

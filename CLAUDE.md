@@ -263,6 +263,8 @@ POOL_MAX_RETRIES=3
   - Root cause: Database `current_price_usd` column only stores 4 decimal places
   - Solution: API now calculates USD prices from SOL prices (12 decimal places) for better precision
   - Modified both `/api/tokens` and `/api/tokens/realtime` endpoints
+  - Fixed duplicate `/api/tokens/realtime` endpoint that was overriding the corrected version
+  - Re-enabled realtime prices in dashboard (USE_REALTIME_PRICES = true)
   - Dashboard now correctly displays very small prices (e.g., $0.00004998)
 
 ### Latest Changes (July 5-6)

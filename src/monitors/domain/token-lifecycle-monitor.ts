@@ -316,6 +316,15 @@ export class TokenLifecycleMonitor extends BaseMonitor {
   async processStreamData(data: any): Promise<void> {
     const startTime = Date.now();
     
+    // Debug: Log first few messages
+    if (this.stats.transactions < 3) {
+      console.log(`🔍 TokenLifecycle processing data:`, {
+        hasTransaction: !!data.transaction,
+        hasAccount: !!data.account,
+        filters: data.filters
+      });
+    }
+    
     try {
       // Record message with smart stream manager if available
       if (this.smartStreamManager) {
@@ -493,7 +502,19 @@ export class TokenLifecycleMonitor extends BaseMonitor {
     
     if (!event) {
       this.stats.parseErrors++;
+      if (this.stats.parseErrors < 3) {
+        console.log(`❌ TokenLifecycle parse error #${this.stats.parseErrors}`);
+      }
       return;
+    }
+    
+    // Debug: Log successful parse
+    if (this.stats.transactions < 3) {
+      console.log(`✅ TokenLifecycle parsed event:`, {
+        type: event.type,
+        mintAddress: event.mintAddress?.substring(0, 8) + '...',
+        signature: event.signature?.substring(0, 8) + '...'
+      });
     }
     
     // Handle token creation events (check if it's a creation event)

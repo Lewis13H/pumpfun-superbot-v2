@@ -170,7 +170,7 @@ class RealtimeDataManager {
         });
 
         // Poll for optimization status
-        this.pollEndpoint('/api/v1/performance/optimization/status', 5000, (data) => {
+        this.pollEndpoint('/api/v1/performance/optimization-status', 5000, (data) => {
             this.dataCache.performance.optimization = data;
             this.emit('optimization-status', data);
         });

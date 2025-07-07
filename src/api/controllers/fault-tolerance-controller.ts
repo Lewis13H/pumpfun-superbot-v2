@@ -43,8 +43,18 @@ export class FaultToleranceController {
 
   async getStatus(_req: Request, res: Response): Promise<void> {
     try {
-      const health = this.faultTolerantManager.getHealthSummary();
-      const checkpoint = await this.stateRecoveryService.loadLatestCheckpoint();
+      // Get real performance metrics
+      const { performanceMonitor } = await import('../../services/monitoring/performance-monitor');
+      const metrics = performanceMonitor.getCurrentMetrics();
+      
+      // Calculate health from real monitor data
+      const healthy = metrics.monitors.filter(m => m.status === 'healthy').length;
+      const degraded = metrics.monitors.filter(m => m.status === 'degraded').length;
+      const failed = metrics.monitors.filter(m => m.status === 'unhealthy' || m.status === 'disconnected').length;
+      
+      const health = this.faultTolerantManager?.getHealthSummary?.() || { healthy, degraded, failed };
+      const checkpoint = this.stateRecoveryService?.loadLatestCheckpoint ? 
+        await this.stateRecoveryService.loadLatestCheckpoint() : null;
       
       const status: FaultToleranceStatus = {
         enabled: true,
@@ -62,16 +72,33 @@ export class FaultToleranceController {
 
   async getCircuitBreakers(_req: Request, res: Response): Promise<void> {
     try {
-      const connectionHealth = this.faultTolerantManager.getConnectionHealth();
-      const circuitBreakers: CircuitBreakerStatus[] = Array.from(connectionHealth.entries()).map(([id, health]) => ({
-        connectionId: id,
-        state: health.circuitState,
-        failures: health.failures || 0,
-        lastFailure: health.lastFailure,
-        lastSuccess: health.lastSuccess,
-        parseRate: health.parseRate,
-        latency: health.latency
-      }));
+      // Get real performance metrics
+      const { performanceMonitor } = await import('../../services/monitoring/performance-monitor');
+      const metrics = performanceMonitor.getCurrentMetrics();
+      
+      const connectionHealth = this.faultTolerantManager?.getConnectionHealth?.() || new Map();
+      
+      // If no real circuit breakers, create from monitor data
+      const circuitBreakers: CircuitBreakerStatus[] = connectionHealth.size > 0 
+        ? Array.from(connectionHealth.entries()).map(([id, health]) => ({
+            connectionId: id,
+            state: health.circuitState,
+            failures: health.failures || 0,
+            lastFailure: health.lastFailure,
+            lastSuccess: health.lastSuccess,
+            parseRate: health.parseRate,
+            latency: health.latency
+          }))
+        : metrics.monitors.map(monitor => ({
+            connectionId: monitor.name,
+            state: monitor.status === 'healthy' ? 'CLOSED' as const : 
+                   monitor.status === 'degraded' ? 'HALF_OPEN' as const : 'OPEN' as const,
+            failures: monitor.errors24h || 0,
+            lastFailure: monitor.lastError?.timestamp,
+            lastSuccess: monitor.status === 'healthy' ? new Date() : undefined,
+            parseRate: monitor.parseRate,
+            latency: monitor.averageLatency
+          }));
       
       res.json(circuitBreakers);
     } catch (error) {
@@ -85,22 +112,45 @@ export class FaultToleranceController {
       const limit = parseInt(req.query.limit as string) || 50;
       const severity = req.query.severity as string;
       
-      const alerts = this.alertService.getAlertHistory(limit);
+      // Get real error logs from performance monitor
+      const { performanceMonitor } = await import('../../services/monitoring/performance-monitor');
+      const errorLogs = performanceMonitor.getErrorLogs(limit);
+      
+      const alerts = this.alertService?.getAlertHistory?.(limit) || [];
+      
+      // Combine real error logs with any existing alerts
+      const combinedAlerts = [
+        ...errorLogs.map(log => ({
+          id: log.id,
+          timestamp: log.timestamp,
+          severity: log.level === 'error' ? 'error' as const : 
+                   log.level === 'warn' ? 'warning' as const : 'info' as const,
+          type: 'monitor_error',
+          message: log.message,
+          connectionId: log.component,
+          data: log.details
+        })),
+        ...alerts.map(alert => ({
+          id: alert.id || Date.now().toString(),
+          timestamp: alert.timestamp,
+          severity: alert.severity,
+          type: alert.type,
+          message: alert.message,
+          connectionId: (alert as any).connectionId,
+          data: alert.data
+        }))
+      ];
+      
       const filtered = severity ? 
-        alerts.filter(a => a.severity === severity) : 
-        alerts;
+        combinedAlerts.filter(a => a.severity === severity) : 
+        combinedAlerts;
       
-      const formattedAlerts: FaultToleranceAlert[] = filtered.map(alert => ({
-        id: alert.id || Date.now().toString(),
-        timestamp: alert.timestamp,
-        severity: alert.severity,
-        type: alert.type,
-        message: alert.message,
-        connectionId: (alert as any).connectionId,
-        data: alert.data
-      }));
+      // Sort by timestamp descending and limit
+      const sorted = filtered
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        .slice(0, limit);
       
-      res.json(formattedAlerts);
+      res.json(sorted);
     } catch (error) {
       console.error('Error getting alerts:', error);
       res.status(500).json({ error: 'Failed to get alerts' });
