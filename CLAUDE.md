@@ -284,8 +284,13 @@ POOL_MAX_RETRIES=3
   - See `docs/BONDING_CURVE_PROGRESS_ISSUE.md` for detailed analysis and implementation guide
 
 - ✅ **Bonding Curve Account Monitoring Integration (July 7)**:
-  - Integrated account-based monitoring into TokenLifecycleMonitor
-  - Added subscription to pump.fun owned accounts using owner filter
+  - **Step 1 ✅**: Added account subscription to pump.fun owned accounts using owner filter
+  - **Step 2 ✅**: Integrated account handler with both BondingCurveAccountHandler and fallback parsing
+    - Handler automatically activates when IDL is present
+    - Fallback parsing handles accounts when IDL is unavailable
+    - Both handlers emit BONDING_CURVE_PROGRESS_UPDATE events
+    - Enhanced debug logging for first 5 account updates
+    - Stats now show whether handler or fallback is active
   - Created BondingCurveAccountHandler for modular account processing
   - Updated graduation threshold from 85 to 84 SOL (as per Shyft examples)
   - Account monitoring uses lamports for accurate progress calculation
@@ -297,6 +302,7 @@ POOL_MAX_RETRIES=3
   - Dashboard displays "COMPLETE" for tokens with complete flag set
   - Enhanced logging to track when complete flag is detected
   - Migration script: `npx tsx src/scripts/run-bc-complete-migration.ts`
+  - Test script: `npx tsx src/scripts/test-bc-account-handler.ts`
 
 ### Latest Changes (July 5-6)
 - ✅ **Connection Pool Implementation (Session 1)**:

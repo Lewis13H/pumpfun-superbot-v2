@@ -457,6 +457,16 @@ export class TokenLifecycleMonitor extends BaseMonitor {
   private async processAccountUpdate(data: any): Promise<void> {
     this.stats.accountUpdates++;
     
+    // Debug log for first few account updates
+    if (this.stats.accountUpdates <= 5) {
+      this.logger.debug('Processing account update', {
+        updateNumber: this.stats.accountUpdates,
+        hasHandler: !!this.bcAccountHandler,
+        dataKeys: Object.keys(data),
+        accountKeys: data.account ? Object.keys(data.account) : []
+      });
+    }
+    
     // If we have the account handler, use it for more robust parsing
     if (this.bcAccountHandler) {
       await this.bcAccountHandler.processAccountUpdate(data);
@@ -545,6 +555,18 @@ export class TokenLifecycleMonitor extends BaseMonitor {
           creator: bcData.creator.toString()
         });
         
+        // Also emit bonding curve progress update for consistency
+        this.eventBus.emit(EVENTS.BONDING_CURVE_PROGRESS_UPDATE, {
+          bondingCurveAddress: bondingCurveAddress,
+          mintAddress,
+          progress: 100,
+          complete: true,
+          lamports,
+          solInCurve,
+          virtualSolReserves: bcData.virtualSolReserves,
+          virtualTokenReserves: bcData.virtualTokenReserves
+        });
+        
         this.logger.info('🎓 Graduation detected via account update!', {
           mint: mintAddress,
           bondingCurve: bondingCurveAddress.substring(0, 8) + '...',
@@ -561,6 +583,18 @@ export class TokenLifecycleMonitor extends BaseMonitor {
           solInCurve: solInCurve.toFixed(2)
         });
       }
+      
+      // Emit progress update for all account updates
+      this.eventBus.emit(EVENTS.BONDING_CURVE_PROGRESS_UPDATE, {
+        bondingCurveAddress: bondingCurveAddress,
+        mintAddress,
+        progress,
+        complete: bcData.complete,
+        lamports,
+        solInCurve,
+        virtualSolReserves: bcData.virtualSolReserves,
+        virtualTokenReserves: bcData.virtualTokenReserves
+      });
       
     } catch (error) {
       this.stats.parseErrors++;
@@ -886,6 +920,7 @@ export class TokenLifecycleMonitor extends BaseMonitor {
       
       // Account stats
       accountUpdates: this.stats.accountUpdates,
+      accountHandler: this.bcAccountHandler ? 'active' : 'fallback',
       graduations: this.stats.graduations,
       nearGraduations: this.stats.nearGraduations,
       
