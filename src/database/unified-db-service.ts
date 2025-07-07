@@ -651,6 +651,23 @@ export class UnifiedDbServiceV2 {
   }
 
   /**
+   * Update token creator address
+   */
+  async updateTokenCreator(mintAddress: string, creator: string): Promise<void> {
+    try {
+      await db.query(
+        `UPDATE tokens_unified 
+         SET creator = $2,
+             updated_at = NOW()
+         WHERE mint_address = $1`,
+        [mintAddress, creator]
+      );
+    } catch (error) {
+      console.error('Error updating token creator:', error);
+    }
+  }
+
+  /**
    * Cleanup and close
    */
   async close(): Promise<void> {

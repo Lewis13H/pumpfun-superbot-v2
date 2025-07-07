@@ -144,6 +144,32 @@ export class TradingActivityMonitor extends BaseMonitor {
     return Object.values(this.PROGRAMS);
   }
 
+  /**
+   * Build enhanced subscribe request to monitor ALL trading venues
+   */
+  protected buildEnhancedSubscribeRequest(): any {
+    const builder = this.subscriptionBuilder;
+    
+    // Set commitment level
+    builder.setCommitment('confirmed');
+    
+    // Subscribe to ALL trading programs (BC, AMM, Raydium)
+    builder.addTransactionSubscription('trading_activity_all', {
+      vote: false,
+      failed: this.options.includeFailedTxs || false,
+      accountInclude: this.getProgramIds(), // Use ALL programs!
+      accountRequired: this.options.requiredAccounts || [],
+      accountExclude: this.options.excludeAccounts || []
+    });
+    
+    // Set group priority if available
+    if ('setGroup' in builder) {
+      (builder as any).setGroup('trading'); // Medium priority group
+    }
+    
+    return builder.build();
+  }
+
   protected isRelevantTransaction(data: any): boolean {
     // First check base implementation
     if (!super.isRelevantTransaction(data)) {

@@ -98,9 +98,10 @@ export class TradeHandler {
       // Add bonding curve specific fields if applicable
       if (event.type === EventType.BC_TRADE && 'bondingCurveKey' in event) {
         trade.bondingCurveKey = sanitizeUtf8((event as any).bondingCurveKey);
-        trade.bondingCurveProgress = this.priceCalculator.calculateBondingCurveProgress(
-          (event as any).virtualSolReserves
-        );
+        // Don't calculate progress from virtualSolReserves - it's inaccurate
+        // Progress should come from bonding curve account monitoring (lamports-based)
+        // We'll keep the existing progress from the token record
+        trade.bondingCurveProgress = null;
       }
       
       // Queue trade for batch save
@@ -210,9 +211,7 @@ export class TradeHandler {
     if (event.type === EventType.BC_TRADE && 'bondingCurveKey' in event) {
       token.bondingCurveKey = sanitizeUtf8((event as any).bondingCurveKey);
     }
-    if (event.type === EventType.BC_TRADE && 'bondingCurveProgress' in event) {
-      token.latestBondingCurveProgress = (event as any).bondingCurveProgress;
-    }
+    // Don't set progress from trade events - it should only come from account monitoring
     
     // Check if threshold crossed
     const threshold = this.config.get('monitors').bcSaveThreshold;

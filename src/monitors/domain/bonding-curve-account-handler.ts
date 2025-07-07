@@ -9,10 +9,22 @@ import { BorshAccountsCoder } from '@coral-xyz/anchor';
 import { Logger } from '../../core/logger';
 import { EventBus, EVENTS } from '../../core/event-bus';
 import bs58 from 'bs58';
+import * as borsh from '@coral-xyz/borsh';
+
+// Bonding curve account schema
+const BONDING_CURVE_SCHEMA = borsh.struct([
+  borsh.u64('virtualTokenReserves'),
+  borsh.u64('virtualSolReserves'),
+  borsh.u64('realTokenReserves'),
+  borsh.u64('realSolReserves'),
+  borsh.u64('tokenTotalSupply'),
+  borsh.bool('complete'),
+  borsh.publicKey('creator'),
+]);
 
 export class BondingCurveAccountHandler {
   private logger = new Logger({ context: 'BondingCurveAccountHandler' });
-  private accountCoder: BorshAccountsCoder;
+  private accountCoder: BorshAccountsCoder | null;
   private bondingCurveDiscriminator: Buffer;
   private lastProgressUpdate: Map<string, { progress: number; complete: boolean }> = new Map();
   
@@ -21,13 +33,24 @@ export class BondingCurveAccountHandler {
   private readonly LAMPORTS_PER_SOL = 1_000_000_000;
 
   constructor(
-    programIdl: any,
+    programIdl: any | null,
     private eventBus: EventBus,
     private bondingCurveToMint: Map<string, string> = new Map(),
     private database?: any // Optional database service for direct updates
   ) {
-    this.accountCoder = new BorshAccountsCoder(programIdl);
-    this.bondingCurveDiscriminator = (this.accountCoder as any).accountDiscriminator('BondingCurve');
+    if (programIdl) {
+      try {
+        this.accountCoder = new BorshAccountsCoder(programIdl);
+        this.bondingCurveDiscriminator = (this.accountCoder as any).accountDiscriminator('BondingCurve');
+      } catch (error) {
+        this.logger.warn('Failed to initialize BorshAccountsCoder, using fallback', error as Error);
+        this.accountCoder = null;
+        this.bondingCurveDiscriminator = Buffer.from([23, 183, 248, 55, 96, 216, 172, 96]);
+      }
+    } else {
+      this.accountCoder = null;
+      this.bondingCurveDiscriminator = Buffer.from([23, 183, 248, 55, 96, 216, 172, 96]);
+    }
   }
 
   /**
@@ -35,7 +58,33 @@ export class BondingCurveAccountHandler {
    */
   async processAccountUpdate(accountData: any): Promise<void> {
     try {
-      const data = Buffer.from(accountData.account.data, 'base64');
+      // Convert account data to buffer (handle different formats)
+      let data: Buffer;
+      const accountDataRaw = accountData.account.data;
+      
+      if (typeof accountDataRaw === 'string') {
+        // Base64 encoded string
+        data = Buffer.from(accountDataRaw, 'base64');
+      } else if (Array.isArray(accountDataRaw)) {
+        // Check if it's an array of numbers or a nested structure
+        if (typeof accountDataRaw[0] === 'string') {
+          // Array with base64 string as first element
+          data = Buffer.from(accountDataRaw[0], 'base64');
+        } else if (typeof accountDataRaw[0] === 'number') {
+          // Array of bytes
+          data = Buffer.from(accountDataRaw);
+        } else {
+          // Unknown format
+          this.logger.debug('Unknown account data format in handler', { 
+            dataType: typeof accountDataRaw[0],
+            sample: accountDataRaw.slice(0, 10)
+          });
+          return;
+        }
+      } else {
+        this.logger.debug('Unexpected account data type in handler', { type: typeof accountDataRaw });
+        return;
+      }
       
       // Check if this is a BondingCurve account
       if (!this.isBondingCurveAccount(data)) {
@@ -43,12 +92,42 @@ export class BondingCurveAccountHandler {
       }
 
       // Decode the account data
-      const decodedData = this.accountCoder.decodeAny(data);
+      let decodedData: any;
+      
+      if (this.accountCoder) {
+        // Try using the account coder
+        try {
+          const decoded = this.accountCoder.decodeAny(data);
+          if (!decoded || (decoded.name && decoded.name !== 'BondingCurve')) {
+            return;
+          }
+          decodedData = decoded.data || decoded;
+        } catch (error) {
+          // Fallback to borsh schema
+          this.logger.debug('Account coder failed, using borsh schema', error as Error);
+          decodedData = BONDING_CURVE_SCHEMA.decode(data.slice(8));
+        }
+      } else {
+        // Use borsh schema directly
+        decodedData = BONDING_CURVE_SCHEMA.decode(data.slice(8));
+      }
+      
       if (!decodedData) {
         return;
       }
 
-      const pubkey = bs58.encode(accountData.account.pubkey);
+      // Handle pubkey format (could be string or array)
+      let pubkey: string;
+      if (typeof accountData.account.pubkey === 'string') {
+        pubkey = accountData.account.pubkey;
+      } else if (Array.isArray(accountData.account.pubkey)) {
+        pubkey = bs58.encode(Buffer.from(accountData.account.pubkey));
+      } else if (Buffer.isBuffer(accountData.account.pubkey)) {
+        pubkey = bs58.encode(accountData.account.pubkey);
+      } else {
+        this.logger.debug('Unknown pubkey format', { type: typeof accountData.account.pubkey });
+        return;
+      }
       const lamports = accountData.account.lamports;
 
       // Calculate progress based on lamports (following Shyft example)

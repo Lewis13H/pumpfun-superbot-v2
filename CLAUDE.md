@@ -278,6 +278,15 @@ POOL_MAX_RETRIES=3
   - Bonding curve tokens continue using 10% estimate (they don't have traditional liquidity pools)
   - Methodology follows standard AMM liquidity calculation (2× one side of pool)
 
+- ✅ **Creator Address Tracking (July 7)**:
+  - Token detail page now displays creator address in Token Info section
+  - Creator address extracted from bonding curve account data (includes `creator` field)
+  - TokenLifecycleMonitor updated to capture creator when processing BC accounts
+  - Added `updateTokenCreator` method to UnifiedDBService
+  - Created `update-token-creators.ts` script to retroactively fetch creators for existing tokens
+  - Successfully updated 50+ tokens with creator addresses from on-chain data
+  - Creator field no longer shows empty in token detail page
+
 - ⚠️ **BC Progress Calculation Limitation (RESOLVED)**:
   - Previously used hardcoded 85 SOL graduation threshold (now updated to 84 SOL)
   - Now monitors bonding curve account's `complete` field for accurate graduation detection
@@ -782,6 +791,26 @@ src/
     ├── test-session-*.ts # Session test scripts
     └── [other scripts]
 ```
+
+## Knowledge Base
+
+This project uses distributed knowledge files in `.knowledge/` directories throughout the codebase. These contain deep insights, explanations, and lessons learned that are crucial for understanding each module.
+
+### Key Knowledge Locations
+<!-- AUTO-GENERATED-KNOWLEDGE-START -->
+- **Source Code**: `/src/monitors/.knowledge/` - bonding curve progress, creator tracking, graduation detection
+<!-- AUTO-GENERATED-KNOWLEDGE-END -->
+
+### How to Use Knowledge Files
+1. **When working on a module**, always check its `.knowledge/` directory first
+2. **When debugging issues**, look for relevant knowledge files that might explain the problem
+3. **When adding new insights**, create knowledge files in the appropriate `.knowledge/` directory
+4. **Update this list** by running: `npm run update-knowledge-map`
+
+### Creating New Knowledge Files
+1. Create a `.knowledge/` directory in your module if it doesn't exist
+2. Add markdown files with clear, focused topics
+3. Run `npm run update-knowledge-map` to update this list in CLAUDE.md
 
 ## Important Notes
 

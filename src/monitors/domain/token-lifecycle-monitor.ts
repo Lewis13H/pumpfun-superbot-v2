@@ -18,9 +18,7 @@ import { enableErrorSuppression } from '../../utils/parsers/error-suppressor';
 import { performanceMonitor } from '../../services/monitoring/performance-monitor';
 import { SmartStreamManager } from '../../services/core/smart-stream-manager';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { BorshAccountsCoder } from '@coral-xyz/anchor';
 import { BondingCurveAccountHandler } from './bonding-curve-account-handler';
-import * as fs from 'fs';
 
 // Bonding curve account schema
 const BONDING_CURVE_SCHEMA = borsh.struct([
@@ -106,7 +104,6 @@ export class TokenLifecycleMonitor extends BaseMonitor {
   private parseTimings: number[] = [];
   private smartStreamManager?: SmartStreamManager;
   private bcAccountHandler?: BondingCurveAccountHandler;
-  private accountCoder?: BorshAccountsCoder;
   private bondingCurveToMint: Map<string, string> = new Map();
   private lastProgressUpdate: Map<string, { progress: number; complete: boolean }> = new Map();
 
@@ -255,36 +252,26 @@ export class TokenLifecycleMonitor extends BaseMonitor {
       // SmartStreamManager not available
     }
     
-    // Initialize IDL and Account Coder
+    // Initialize BondingCurveAccountHandler without Anchor's BorshAccountsCoder
+    // We'll use the basic borsh schema directly which is more reliable
     try {
-      const idlPath = './src/idls/pump_0.1.0.json';
-      if (fs.existsSync(idlPath)) {
-        const programIdl = JSON.parse(fs.readFileSync(idlPath, 'utf8'));
-        
-        // Initialize account coder for direct use
-        this.accountCoder = new BorshAccountsCoder(programIdl);
-        
-        // Get database service for direct updates
-        const database = await this.container.resolve(TOKENS.DatabaseService);
-        
-        // Initialize BondingCurveAccountHandler with IDL and database
-        this.bcAccountHandler = new BondingCurveAccountHandler(
-          programIdl,
-          this.eventBus,
-          this.bondingCurveToMint,
-          database
-        );
-        
-        this.logger.info('IDL loaded successfully', {
-          path: idlPath,
-          handler: 'BondingCurveAccountHandler',
-          accountCoder: 'initialized'
-        });
-      } else {
-        this.logger.warn('pump.fun IDL not found at ' + idlPath + ', using basic account parsing');
-      }
+      // Get database service for direct updates
+      const database = await this.container.resolve(TOKENS.DatabaseService);
+      
+      // Initialize BondingCurveAccountHandler with null IDL (will use borsh schema)
+      this.bcAccountHandler = new BondingCurveAccountHandler(
+        null, // Don't use IDL-based account coder
+        this.eventBus,
+        this.bondingCurveToMint,
+        database
+      );
+      
+      this.logger.info('BondingCurveAccountHandler initialized', {
+        handler: 'BondingCurveAccountHandler',
+        method: 'borsh schema parsing'
+      });
     } catch (error) {
-      this.logger.error('Failed to initialize IDL and account coder', error as Error);
+      this.logger.error('Failed to initialize BondingCurveAccountHandler', error as Error);
     }
     
     // Setup event listeners
@@ -523,37 +510,48 @@ export class TokenLifecycleMonitor extends BaseMonitor {
       const account = accountInfo.account;
       if (!account.data || account.data.length === 0) return;
       
-      // Convert base64 data to buffer - data is an array, take first element
-      const accountData = Buffer.from(account.data[0], 'base64');
-      
-      // Parse bonding curve data using accountCoder if available, otherwise use schema
-      let bcData: any;
-      
-      if (this.accountCoder) {
-        // Use account coder for more robust parsing
-        try {
-          const decoded = this.accountCoder.decodeAny(accountData);
-          if (!decoded || decoded.name !== 'BondingCurve') {
-            return; // Not a bonding curve account
-          }
-          bcData = decoded.data;
-        } catch {
-          // Fallback to discriminator check
-          const discriminator = accountData.slice(0, 8);
-          const expectedDiscriminator = Buffer.from(BONDING_CURVE_DISCRIMINATOR);
-          if (!discriminator.equals(expectedDiscriminator)) {
-            return;
-          }
-          bcData = BONDING_CURVE_SCHEMA.decode(accountData.slice(8));
-        }
-      } else {
-        // No account coder, use discriminator check
-        const discriminator = accountData.slice(0, 8);
-        const expectedDiscriminator = Buffer.from(BONDING_CURVE_DISCRIMINATOR);
-        if (!discriminator.equals(expectedDiscriminator)) {
+      // Convert account data to buffer
+      let accountData: Buffer;
+      if (typeof account.data === 'string') {
+        // Base64 encoded string
+        accountData = Buffer.from(account.data, 'base64');
+      } else if (Array.isArray(account.data)) {
+        // Check if it's an array of numbers or a nested structure
+        if (typeof account.data[0] === 'string') {
+          // Array with base64 string as first element
+          accountData = Buffer.from(account.data[0], 'base64');
+        } else if (typeof account.data[0] === 'number') {
+          // Array of bytes
+          accountData = Buffer.from(account.data);
+        } else {
+          // Unknown format
+          this.logger.debug('Unknown account data format', { 
+            dataType: typeof account.data[0],
+            sample: account.data.slice(0, 10)
+          });
           return;
         }
+      } else {
+        this.logger.debug('Unexpected account data type', { type: typeof account.data });
+        return;
+      }
+      
+      // Parse bonding curve data using borsh schema
+      let bcData: any;
+      
+      // Check discriminator first
+      const discriminator = accountData.slice(0, 8);
+      const expectedDiscriminator = Buffer.from(BONDING_CURVE_DISCRIMINATOR);
+      if (!discriminator.equals(expectedDiscriminator)) {
+        return; // Not a bonding curve account
+      }
+      
+      // Decode using borsh schema
+      try {
         bcData = BONDING_CURVE_SCHEMA.decode(accountData.slice(8));
+      } catch (error) {
+        this.logger.debug('Failed to decode bonding curve account', error as Error);
+        return;
       }
       
       // Calculate progress using account lamports (as per Shyft examples)
@@ -644,6 +642,15 @@ export class TokenLifecycleMonitor extends BaseMonitor {
         });
       }
       
+      // Update creator if we have it
+      if (bcData.creator && bcData.creator !== '11111111111111111111111111111111') {
+        await this.dbService.updateTokenCreator(mintAddress, bcData.creator);
+        this.logger.info('Updated token creator', {
+          mint: mintAddress,
+          creator: bcData.creator
+        });
+      }
+      
       // Emit progress update for all account updates
       this.eventBus.emit(EVENTS.BONDING_CURVE_PROGRESS_UPDATE, {
         bondingCurveAddress: bondingCurveAddress,
@@ -653,7 +660,8 @@ export class TokenLifecycleMonitor extends BaseMonitor {
         lamports,
         solInCurve,
         virtualSolReserves: bcData.virtualSolReserves,
-        virtualTokenReserves: bcData.virtualTokenReserves
+        virtualTokenReserves: bcData.virtualTokenReserves,
+        creator: bcData.creator
       });
       
     } catch (error) {

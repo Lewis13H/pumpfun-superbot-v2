@@ -1033,6 +1033,14 @@
                 
                 tokenData = await response.json();
                 
+                // Debug: Check if creator field exists
+                console.log('Token data received:', {
+                    mintAddress: tokenData.mint_address,
+                    symbol: tokenData.symbol,
+                    creator: tokenData.creator,
+                    hasCreator: !!tokenData.creator
+                });
+                
                 // Update page title
                 document.title = `${tokenData.symbol} - ${tokenData.name} | Token Detail`;
                 

@@ -454,6 +454,15 @@ td {
     font-size: 12px;
 }
 
+/* Reduce padding between Market Cap and Price columns */
+td.mcap-cell {
+    padding-right: 8px;
+}
+
+td.price-cell {
+    padding-left: 8px;
+}
+
 /* Token Cell */
 .token-info {
     display: flex;
