@@ -296,6 +296,12 @@ POOL_MAX_RETRIES=3
     - Added isComplete parameter to calculateBondingCurveProgress method
     - Method returns 100% when isComplete is true
     - Comments updated to reflect Shyft examples
+  - **Step 4 ✅**: Added IDL and Account Coder
+    - IDL file exists at `src/idls/pump_0.1.0.json`
+    - BorshAccountsCoder initialized in initializeServices
+    - Fallback parsing enhanced to use accountCoder when available
+    - BondingCurveAccountHandler uses the same IDL
+    - Verified BondingCurve type has all required fields including `complete`
   - Created BondingCurveAccountHandler for modular account processing
   - Updated graduation threshold from 85 to 84 SOL (as per Shyft examples)
   - Account monitoring uses lamports for accurate progress calculation

@@ -366,8 +366,7 @@ function renderTokens() {
                     </div>
                 </td>
                 <td class="mcap-cell">
-                    <div>$${formatNumber(marketCap)}</div>
-                    <div class="sol-mcap">${currentSolPrice > 0 ? formatNumber(marketCap / currentSolPrice) + ' SOL' : ''}</div>
+                    <div>$${formatNumber(marketCap)} <span class="sol-mcap">(${currentSolPrice > 0 ? formatNumber(marketCap / currentSolPrice) + ' SOL' : ''})</span></div>
                     <div class="fdv-label">FDV $${formatNumber(marketCap * 10)}</div>
                 </td>
                 <td class="price-cell">

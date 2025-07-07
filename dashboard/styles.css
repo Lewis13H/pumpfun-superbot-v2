@@ -558,7 +558,7 @@ td {
 .sol-mcap {
     font-size: 11px;
     color: var(--purple);
-    margin-top: 2px;
+    margin-left: 4px;
 }
 
 .fdv-label {
