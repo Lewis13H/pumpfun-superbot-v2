@@ -5,11 +5,19 @@
  * Gini coefficient, Herfindahl index, and concentration percentages
  */
 
-import { 
-  DistributionMetrics,
-  NormalizedTokenHolder 
-} from '../holder-analysis/holder-data-fetcher';
+import { NormalizedTokenHolder } from '../holder-analysis/holder-data-fetcher';
 import { logger } from '../../core/logger';
+
+// Import the actual type from holder-analysis.ts
+import { DistributionMetrics } from '../../types/holder-analysis';
+
+export interface DistributionHealth {
+  score: number;  // 0-100
+  rating: 'excellent' | 'good' | 'fair' | 'poor' | 'critical';
+  insights: string[];
+}
+
+export type InsightType = 'positive' | 'negative' | 'neutral';
 
 export class DistributionMetricsCalculator {
   /**

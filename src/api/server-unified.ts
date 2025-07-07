@@ -12,6 +12,7 @@ import { registerPerformanceEndpoints } from './performance-metrics-endpoints';
 import { createStaleTokenEndpoints } from './stale-token-endpoints';
 import { RealtimePriceCache } from '../services/pricing/realtime-price-cache';
 import { setupNewEndpoints } from './setup-new-endpoints';
+import { createHolderAnalysisRoutes } from './routes/holder-analysis-routes';
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;
@@ -69,6 +70,9 @@ registerPerformanceEndpoints(app);
 
 // Register new fault tolerance and performance optimization endpoints
 setupNewEndpoints(app).catch(console.error);
+
+// Register holder analysis endpoints
+app.use('/api', createHolderAnalysisRoutes(pool));
 
 // Get realtime price cache instance
 const realtimePriceCache = RealtimePriceCache.getInstance();

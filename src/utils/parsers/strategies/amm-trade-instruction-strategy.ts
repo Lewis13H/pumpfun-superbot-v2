@@ -10,10 +10,10 @@ import bs58 from 'bs58';
 
 const logger = new Logger({ context: 'AMMTradeInstructionStrategy' });
 
-// AMM instruction discriminators
+// AMM instruction discriminators (from IDL)
 const DISCRIMINATORS = {
-  BUY: 51,   // Discriminator for buy instruction
-  SELL: 102  // Discriminator for sell instruction
+  BUY: 102,   // Discriminator for buy instruction [102, 6, 61, 18, 1, 218, 235, 234]
+  SELL: 51    // Discriminator for sell instruction [51, 230, 133, 164, 1, 127, 131, 173]
 };
 
 export class AMMTradeInstructionStrategy implements ParseStrategy {
@@ -86,13 +86,12 @@ export class AMMTradeInstructionStrategy implements ParseStrategy {
       const isBuy = dataBuffer[0] === DISCRIMINATORS.BUY;
       
       // Parse amounts from instruction data
-      // AMM instruction data format (24 bytes):
+      // AMM instruction data format (17 bytes):
       // - 1 byte: discriminator
-      // - 8 bytes: amount
-      // - 8 bytes: min/max amount
-      // - 7 bytes: padding/other data
-      const amount = this.readUInt64LE(dataBuffer, 1);
-      const minMaxAmount = this.readUInt64LE(dataBuffer, 9);
+      // - 8 bytes: base_amount_out/base_amount_in
+      // - 8 bytes: max_quote_amount_in/min_quote_amount_out
+      const baseAmount = this.readUInt64LE(dataBuffer, 1);
+      const quoteAmount = this.readUInt64LE(dataBuffer, 9);
       
       // Get accounts involved
       const instructionAccounts = ix.accounts || [];
@@ -103,18 +102,32 @@ export class AMMTradeInstructionStrategy implements ParseStrategy {
       const SOL_MINT = 'So11111111111111111111111111111111111111112';
       const tokenMint = this.findTokenMint(accountStrs, SOL_MINT);
       
-      // For AMM trades, we need to determine SOL and token amounts based on trade direction
+      // Try to get actual amounts from logs first
+      const actualAmounts = this.extractActualAmounts(context.logs, isBuy);
+      
+      // For AMM trades, we need to determine SOL and token amounts
       let solAmount: bigint;
       let tokenAmount: bigint;
       
-      if (isBuy) {
-        // User is buying tokens with SOL
-        solAmount = amount;
-        tokenAmount = minMaxAmount; // This is minimum tokens to receive
+      if (actualAmounts) {
+        // Use actual amounts from logs
+        solAmount = actualAmounts.solAmount;
+        tokenAmount = actualAmounts.tokenAmount;
       } else {
-        // User is selling tokens for SOL
-        tokenAmount = amount;
-        solAmount = minMaxAmount; // This is minimum SOL to receive
+        // Fallback to instruction data (these are desired/limit amounts, not actual)
+        if (isBuy) {
+          // User is buying tokens with SOL
+          // baseAmount = base_amount_out (tokens desired)
+          // quoteAmount = max_quote_amount_in (max SOL to spend)
+          tokenAmount = baseAmount;
+          solAmount = quoteAmount; // This is max, not actual
+        } else {
+          // User is selling tokens for SOL
+          // baseAmount = base_amount_in (tokens to sell)
+          // quoteAmount = min_quote_amount_out (min SOL to receive)
+          tokenAmount = baseAmount;
+          solAmount = quoteAmount; // This is min, not actual
+        }
       }
       
       return {
@@ -128,9 +141,9 @@ export class AMMTradeInstructionStrategy implements ParseStrategy {
         userAddress,
         poolAddress: poolAddress || 'unknown',
         inputMint: isBuy ? SOL_MINT : tokenMint || 'unknown',
-        inAmount: amount,
+        inAmount: isBuy ? solAmount : tokenAmount,
         outputMint: isBuy ? tokenMint || 'unknown' : SOL_MINT,
-        outAmount: minMaxAmount,
+        outAmount: isBuy ? tokenAmount : solAmount,
         solAmount,
         tokenAmount,
         virtualSolReserves: 0n, // Not available from instruction data
@@ -177,5 +190,44 @@ export class AMMTradeInstructionStrategy implements ParseStrategy {
     const low = buffer.readUInt32LE(offset);
     const high = buffer.readUInt32LE(offset + 4);
     return BigInt(low) + (BigInt(high) << 32n);
+  }
+
+  private extractActualAmounts(logs: string[], isBuy: boolean): { solAmount: bigint, tokenAmount: bigint } | null {
+    // Try to extract from ray_log
+    for (const log of logs) {
+      if (log.includes('ray_log:')) {
+        const match = log.match(/ray_log:\s*([A-Za-z0-9+/=]+)/);
+        if (match) {
+          try {
+            const data = Buffer.from(match[1], 'base64');
+            // Ray log often contains actual swap amounts
+            if (data.length >= 16) {
+              const amount1 = this.readUInt64LE(data, 0);
+              const amount2 = this.readUInt64LE(data, 8);
+              
+              // For pump.swap, typically:
+              // - First amount is SOL amount
+              // - Second amount is token amount
+              // But this might vary, so we use a heuristic
+              
+              // Reasonable SOL amount is typically < 1000 SOL
+              const MAX_REASONABLE_SOL = 1000n * 1_000_000_000n;
+              
+              if (amount1 < MAX_REASONABLE_SOL && amount2 > amount1) {
+                // amount1 is likely SOL, amount2 is likely tokens
+                return { solAmount: amount1, tokenAmount: amount2 };
+              } else if (amount2 < MAX_REASONABLE_SOL && amount1 > amount2) {
+                // amount2 is likely SOL, amount1 is likely tokens
+                return { solAmount: amount2, tokenAmount: amount1 };
+              }
+            }
+          } catch (e) {
+            // Continue to next log
+          }
+        }
+      }
+    }
+    
+    return null;
   }
 }

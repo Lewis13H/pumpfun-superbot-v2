@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Holder Analysis Dashboard - Pump Monitor</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Holder Analysis Specific Styles */
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .analysis-card {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .analysis-card h3 {
+            color: #00ff88;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .score-display {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .score-circle {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 20px;
+            position: relative;
+        }
+
+        .score-value {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            font-weight: bold;
+        }
+
+        .score-label {
+            font-size: 14px;
+            color: #888;
+            margin-top: -10px;
+        }
+
+        .score-rating {
+            font-size: 24px;
+            margin-top: 10px;
+        }
+
+        .excellent { color: #00ff88; }
+        .good { color: #88ff00; }
+        .fair { color: #ffff00; }
+        .poor { color: #ff8800; }
+        .critical { color: #ff0088; }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .metric-label {
+            color: #888;
+        }
+
+        .metric-value {
+            font-weight: bold;
+        }
+
+        .distribution-chart {
+            height: 300px;
+            margin-top: 20px;
+        }
+
+        .holder-table {
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .holder-table th,
+        .holder-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+
+        .wallet-type {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .wallet-type.sniper { background: #ff0088; }
+        .wallet-type.bot { background: #ff8800; }
+        .wallet-type.whale { background: #0088ff; }
+        .wallet-type.developer { background: #8800ff; }
+        .wallet-type.normal { background: #00ff88; }
+
+        .job-queue-section {
+            margin-top: 40px;
+        }
+
+        .job-item {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .job-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .job-status.pending { background: #666; }
+        .job-status.running { background: #0088ff; }
+        .job-status.completed { background: #00ff88; }
+        .job-status.failed { background: #ff0088; }
+
+        .top-tokens-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .token-card {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            padding: 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .token-card:hover {
+            border-color: #00ff88;
+            transform: translateY(-2px);
+        }
+
+        .token-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .token-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+
+        .token-info h4 {
+            margin: 0;
+            color: #fff;
+        }
+
+        .token-info span {
+            color: #888;
+            font-size: 12px;
+        }
+
+        .search-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 12px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        .analyze-btn {
+            padding: 12px 24px;
+            background: #00ff88;
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .analyze-btn:hover {
+            background: #00cc66;
+        }
+
+        .analyze-btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #333;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            color: #00ff88;
+            border-bottom: 2px solid #00ff88;
+            margin-bottom: -2px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #333;
+            border-top-color: #00ff88;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert.info { background: #0088ff20; border: 1px solid #0088ff; }
+        .alert.success { background: #00ff8820; border: 1px solid #00ff88; }
+        .alert.warning { background: #ff880020; border: 1px solid #ff8800; }
+        .alert.error { background: #ff008820; border: 1px solid #ff0088; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>🎯 Holder Analysis Dashboard</h1>
+            <div class="header-stats">
+                <div class="stat-item">
+                    <span class="stat-label">SOL Price:</span>
+                    <span class="stat-value" id="sol-price">$0.00</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Jobs Queue:</span>
+                    <span class="stat-value" id="queue-depth">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Analysis Health:</span>
+                    <span class="stat-value" id="health-score">--</span>
+                </div>
+                <div class="connection-status" id="connection-status">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Connected</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <nav class="sub-nav">
+        <a href="index.html">← Back to Main Dashboard</a>
+        <a href="streaming-metrics.html">Stream Metrics</a>
+    </nav>
+
+    <main class="container">
+        <!-- Search Section -->
+        <section class="search-section">
+            <input 
+                type="text" 
+                class="search-input" 
+                id="token-search" 
+                placeholder="Enter token mint address to analyze..."
+            >
+            <button class="analyze-btn" id="analyze-btn">Analyze Token</button>
+        </section>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="analysis">Token Analysis</button>
+            <button class="tab" data-tab="top-tokens">Top Tokens</button>
+            <button class="tab" data-tab="jobs">Job Queue</button>
+            <button class="tab" data-tab="metrics">System Metrics</button>
+        </div>
+
+        <!-- Tab Contents -->
+        <div class="tab-content active" id="analysis-tab">
+            <div id="analysis-result" style="display: none;">
+                <h2 id="token-name">Token Analysis</h2>
+                
+                <div class="analysis-grid">
+                    <!-- Score Card -->
+                    <div class="analysis-card score-display">
+                        <h3>Holder Health Score</h3>
+                        <div class="score-circle">
+                            <canvas id="score-gauge"></canvas>
+                            <div class="score-value" id="score-value">--</div>
+                        </div>
+                        <div class="score-label">out of 300</div>
+                        <div class="score-rating" id="score-rating">--</div>
+                    </div>
+
+                    <!-- Key Metrics -->
+                    <div class="analysis-card">
+                        <h3>Key Metrics</h3>
+                        <div class="metric-row">
+                            <span class="metric-label">Total Holders</span>
+                            <span class="metric-value" id="holder-count">--</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Top 10 Concentration</span>
+                            <span class="metric-value" id="top-10-percentage">--%</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Bot Percentage</span>
+                            <span class="metric-value" id="bot-percentage">--%</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Sniper Percentage</span>
+                            <span class="metric-value" id="sniper-percentage">--%</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Developer Holdings</span>
+                            <span class="metric-value" id="developer-percentage">--%</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Gini Coefficient</span>
+                            <span class="metric-value" id="gini-coefficient">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Distribution Chart -->
+                <div class="analysis-card">
+                    <h3>Holder Distribution</h3>
+                    <div class="distribution-chart">
+                        <canvas id="distribution-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Top Holders Table -->
+                <div class="analysis-card">
+                    <h3>Top Holders</h3>
+                    <table class="holder-table">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Wallet</th>
+                                <th>Balance</th>
+                                <th>Percentage</th>
+                                <th>Type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="holders-tbody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="analysis-empty" class="alert info">
+                Enter a token mint address above to analyze holder distribution
+            </div>
+        </div>
+
+        <div class="tab-content" id="top-tokens-tab">
+            <h2>Top Tokens by Holder Score</h2>
+            <div class="top-tokens-grid" id="top-tokens-grid">
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+
+        <div class="tab-content" id="jobs-tab">
+            <div class="job-queue-section">
+                <h2>Job Queue Status</h2>
+                <div id="job-stats" class="analysis-card">
+                    <div class="metric-row">
+                        <span class="metric-label">Waiting</span>
+                        <span class="metric-value" id="jobs-waiting">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Active</span>
+                        <span class="metric-value" id="jobs-active">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Completed</span>
+                        <span class="metric-value" id="jobs-completed">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Failed</span>
+                        <span class="metric-value" id="jobs-failed">0</span>
+                    </div>
+                </div>
+
+                <h3>Recent Jobs</h3>
+                <div id="jobs-list">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="metrics-tab">
+            <h2>System Metrics</h2>
+            <div class="analysis-grid">
+                <div class="analysis-card">
+                    <h3>Performance</h3>
+                    <div id="performance-metrics">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+                <div class="analysis-card">
+                    <h3>Worker Status</h3>
+                    <div id="worker-status">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="holder-analysis.js"></script>
+</body>
+</html>

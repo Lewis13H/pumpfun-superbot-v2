@@ -1,28 +1,43 @@
-#\!/usr/bin/env npx tsx
+#!/usr/bin/env npx tsx
 
 /**
  * Verify AMM Transaction Amounts
  * Check actual AMM trade amounts from on-chain data
  */
 
+import 'dotenv/config';
 import { Connection } from '@solana/web3.js';
-import { createContainer } from '../core/container';
-import { UnifiedDBService } from '../services/data-access/unified-db-service';
+import { Pool } from 'pg';
 import { Logger } from '../core/logger';
 import bs58 from 'bs58';
 
 const logger = new Logger({ context: 'VerifyAMMTx' });
 
 async function main() {
-  const container = createContainer();
-  const dbService = container.resolve<UnifiedDBService>('dbService');
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL
+  });
   const connection = new Connection('https://api.mainnet-beta.solana.com');
 
   logger.info('🔍 Verifying AMM Transaction Amounts');
 
   try {
     // Get a specific recent AMM trade
-    const recentTrades = await dbService.getRecentTrades(5, 'amm');
+    const result = await pool.query(`
+      SELECT 
+        t.signature,
+        t.trade_type,
+        t.sol_amount,
+        t.token_amount,
+        t.mint_address,
+        tok.symbol as token_symbol
+      FROM trades_unified t
+      LEFT JOIN tokens_unified tok ON t.mint_address = tok.mint_address
+      WHERE t.program = 'amm'
+      ORDER BY t.created_at DESC
+      LIMIT 5
+    `);
+    const recentTrades = result.rows;
     
     for (const trade of recentTrades) {
       logger.info('\n' + '='.repeat(80));
@@ -39,7 +54,7 @@ async function main() {
           commitment: 'confirmed'
         });
 
-        if (\!tx || \!tx.transaction || \!tx.transaction.message) {
+        if (!tx || !tx.transaction || !tx.transaction.message) {
           logger.warn('Could not fetch transaction');
           continue;
         }
@@ -114,7 +129,7 @@ async function main() {
             const pre = preBalances[i];
             const post = postBalances.find(p => p.accountIndex === pre.accountIndex);
             
-            if (post && pre.uiTokenAmount.uiAmount \!== post.uiTokenAmount.uiAmount) {
+            if (post && pre.uiTokenAmount.uiAmount !== post.uiTokenAmount.uiAmount) {
               const change = post.uiTokenAmount.uiAmount - pre.uiTokenAmount.uiAmount;
               const mint = pre.mint;
               logger.info(`  Account ${pre.accountIndex}: ${change > 0 ? '+' : ''}${change} ${mint.substring(0, 6)}...`);
@@ -135,7 +150,7 @@ async function main() {
   } catch (error) {
     logger.error('Script failed', { error });
   } finally {
-    await dbService.close();
+    await pool.end();
   }
 }
 
@@ -149,4 +164,3 @@ function readUInt64LE(buffer: Buffer, offset: number): bigint {
 }
 
 main().catch(console.error);
-EOF < /dev/null
