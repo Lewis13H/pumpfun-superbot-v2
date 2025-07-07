@@ -7,7 +7,7 @@
 
 import { BorshAccountsCoder } from '@coral-xyz/anchor';
 import { Logger } from '../../core/logger';
-import { EventBus, EVENTS } from '../../services/event-bus';
+import { EventBus, EVENTS } from '../../core/event-bus';
 import bs58 from 'bs58';
 
 export class BondingCurveAccountHandler {
@@ -25,7 +25,7 @@ export class BondingCurveAccountHandler {
     private bondingCurveToMint: Map<string, string> = new Map()
   ) {
     this.accountCoder = new BorshAccountsCoder(programIdl);
-    this.bondingCurveDiscriminator = this.accountCoder.accountDiscriminator('BondingCurve');
+    this.bondingCurveDiscriminator = (this.accountCoder as any).accountDiscriminator('BondingCurve');
   }
 
   /**
@@ -70,6 +70,15 @@ export class BondingCurveAccountHandler {
         realTokenReserves: BigInt(decodedData.realTokenReserves || 0),
         tokenTotalSupply: BigInt(decodedData.tokenTotalSupply || 0)
       };
+      
+      // Debug log for all account updates
+      this.logger.debug('BC Account Update', {
+        bondingCurve: pubkey.substring(0, 8) + '...',
+        mint: mintAddress?.substring(0, 8) + '...',
+        complete: decodedData.complete,
+        progress: progress.toFixed(2),
+        solInCurve: solInCurve.toFixed(4)
+      });
 
       // Log significant updates
       if (progress % 10 === 0 || decodedData.complete) {
@@ -81,16 +90,30 @@ export class BondingCurveAccountHandler {
           solInCurve: solInCurve.toFixed(2)
         });
       }
+      
+      // Special logging for complete flag detection
+      if (decodedData.complete) {
+        this.logger.info('🎯 COMPLETE FLAG DETECTED!', {
+          bondingCurve: pubkey,
+          mintAddress,
+          complete: true,
+          solInCurve: solInCurve.toFixed(2),
+          progress: `${progress.toFixed(1)}%`,
+          timestamp: new Date().toISOString()
+        });
+      }
 
       // Emit progress update event
       this.eventBus.emit(EVENTS.BONDING_CURVE_PROGRESS_UPDATE, bondingCurveData);
 
       // Check for graduation
       if (decodedData.complete) {
-        this.logger.info('🎓 Token Graduated!', {
+        this.logger.info('🎓 Token Graduated! (Account Handler)', {
           bondingCurve: pubkey,
           mintAddress,
-          finalSol: solInCurve.toFixed(2)
+          finalSol: solInCurve.toFixed(2),
+          method: 'account_monitoring',
+          complete: true
         });
 
         this.eventBus.emit(EVENTS.TOKEN_GRADUATED, {

@@ -293,6 +293,10 @@ POOL_MAX_RETRIES=3
   - Added BONDING_CURVE_UPDATE and BONDING_CURVE_PROGRESS_UPDATE events
   - Handler requires pump.fun IDL file at `src/idls/pump_0.1.0.json`
   - More accurate than transaction-based progress tracking
+  - Added database column `bonding_curve_complete` to store definitive graduation status
+  - Dashboard displays "COMPLETE" for tokens with complete flag set
+  - Enhanced logging to track when complete flag is detected
+  - Migration script: `npx tsx src/scripts/run-bc-complete-migration.ts`
 
 ### Latest Changes (July 5-6)
 - ✅ **Connection Pool Implementation (Session 1)**:

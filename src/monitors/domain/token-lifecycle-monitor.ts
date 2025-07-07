@@ -18,7 +18,6 @@ import { enableErrorSuppression } from '../../utils/parsers/error-suppressor';
 import { performanceMonitor } from '../../services/monitoring/performance-monitor';
 import { SmartStreamManager } from '../../services/core/smart-stream-manager';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { BorshAccountsCoder } from '@coral-xyz/anchor';
 import { BondingCurveAccountHandler } from './bonding-curve-account-handler';
 import * as fs from 'fs';
 
@@ -188,7 +187,6 @@ export class TokenLifecycleMonitor extends BaseMonitor {
     // Add account subscription for bonding curve state changes
     // Using owner filter to get all pump.fun owned accounts (including bonding curves)
     builder.addAccountSubscription('token_lifecycle_acc', {
-      account: [], // Empty array to subscribe to all accounts owned by pump.fun
       owner: [this.options.programId], // This will capture all pump.fun accounts including bonding curves
       filters: this.buildAccountFilters(),
       nonemptyTxnSignature: false // We want all account updates, not just from transactions
@@ -337,7 +335,7 @@ export class TokenLifecycleMonitor extends BaseMonitor {
     
     // Listen for bonding curve updates from the account handler
     if (this.bcAccountHandler) {
-      this.eventBus.on(EVENTS.BONDING_CURVE_PROGRESS_UPDATE, (data) => {
+      this.eventBus.on(EVENTS.BONDING_CURVE_PROGRESS_UPDATE, async (data) => {
         const state = this.tokenStates.get(data.mintAddress);
         if (state) {
           state.progress = data.progress;
@@ -351,6 +349,29 @@ export class TokenLifecycleMonitor extends BaseMonitor {
             state.phase = 'graduated';
           } else if (data.progress >= 90) {
             state.phase = 'near-graduation';
+          }
+        }
+        
+        // Update database with bonding curve complete status
+        if (data.mintAddress) {
+          try {
+            const db = await this.container.resolve(TOKENS.DatabaseService);
+            await db.query(
+              `UPDATE tokens_unified 
+               SET bonding_curve_complete = $1,
+                   latest_bonding_curve_progress = $2,
+                   updated_at = NOW()
+               WHERE mint_address = $3`,
+              [data.complete, data.progress, data.mintAddress]
+            );
+            
+            this.logger.debug('Updated BC complete status in DB', {
+              mint: data.mintAddress.substring(0, 8) + '...',
+              complete: data.complete,
+              progress: data.progress.toFixed(2)
+            });
+          } catch (error) {
+            this.logger.error('Failed to update BC complete status', error as Error);
           }
         }
       });
@@ -537,7 +558,7 @@ export class TokenLifecycleMonitor extends BaseMonitor {
         
         this.logger.warn(`⚠️ Near graduation: ${progress.toFixed(1)}%`, {
           mint: mintAddress,
-          solReserves: solReserves.toFixed(2)
+          solInCurve: solInCurve.toFixed(2)
         });
       }
       

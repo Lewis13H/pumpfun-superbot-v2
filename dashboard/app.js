@@ -339,6 +339,7 @@ function renderTokens() {
             : 'Time since first detected by monitor (actual creation time not available)';
         const progress = parseFloat(token.latest_bonding_curve_progress) || 0;
         const isGraduated = token.graduated_to_amm;
+        const bcComplete = token.bonding_curve_complete;
         const program = isGraduated ? 'amm_pool' : 'bonding_curve';
         
         // Get token icon - use image_uri if available, otherwise first letter
@@ -357,8 +358,8 @@ function renderTokens() {
                             <div class="token-meta">
                                 <span>${token.name || 'No name'}</span>
                                 <span class="pair-badge">${token.symbol || '???'}/SOL</span>
-                                <span style="color: ${isGraduated ? 'var(--purple)' : 'var(--yellow)'};">
-                                    ${isGraduated ? 'AMM' : `PUMP ${progress.toFixed(0)}%`}
+                                <span style="color: ${isGraduated ? 'var(--purple)' : bcComplete ? 'var(--success)' : 'var(--yellow)'};">
+                                    ${isGraduated ? 'AMM' : bcComplete ? 'BC COMPLETE' : `PUMP ${progress.toFixed(0)}%`}
                                 </span>
                             </div>
                         </div>
@@ -380,7 +381,7 @@ function renderTokens() {
                             <div class="progress-fill ${isGraduated ? 'complete' : ''}" 
                                  style="width: ${isGraduated ? 100 : progress}%; ${!isGraduated ? getProgressGradient(progress) : ''}"></div>
                         </div>
-                        <span class="progress-text">${isGraduated ? 'GRAD' : progress >= 100 ? '~100%' : `${progress.toFixed(0)}%`}</span>
+                        <span class="progress-text">${isGraduated ? 'GRAD' : bcComplete ? 'COMPLETE' : progress >= 100 ? '~100%' : `${progress.toFixed(0)}%`}</span>
                     </div>
                 </td>
                 <td class="actions-cell">
