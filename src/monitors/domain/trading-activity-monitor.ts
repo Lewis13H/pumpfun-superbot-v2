@@ -171,25 +171,34 @@ export class TradingActivityMonitor extends BaseMonitor {
   }
 
   protected isRelevantTransaction(data: any): boolean {
-    // First check base implementation
-    if (!super.isRelevantTransaction(data)) {
-      return false;
-    }
+    // Don't call super - we need to check ALL programs, not just the primary one
+    if (!data?.transaction) return false;
     
-    // Additionally check if ANY of our programs are in the transaction
-    if (data?.transaction) {
-      const tx = data.transaction.transaction?.transaction;
-      const message = tx?.message;
-      const accounts = message?.accountKeys || [];
-      
-      // Convert accounts to strings for comparison
-      const accountStrs = accounts.map((acc: any) => 
-        typeof acc === 'string' ? acc : bs58.encode(acc)
+    const tx = data.transaction.transaction?.transaction || 
+               data.transaction?.transaction || 
+               data.transaction;
+    
+    if (!tx?.message) return false;
+    
+    const accounts = tx.message.accountKeys || [];
+    
+    // Convert accounts to strings for comparison
+    const accountStrs = accounts.map((acc: any) => 
+      typeof acc === 'string' ? acc : bs58.encode(acc)
+    );
+    
+    // Check if ANY of our programs (BC, AMM, or Raydium) are in the account keys
+    const programIds = Object.values(this.PROGRAMS);
+    const hasProgram = programIds.some(programId => accountStrs.includes(programId));
+    
+    if (hasProgram) {
+      // Also check logs for program invocation to be sure
+      const logs = tx.meta?.logMessages || [];
+      const hasInvocation = programIds.some(programId => 
+        logs.some((log: string) => log.includes(programId))
       );
       
-      // Check if any of our programs are in the account keys
-      const programIds = Object.values(this.PROGRAMS);
-      return programIds.some(programId => accountStrs.includes(programId));
+      return hasProgram || hasInvocation;
     }
     
     return false;

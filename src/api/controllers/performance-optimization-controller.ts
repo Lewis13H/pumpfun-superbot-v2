@@ -87,9 +87,9 @@ export class PerformanceOptimizationController {
         caching: { ttlMultiplier: 1 },
         metrics: {}
       };
-      const report = this.performanceOptimizer?.getPerformanceReport?.() || {
-        improvement: { throughput: 0, latency: 0, cacheHitRate: 0 }
-      };
+      // const report = this.performanceOptimizer?.getPerformanceReport?.() || {
+      //   improvement: { throughput: 0, latency: 0, cacheHitRate: 0 }
+      // };
       
       // Calculate efficiency based on real health score
       const efficiency = metrics.health / 100;
@@ -304,9 +304,9 @@ export class PerformanceOptimizationController {
       entries: 150,
       avgTTL: 300000
     };
-    const perfReport = this.performanceOptimizer?.getPerformanceReport?.() || {
-      improvement: { throughput: 0, latency: 0, cacheHitRate: 0 }
-    };
+    // const perfReport = this.performanceOptimizer?.getPerformanceReport?.() || {
+    //   improvement: { throughput: 0, latency: 0, cacheHitRate: 0 }
+    // };
     const params = this.performanceOptimizer?.getOptimizationParams?.() || {
       batching: { currentSize: 50, currentTimeout: 1000 },
       caching: { ttlMultiplier: 1 },

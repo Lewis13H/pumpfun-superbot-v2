@@ -24,15 +24,15 @@ interface CircuitBreakerStatus {
   latency: number;
 }
 
-interface FaultToleranceAlert {
-  id: string;
-  timestamp: Date;
-  severity: 'critical' | 'warning' | 'info' | 'error';
-  type: string;
-  message: string;
-  connectionId?: string;
-  data?: any;
-}
+// interface FaultToleranceAlert {
+//   id: string;
+//   timestamp: Date;
+//   severity: 'critical' | 'warning' | 'info' | 'error';
+//   type: string;
+//   message: string;
+//   connectionId?: string;
+//   data?: any;
+// }
 
 export class FaultToleranceController {
   constructor(

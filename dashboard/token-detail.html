@@ -796,7 +796,7 @@
                     title: 'Token Info',
                     items: [
                         { label: 'Created', value: formatAge(data.age_seconds) + ' ago' },
-                        { label: 'Creator', value: formatAddress(data.creator), copyable: true },
+                        { label: 'Creator', value: data.creator ? '<a href="https://solscan.io/account/' + data.creator + '" target="_blank" class="address" style="text-decoration: none;">' + formatAddress(data.creator) + '↗</a>' : 'Unknown', copyable: false },
                         { label: 'Mint Address', value: formatAddress(data.mint_address), copyable: true },
                         { label: 'Decimals', value: '6' }
                     ]

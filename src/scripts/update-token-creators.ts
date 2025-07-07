@@ -34,7 +34,7 @@ async function updateTokenCreators() {
     const result = await db.query(`
       SELECT mint_address, symbol, name
       FROM tokens_unified
-      WHERE (creator IS NULL OR creator = '')
+      WHERE (creator IS NULL OR creator = '' OR creator = '""')
       AND current_program = 'bonding_curve'
       ORDER BY latest_market_cap_usd DESC NULLS LAST
       LIMIT 50
@@ -114,7 +114,7 @@ async function updateTokenCreators() {
     const remaining = await db.query(
       `SELECT COUNT(*) as count 
        FROM tokens_unified 
-       WHERE (creator IS NULL OR creator = '')
+       WHERE (creator IS NULL OR creator = '' OR creator = '""')
        AND current_program = 'bonding_curve'`
     );
     

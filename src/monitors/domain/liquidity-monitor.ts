@@ -139,6 +139,41 @@ export class LiquidityMonitor extends BaseMonitor {
   }
 
   /**
+   * Build enhanced subscribe request to monitor ALL AMM programs
+   */
+  protected buildEnhancedSubscribeRequest(): any {
+    const builder = this.subscriptionBuilder;
+    
+    // Set commitment level
+    builder.setCommitment('confirmed');
+    
+    // Subscribe to ALL AMM programs
+    const ammPrograms = [PUMP_AMM_PROGRAM, PUMP_SWAP_PROGRAM, RAYDIUM_AMM_PROGRAM];
+    
+    builder.addTransactionSubscription('liquidity_monitor_txns', {
+      vote: false,
+      failed: false,
+      accountInclude: ammPrograms,
+      accountRequired: [],
+      accountExclude: []
+    });
+    
+    // Also subscribe to account updates for pool state
+    builder.addAccountSubscription('liquidity_monitor_accounts', {
+      owner: ammPrograms,
+      filters: [],
+      nonemptyTxnSignature: true
+    });
+    
+    // Set group priority if available
+    if ('setGroup' in builder) {
+      (builder as any).setGroup(this.getSubscriptionGroup());
+    }
+    
+    return builder.build();
+  }
+
+  /**
    * Process stream data
    */
   async processStreamData(data: any): Promise<void> {

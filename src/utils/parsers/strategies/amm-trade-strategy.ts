@@ -16,7 +16,16 @@ const SWAP_SIGNATURES = [
   'Program log: Instruction: Swap',
   'ray_log: ',
   'SwapBaseIn',
-  'SwapBaseOut'
+  'SwapBaseOut',
+  // Pump.fun AMM specific
+  'Instruction: buy',
+  'Instruction: Buy',
+  'Instruction: sell', 
+  'Instruction: Sell',
+  'Program log: Instruction: buy',
+  'Program log: Instruction: Buy',
+  'Program log: Instruction: sell',
+  'Program log: Instruction: Sell'
 ];
 
 export class AMMTradeStrategy implements ParseStrategy {

@@ -101,7 +101,7 @@ export class TradeHandler {
         // Don't calculate progress from virtualSolReserves - it's inaccurate
         // Progress should come from bonding curve account monitoring (lamports-based)
         // We'll keep the existing progress from the token record
-        trade.bondingCurveProgress = null;
+        trade.bondingCurveProgress = undefined;
       }
       
       // Queue trade for batch save
