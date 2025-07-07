@@ -9,6 +9,7 @@ let filteredTokens = [];
 let sortColumn = 'latest_market_cap_usd';
 let sortDirection = 'desc';
 let tokenView = 'new'; // 'new' or 'graduated'
+let currentSolPrice = 0; // Store current SOL price
 let filters = {
     search: '',
     platform: 'all',
@@ -191,10 +192,11 @@ async function loadStatus() {
         
         const data = await response.json();
         
-        // Update SOL price in header
+        // Update SOL price in header and store globally
         const headerSolPrice = document.getElementById('header-sol-price');
-        if (headerSolPrice) {
-            headerSolPrice.textContent = `$${data.sol_price.price.toFixed(2)}`;
+        if (headerSolPrice && data.sol_price) {
+            currentSolPrice = data.sol_price.price || 0;
+            headerSolPrice.textContent = `$${currentSolPrice.toFixed(2)}`;
         }
         
         // Update SOL price timestamp
@@ -364,13 +366,14 @@ function renderTokens() {
                 </td>
                 <td class="mcap-cell">
                     <div>$${formatNumber(marketCap)}</div>
+                    <div class="sol-mcap">${currentSolPrice > 0 ? formatNumber(marketCap / currentSolPrice) + ' SOL' : ''}</div>
                     <div class="fdv-label">FDV $${formatNumber(marketCap * 10)}</div>
                 </td>
                 <td class="price-cell">
                     <div class="price-value">$${formatPrice(priceUsd)}</div>
                 </td>
                 <td class="age-cell" title="${ageTooltip}">${age}</td>
-                <td class="liquidity-cell">$${formatNumber(marketCap * 0.1)}</td>
+                <td class="liquidity-cell">${calculateLiquidity(token)}</td>
                 <td>
                     <div class="progress-container">
                         <div class="progress-bar">
@@ -535,6 +538,22 @@ function formatNumber(num) {
     if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
     if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
     return num.toFixed(2);
+}
+
+function calculateLiquidity(token) {
+    // For AMM/graduated tokens with virtual reserves, calculate real liquidity
+    if (token.graduated_to_amm && token.latest_virtual_sol_reserves && currentSolPrice > 0) {
+        // Liquidity = 2 × SOL reserves × SOL price
+        // Convert from lamports to SOL (divide by 10^9)
+        const solReserves = parseFloat(token.latest_virtual_sol_reserves) / 1e9;
+        const liquidityUsd = solReserves * 2 * currentSolPrice;
+        return '$' + formatNumber(liquidityUsd);
+    }
+    
+    // For bonding curve tokens, estimate liquidity as 10% of market cap
+    // This is because bonding curve tokens don't have traditional liquidity pools
+    const marketCap = parseFloat(token.latest_market_cap_usd) || 0;
+    return '$' + formatNumber(marketCap * 0.1);
 }
 
 function formatAge(timestamp) {

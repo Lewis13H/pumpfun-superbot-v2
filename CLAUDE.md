@@ -267,6 +267,13 @@ POOL_MAX_RETRIES=3
   - Re-enabled realtime prices in dashboard (USE_REALTIME_PRICES = true)
   - Dashboard now correctly displays very small prices (e.g., $0.00004998)
 
+- ✅ **Liquidity Calculation Improved**:
+  - Dashboard was using hardcoded estimate (10% of market cap) for all tokens
+  - Now calculates real liquidity for AMM/graduated tokens: Liquidity = 2 × SOL reserves × SOL price
+  - API already provides `latest_virtual_sol_reserves` for graduated tokens
+  - Bonding curve tokens continue using 10% estimate (they don't have traditional liquidity pools)
+  - Methodology follows standard AMM liquidity calculation (2× one side of pool)
+
 ### Latest Changes (July 5-6)
 - ✅ **Connection Pool Implementation (Session 1)**:
   - Created `ConnectionPool` class with health monitoring and metrics
