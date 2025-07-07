@@ -291,6 +291,11 @@ POOL_MAX_RETRIES=3
     - Both handlers emit BONDING_CURVE_PROGRESS_UPDATE events
     - Enhanced debug logging for first 5 account updates
     - Stats now show whether handler or fallback is active
+  - **Step 3 ✅**: Updated progress calculation in PriceCalculator
+    - Changed BONDING_CURVE_PROGRESS_SOL from 85 to 84
+    - Added isComplete parameter to calculateBondingCurveProgress method
+    - Method returns 100% when isComplete is true
+    - Comments updated to reflect Shyft examples
   - Created BondingCurveAccountHandler for modular account processing
   - Updated graduation threshold from 85 to 84 SOL (as per Shyft examples)
   - Account monitoring uses lamports for accurate progress calculation

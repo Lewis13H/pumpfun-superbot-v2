@@ -41,7 +41,7 @@ export class PriceCalculator {
   private logger = new Logger({ context: 'PriceCalculator' });
   private readonly TOTAL_SUPPLY = 1_000_000_000; // 1B tokens
   private readonly TOKEN_DECIMALS = 6;
-  private readonly BONDING_CURVE_PROGRESS_SOL = 85; // SOL needed for graduation
+  private readonly BONDING_CURVE_PROGRESS_SOL = 84; // SOL needed for graduation (as per Shyft examples)
   private readonly BONDING_CURVE_MIN_SOL = 25; // Minimum expected SOL in BC
   private readonly BONDING_CURVE_MAX_SOL = 100; // Maximum expected SOL in BC
 
@@ -88,9 +88,14 @@ export class PriceCalculator {
   /**
    * Calculate bonding curve progress
    */
-  calculateBondingCurveProgress(virtualSolReserves: bigint): number {
+  calculateBondingCurveProgress(virtualSolReserves: bigint, isComplete?: boolean): number {
+    // If the bonding curve is marked as complete, it's 100%
+    if (isComplete) {
+      return 100;
+    }
+    
     // Progress is based on SOL in the bonding curve
-    // Starts at ~30 SOL, completes at ~85 SOL
+    // Starts at ~30 SOL, completes at ~84 SOL (as per Shyft examples)
     const solInCurve = Number(virtualSolReserves) / Number(LAMPORTS_PER_SOL);
     const progress = (solInCurve / this.BONDING_CURVE_PROGRESS_SOL) * 100;
     
