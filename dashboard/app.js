@@ -378,9 +378,9 @@ function renderTokens() {
                     <div class="progress-container">
                         <div class="progress-bar">
                             <div class="progress-fill ${isGraduated ? 'complete' : ''}" 
-                                 style="width: ${isGraduated ? 100 : progress}%;"></div>
+                                 style="width: ${isGraduated ? 100 : progress}%; ${!isGraduated ? getProgressGradient(progress) : ''}"></div>
                         </div>
-                        <span class="progress-text">${isGraduated ? 'GRAD' : `${progress.toFixed(0)}%`}</span>
+                        <span class="progress-text">${isGraduated ? 'GRAD' : progress >= 100 ? '~100%' : `${progress.toFixed(0)}%`}</span>
                     </div>
                 </td>
                 <td class="actions-cell">
@@ -586,5 +586,29 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
+}
+
+// Get gradient color based on progress percentage
+function getProgressGradient(progress) {
+    // Create a gradient from red (0%) through yellow (50%) to green (100%)
+    let color;
+    
+    if (progress <= 50) {
+        // Red to Yellow (0-50%)
+        const ratio = progress / 50;
+        const r = 246; // Red component stays high
+        const g = Math.round(70 + (193 - 70) * ratio); // Green increases from 70 to 193
+        const b = 93 - Math.round(86 * ratio); // Blue decreases from 93 to 7
+        color = `rgb(${r}, ${g}, ${b})`;
+    } else {
+        // Yellow to Green (50-100%)
+        const ratio = (progress - 50) / 50;
+        const r = Math.round(255 - (241 * ratio)); // Red decreases from 255 to 14
+        const g = Math.round(193 + (203 - 193) * ratio); // Green increases from 193 to 203
+        const b = Math.round(7 + (122 * ratio)); // Blue increases from 7 to 129
+        color = `rgb(${r}, ${g}, ${b})`;
+    }
+    
+    return `background: ${color};`;
 }
 

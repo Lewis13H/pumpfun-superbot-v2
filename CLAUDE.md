@@ -274,6 +274,14 @@ POOL_MAX_RETRIES=3
   - Bonding curve tokens continue using 10% estimate (they don't have traditional liquidity pools)
   - Methodology follows standard AMM liquidity calculation (2× one side of pool)
 
+- ⚠️ **BC Progress Calculation Limitation**:
+  - Our calculation uses a hardcoded 85 SOL graduation threshold
+  - This is an estimation and doesn't match pump.fun's actual graduation mechanism
+  - Tokens showing 100% progress may still be trading on bonding curve
+  - The actual graduation trigger is more complex (possibly market cap based)
+  - We're not monitoring the bonding curve account's `complete` field
+  - Dashboard now shows "~100%" for tokens at or above the threshold to indicate estimation
+
 ### Latest Changes (July 5-6)
 - ✅ **Connection Pool Implementation (Session 1)**:
   - Created `ConnectionPool` class with health monitoring and metrics
