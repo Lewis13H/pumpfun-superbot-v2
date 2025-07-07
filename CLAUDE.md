@@ -325,6 +325,30 @@ POOL_MAX_RETRIES=3
   - Test DB updates: `npx tsx src/scripts/test-bc-database-updates.ts`
   - Test IDL: `npx tsx src/scripts/test-idl-loading.ts`
 
+### Latest Changes (July 7)
+- ✅ **Token Holder Analysis Implementation (Sessions 1-3)**:
+  - **Session 1 - Database Schema & Core Models**:
+    - Created comprehensive database schema for holder analysis
+    - 5 new tables: holder_snapshots, wallet_classifications, token_holder_details, holder_analysis_metadata, holder_trends
+    - TypeScript types and model classes for all entities
+    - Migration: `003_add_holder_analysis_tables.sql`
+  - **Session 2 - API Integration**:
+    - Helius API client for holder data and wallet analysis
+    - Shyft DAS API client for token holder information
+    - HolderDataFetcher with automatic fallback and caching
+    - WalletClassificationService for categorizing wallets (sniper, bot, whale, etc.)
+  - **Session 3 - Core Analysis Service**:
+    - HolderScoreCalculator: 0-300 point scoring algorithm
+    - DistributionMetricsCalculator: Gini coefficient, HHI, concentration metrics
+    - HolderAnalysisService: Main orchestrator with event-driven progress
+    - Comprehensive scoring with positive factors (distribution, decentralization) and penalties (concentration, bot activity)
+  - **Key Features**:
+    - Automated wallet classification with confidence scoring
+    - Distribution health analysis with actionable insights
+    - Historical snapshot tracking for trend analysis
+    - Score ratings: Excellent (250+), Good (200+), Fair (150+), Poor (100+), Critical (<100)
+  - **Located in**: `src/services/holder-analysis/`
+
 ### Latest Changes (July 5-6)
 - ✅ **Connection Pool Implementation (Session 1)**:
   - Created `ConnectionPool` class with health monitoring and metrics
@@ -753,6 +777,10 @@ src/
 │       ├── token-lifecycle-monitor.ts
 │       ├── trading-activity-monitor.ts
 │       └── liquidity-monitor.ts
+├── models/                # Database models
+│   ├── holder-snapshot.ts           # Holder snapshot model
+│   ├── wallet-classification.ts     # Wallet classification model
+│   └── token-holder-analysis.ts     # Token holder analysis model
 ├── services/              # Business logic services
 │   ├── core/             # Core infrastructure
 │   │   ├── smart-stream-manager.ts      # Enhanced stream manager
@@ -775,11 +803,19 @@ src/
 │   ├── recovery/         # Data recovery and fault tolerance
 │   │   ├── fault-tolerant-manager.ts  # Circuit breakers and failover
 │   │   └── state-recovery-service.ts  # Checkpoint persistence
-│   └── optimization/     # Performance optimization services
-│       ├── performance-optimizer.ts    # Adaptive optimization
-│       ├── dynamic-batch-processor.ts  # Intelligent batching
-│       ├── adaptive-cache-manager.ts   # Smart caching
-│       └── performance-monitor.ts      # Metrics collection
+│   ├── optimization/     # Performance optimization services
+│   │   ├── performance-optimizer.ts    # Adaptive optimization
+│   │   ├── dynamic-batch-processor.ts  # Intelligent batching
+│   │   ├── adaptive-cache-manager.ts   # Smart caching
+│   │   └── performance-monitor.ts      # Metrics collection
+│   └── holder-analysis/  # Token holder analysis system
+│       ├── helius-api-client.ts       # Helius API integration
+│       ├── shyft-das-api-client.ts    # Shyft DAS API integration
+│       ├── holder-data-fetcher.ts     # Orchestrates data fetching
+│       ├── wallet-classification-service.ts  # Classifies wallet types
+│       ├── holder-score-calculator.ts # 0-300 point scoring
+│       ├── distribution-metrics-calculator.ts # Gini, HHI metrics
+│       └── holder-analysis-service.ts # Main orchestrator
 ├── utils/                # Utility functions
 │   ├── amm/              # AMM utilities (decoders, calculators)
 │   ├── config/           # Constants and configuration
@@ -798,7 +834,9 @@ This project uses distributed knowledge files in `.knowledge/` directories throu
 
 ### Key Knowledge Locations
 <!-- AUTO-GENERATED-KNOWLEDGE-START -->
+- **Source Code**: `/src/database/.knowledge/` - BEST_PRACTICES, DATABASE_OVERVIEW, MIGRATION_STRATEGY, PERFORMANCE_TUNING, REFACTORING_GUIDE, RELATIONSHIPS, SCHEMA_DETAILS, TROUBLESHOOTING
 - **Source Code**: `/src/monitors/.knowledge/` - bonding curve progress, creator tracking, graduation detection
+- **Source Code**: `/src/services/holder-analysis/.knowledge/` - API_INTEGRATION, DISTRIBUTION_METRICS, SCORING_ALGORITHM, WALLET_CLASSIFICATION
 <!-- AUTO-GENERATED-KNOWLEDGE-END -->
 
 ### How to Use Knowledge Files

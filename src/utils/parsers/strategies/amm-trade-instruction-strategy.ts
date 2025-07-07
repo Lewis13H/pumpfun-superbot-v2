@@ -6,6 +6,7 @@
 import { ParseStrategy, ParseContext, AMMTradeEvent, EventType, TradeType } from '../types';
 import { AMM_PROGRAM } from '../../config/constants';
 import { Logger } from '../../../core/logger';
+import bs58 from 'bs58';
 
 const logger = new Logger({ context: 'AMMTradeInstructionStrategy' });
 
@@ -38,7 +39,7 @@ export class AMMTradeInstructionStrategy implements ParseStrategy {
       
       const programId = accountKeys[programIdIndex];
       const programIdStr = typeof programId === 'string' ? programId : 
-                          Buffer.isBuffer(programId) ? require('bs58').encode(programId) : '';
+                          Buffer.isBuffer(programId) ? bs58.encode(programId) : '';
       
       return programIdStr === AMM_PROGRAM && ix.data;
     });
@@ -53,7 +54,7 @@ export class AMMTradeInstructionStrategy implements ParseStrategy {
       
       // Convert account keys to strings
       const accountStrs = accountKeys.map((acc: any) => 
-        typeof acc === 'string' ? acc : require('bs58').encode(acc)
+        typeof acc === 'string' ? acc : bs58.encode(acc)
       );
       
       // Find AMM instructions

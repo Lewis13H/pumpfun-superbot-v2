@@ -230,3 +230,6 @@ export const loggers = {
   websocket: (name: string) => createLogger(`WebSocket:${name}`),
   database: (name: string) => createLogger(`Database:${name}`),
 };
+
+// Default logger instance
+export const logger = createLogger('App');

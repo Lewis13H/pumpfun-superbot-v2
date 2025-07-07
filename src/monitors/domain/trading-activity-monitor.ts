@@ -286,19 +286,19 @@ export class TradingActivityMonitor extends BaseMonitor {
     this.addToTradeWindow(trade, venue, slippage);
     
     // Process the trade normally
+    // The trade handler will emit the appropriate events (BC_TRADE, AMM_TRADE)
     await this.tradeHandler.processTrade(trade, this.currentSolPrice);
     
-    // Emit venue-specific event
-    const eventName = venue === 'bc' ? EVENTS.BC_TRADE :
-                     venue === 'amm' ? EVENTS.AMM_TRADE :
-                     'RAYDIUM_TRADE';
-    
-    this.eventBus.emit(eventName, {
-      trade,
-      venue,
-      slippage,
-      patterns: this.detectPatternsForTrade(trade, venue)
-    });
+    // Don't emit duplicate events - the trade handler already does this
+    // Just emit additional pattern data if needed
+    if (slippage || this.detectPatternsForTrade(trade, venue).length > 0) {
+      this.eventBus.emit('TRADE_PATTERNS', {
+        mintAddress: trade.mintAddress,
+        venue,
+        slippage,
+        patterns: this.detectPatternsForTrade(trade, venue)
+      });
+    }
   }
 
   private calculateSlippage(_trade: TradeEvent): number | undefined {

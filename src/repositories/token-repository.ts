@@ -36,8 +36,8 @@ export interface Token {
   firstSeenSlot?: number;
   lastPriceUpdate?: Date;
   lastMetadataUpdate?: Date;
-  latestVirtualSolReserves?: number;
-  latestVirtualTokenReserves?: number;
+  latestVirtualSolReserves?: bigint;
+  latestVirtualTokenReserves?: bigint;
   latestBondingCurveProgress?: number;
   createdAt?: Date;
   updatedAt?: Date;
@@ -103,7 +103,13 @@ export class TokenRepository extends BaseRepository<Token> {
       return key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
     });
     
-    const values = Object.values(token);
+    // Convert bigint values to strings for PostgreSQL
+    const values = Object.values(token).map(value => {
+      if (typeof value === 'bigint') {
+        return value.toString();
+      }
+      return value;
+    });
     const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
     
     const updateSet = columns
@@ -247,7 +253,8 @@ export class TokenRepository extends BaseRepository<Token> {
     for (const [key, value] of Object.entries(updates)) {
       const dbField = fieldMapping[key] || key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
       updateFields.push(`${dbField} = $${paramIndex++}`);
-      values.push(value);
+      // Convert bigint values to strings for PostgreSQL
+      values.push(typeof value === 'bigint' ? value.toString() : value);
     }
     
     const query = `

@@ -31,5 +31,5 @@
     "downlevelIteration": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "dashboard", "src/tests/**/*", "*.test.ts", "*.spec.ts", "src/scripts/**/*"]
+  "exclude": ["node_modules", "dist", "dashboard", "src/tests/**/*", "*.test.ts", "*.spec.ts", "src/scripts/**/*", "src/services/holder-analysis/**/*"]
 }

@@ -216,7 +216,14 @@ For urgent production fixes:
 -- 4. Document in migration_history
 ```
 
-## Future Migrations Queue
+## Migration History
+
+### Completed Migrations
+1. **001_initial_schema.sql** - Complete base schema with all core tables
+2. **002_extended_metadata_features.sql** - Additional metadata functionality
+3. **003_add_holder_analysis_tables.sql** - Token holder analysis system (Session 1)
+
+### Future Migrations Queue
 
 Planned migrations should be documented here:
 1. **004_partition_trades_table.sql** - Partition trades_unified by month

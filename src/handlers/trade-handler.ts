@@ -200,8 +200,8 @@ export class TradeHandler {
     
     // Add reserves for AMM tokens (store as raw bigint values)
     if (event.type === EventType.AMM_TRADE && event.virtualSolReserves && event.virtualTokenReserves) {
-      token.latestVirtualSolReserves = Number(event.virtualSolReserves);
-      token.latestVirtualTokenReserves = Number(event.virtualTokenReserves);
+      token.latestVirtualSolReserves = event.virtualSolReserves;
+      token.latestVirtualTokenReserves = event.virtualTokenReserves;
     }
 
     // Add pump.fun specific fields if available (from BC trade)
@@ -253,8 +253,8 @@ export class TradeHandler {
       
       // Update reserves if available (store as raw bigint values)
       if (event.virtualSolReserves && event.virtualTokenReserves) {
-        updateData.latestVirtualSolReserves = Number(event.virtualSolReserves);
-        updateData.latestVirtualTokenReserves = Number(event.virtualTokenReserves);
+        updateData.latestVirtualSolReserves = event.virtualSolReserves;
+        updateData.latestVirtualTokenReserves = event.virtualTokenReserves;
       }
     } else if (event.type === EventType.BC_TRADE && 'bondingCurveProgress' in event) {
       // Update bonding curve progress for BC trades
