@@ -8,7 +8,6 @@ import { createServer } from 'http';
 // import { unifiedWebSocketServer } from '../services/unified-websocket-server-fixed';
 // const WebSocket = require('ws'); // Not used
 // import bcMonitorEndpoints from './bc-monitor-endpoints'; // Legacy - removed with smart streaming
-import ammEndpoints from './amm-endpoints';
 import { registerPerformanceEndpoints } from './performance-metrics-endpoints';
 import { createStaleTokenEndpoints } from './stale-token-endpoints';
 import { RealtimePriceCache } from '../services/pricing/realtime-price-cache';
@@ -61,8 +60,6 @@ app.use(express.static(path.join(__dirname, '../../dashboard')));
 // BC Monitor API endpoints
 // app.use('/api/bc-monitor', bcMonitorEndpoints); // Legacy - removed with smart streaming
 
-// AMM API endpoints
-app.use('/api/amm', ammEndpoints);
 
 // Stale token monitoring endpoints
 app.use('/api/stale', createStaleTokenEndpoints(pool));
@@ -105,12 +102,9 @@ app.get('/api/tokens', async (_req, res) => {
         EXTRACT(EPOCH FROM (NOW() - COALESCE(t.token_created_at, t.first_seen_at))) as age_seconds,
         -- Get SOL price for calculations
         (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1) as sol_price,
-        -- Calculate USD price from SOL price if needed
-        CASE 
-          WHEN t.latest_price_usd IS NULL OR t.latest_price_usd = 0 
-          THEN t.latest_price_sol * (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1)
-          ELSE t.latest_price_usd
-        END as calculated_price_usd
+        -- Always calculate USD price from SOL price for better precision
+        -- The latest_price_usd column only has 4 decimal places which causes issues for small prices
+        t.latest_price_sol * (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1) as calculated_price_usd
       FROM tokens_unified t
       WHERE t.threshold_crossed_at IS NOT NULL
       ORDER BY t.latest_market_cap_usd DESC NULLS LAST
@@ -146,6 +140,38 @@ app.get('/api/status', async (_req, res) => {
     const solPrice = priceResult.rows[0] || { price: 180, source: 'fallback', created_at: new Date() };
     const stats = statsResult.rows[0] || { total_tokens: 0, graduated_tokens: 0, tracked_tokens: 0, hourly_trades: 0 };
     
+    // Get monitor connection status if available
+    let monitors = null;
+    try {
+      const appContainer = (global as any).appContainer;
+      if (appContainer && appContainer.has('StreamManager')) {
+        const streamManager = await appContainer.resolve('StreamManager');
+        if (streamManager && typeof streamManager.getConnectionStatus === 'function') {
+          const connectionStatus = streamManager.getConnectionStatus();
+          monitors = {
+            stream_status: connectionStatus.isConnected ? 'connected' : 'disconnected',
+            connection_details: connectionStatus
+          };
+        }
+      }
+    } catch (monitorError) {
+      console.error('Error getting monitor status:', monitorError);
+      // Continue without monitor status
+    }
+    
+    // If no monitors data available, provide default structure
+    if (!monitors) {
+      monitors = {
+        stream_status: 'disconnected',
+        connection_details: {
+          status: 'disconnected',
+          isConnected: false,
+          messagesReceived: 0,
+          lastMessageTime: null
+        }
+      };
+    }
+    
     res.json({
       sol_price: {
         price: parseFloat(solPrice.price),
@@ -157,7 +183,8 @@ app.get('/api/status', async (_req, res) => {
         graduated_tokens: parseInt(stats.graduated_tokens),
         tracked_tokens: parseInt(stats.tracked_tokens),
         hourly_trades: parseInt(stats.hourly_trades)
-      }
+      },
+      monitors
     });
   } catch (error) {
     console.error('Error fetching status:', error);
@@ -218,9 +245,15 @@ app.get('/api/tokens/realtime', async (_req, res) => {
         };
       }
       
+      // Ensure we have valid numbers
+      const priceSol = parseFloat(token.latest_price_sol) || 0;
+      const solPrice = parseFloat(token.sol_price) || 0;
+      const calcPrice = priceSol * solPrice;
+      
       return {
         ...token,
-        calculated_price_usd: token.latest_price_usd || (token.latest_price_sol * token.sol_price),
+        // Always calculate from SOL price for better precision
+        calculated_price_usd: calcPrice,
         realtime_updated: false
       };
     });

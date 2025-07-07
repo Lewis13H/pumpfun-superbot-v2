@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working with this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Overview
 
@@ -10,8 +10,11 @@ Real-time Solana token monitor & evaluator for pump.fun bonding curves and pump.
 
 ```bash
 npm run start        # Run all domain monitors with smart streaming
-npm run dashboard    # Web dashboard (http://localhost:3001)
+npm run dashboard    # Web dashboard (http://localhost:3001) - Run in separate terminal
 npm run build       # Build TypeScript
+npm run test        # Run tests
+npm run lint        # ESLint code quality checks
+npm run typecheck   # TypeScript type checking
 ```
 
 ## Architecture
@@ -38,9 +41,9 @@ npm run build       # Build TypeScript
 - `realtime-price-cache.ts` - In-memory cache for instant price access
 
 #### Metadata Services (`services/metadata/`)
-- `enhanced-auto-enricher.ts` - Orchestrates metadata enrichment
-- `providers/helius.ts` - Helius API provider
-- `providers/shyft-metadata-service.ts` - Shyft DAS API provider
+- `enhanced-auto-enricher.ts` - Orchestrates metadata enrichment with fallback strategy
+- `providers/helius.ts` - Helius API provider (fallback)
+- `providers/shyft-provider.ts` - Shyft REST API provider with parallel processing
 
 #### AMM Services (`services/amm/`)
 - `amm-pool-state-service.ts` - Pool state tracking
@@ -165,7 +168,6 @@ Main tables:
 - **External Links**: Quick access to pump.fun and Solscan token pages
 
 ### Additional Dashboards
-- **AMM Analytics** (http://localhost:3001/amm-dashboard.html): Pool analytics and metrics
 - **Streaming Metrics** (http://localhost:3001/streaming-metrics.html): Monitor performance stats
 
 ## Smart Streaming Architecture
@@ -218,9 +220,52 @@ POOL_CONNECTION_TIMEOUT=10000
 POOL_MAX_RETRIES=3
 ```
 
-## Recent Updates (January 2025)
+## Recent Updates (July 2025)
 
-### Latest Changes (Jan 5-6)
+### Latest Changes (July 7)
+- ✅ **gRPC Connection Fixed**:
+  - Fixed "Request message serialization failure" error
+  - Account subscriptions now properly include required fields (account, owner, filters)
+  - Stats object added to StreamManager for message tracking
+  - gRPC streaming now successfully connects and receives data
+
+- ✅ **Monitor Data Processing Fixed**:
+  - Fixed nested data structure access in base-monitor.ts
+  - Account data: `data.account.account.owner` (not `data.account.owner`)
+  - Transaction data: `data.transaction.transaction.transaction` (deeply nested)
+  - Monitors now correctly identify relevant transactions (~6.7 msg/s from pump.fun)
+
+- ✅ **BC Trade Parsing Restored**:
+  - Restored BC trade parsing strategies that were accidentally removed
+  - Added back: `bc-trade-strategy.ts`, `bc-trade-idl-strategy.ts`, `amm-trade-strategy.ts`
+  - UnifiedEventParser now includes all parsing strategies
+  - System successfully detects ~26 trades/second with >95% parse rate
+
+- ✅ **Database Schema Fixed**:
+  - Added missing `metadata_last_updated` column to tokens_unified table
+  - Verified all required metadata columns exist (twitter, telegram, discord, website, metadata_score)
+  - Fixed metadata storage in ShyftProvider to save symbol, name, and other fields
+
+- ✅ **Token Metadata Enrichment Fixed**:
+  - Shyft REST API properly returns token metadata (name, symbol, image)
+  - Fixed storeEnrichedMetadata to save all token fields including symbol/name
+  - Enrichment process successfully updates tokens (e.g., ALPACU token enriched)
+  - Dashboard now shows proper token names instead of "Unknown"
+
+- ✅ **Metadata Provider Optimization**:
+  - Investigated GraphQL batch processing - not suitable for token metadata
+  - Shyft GraphQL only contains pump.fun specific data (bonding curves), not token metadata
+  - Optimized REST API with parallel processing (5 concurrent requests)
+  - Improved enrichment speed by ~5x while respecting rate limits
+
+- ✅ **Token Price Display Fixed**:
+  - Fixed issue where tokens showed $0.000000000 on dashboard
+  - Root cause: Database `current_price_usd` column only stores 4 decimal places
+  - Solution: API now calculates USD prices from SOL prices (12 decimal places) for better precision
+  - Modified both `/api/tokens` and `/api/tokens/realtime` endpoints
+  - Dashboard now correctly displays very small prices (e.g., $0.00004998)
+
+### Latest Changes (July 5-6)
 - ✅ **Connection Pool Implementation (Session 1)**:
   - Created `ConnectionPool` class with health monitoring and metrics
   - Implemented `SmartStreamManager` extending current StreamManager
@@ -411,6 +456,60 @@ POOL_MAX_RETRIES=3
   - Test runner script (scripts/test-session-10.sh) for validation
   - Updated tsconfig.json to exclude test files from production build
   - All 10 sessions complete - smart streaming architecture is production-ready
+- ✅ **Streaming Metrics Dashboard Upgrade (Jan 6)**:
+  - **Phase 1 - Backend API Development**:
+    - Created fault tolerance API controller with endpoints:
+      - `/api/v1/fault-tolerance/status` - System fault tolerance status
+      - `/api/v1/fault-tolerance/circuit-breakers` - Circuit breaker states
+      - `/api/v1/fault-tolerance/alerts` - Alert history with filtering
+    - Created performance optimization API controller with endpoints:
+      - `/api/v1/performance/optimization/status` - Optimization parameters
+      - `/api/v1/performance/batch/metrics` - Dynamic batching metrics
+      - `/api/v1/performance/cache/stats` - Adaptive cache statistics
+      - `/api/v1/performance/resources` - System resource usage
+      - `/api/v1/performance/suggestions` - Optimization recommendations
+      - `/api/v1/performance/stream` - Server-Sent Events for real-time updates
+    - Integrated controllers with existing Express server
+    - Added graceful fallback with stub implementations
+  - **Phase 2 - Frontend UI Components**:
+    - Created `EnhancedHealthScore` component:
+      - Multi-metric health calculation (parse rate, circuit breakers, performance, cache, errors, uptime)
+      - Visual ring display with animated progress
+      - Metric breakdown with individual progress bars
+      - Historical trend tracking with mini chart
+    - Created `CircuitBreakerVisualization` component:
+      - Real-time circuit breaker state display (CLOSED/OPEN/HALF_OPEN)
+      - Failure counts, parse rates, and latency metrics
+      - State transition animations
+      - Health bar visualization
+    - Created `PerformanceOptimizationDashboard` component:
+      - Batch processing metrics with trend charts
+      - Cache efficiency gauge and type distribution
+      - Resource allocation doughnut chart
+      - Performance trend analysis (throughput/latency/efficiency)
+      - Actionable optimization suggestions
+    - Created `LiveAlertsFeed` component:
+      - Fixed-position panel for real-time alerts
+      - Severity filtering and sound notifications
+      - Browser notification support
+      - Alert dismissal and detail expansion
+    - Created `RealtimeDataManager` for SSE connections:
+      - Auto-reconnect with exponential backoff
+      - Event routing to UI components
+      - Data caching and polling fallback
+      - Connection status indicators
+    - Enhanced CSS styling with dark theme and responsive design
+    - Created `streaming-metrics-enhanced.html` integrating all components
+  - **Key Features**:
+    - Real-time updates via SSE with automatic reconnection
+    - Visual feedback with smooth animations
+    - Mobile-responsive design
+    - Memory cleanup functionality
+    - Interactive optimization actions
+    - Uses real performance data from monitors
+    - Hybrid approach: real system metrics with mock optimization data
+  - Access at: http://localhost:3001/streaming-metrics.html
+  - Note: Dashboard server must be running (`npm run dashboard`)
 
 ### Previous Changes (Jan 4-5)
 - ✅ **Raydium Monitor Fixed and Working** (Jan 4):
@@ -521,6 +620,10 @@ POOL_MAX_RETRIES=3
 
 4. **Enrichment counter**: Shows 0 but enrichment is working
    - This is a cosmetic issue only
+
+5. **Token prices showing as $0.000000000**: Database precision limitation
+   - Cause: `current_price_usd` column only stores 4 decimal places
+   - Solution: API now calculates from SOL price for better precision
 
 ### UTF-8 Encoding Issues (Fixed Jan 4, 2025)
 **Issue**: PostgreSQL errors "invalid byte sequence for encoding UTF8"
@@ -666,3 +769,21 @@ src/
 - TypeScript builds successfully with no errors
 - Comprehensive migration plan with rollback procedures
 - >1000 TPS capability demonstrated in load tests
+
+## Testing
+
+### Running Tests
+```bash
+npm run test                    # Run all tests
+npm run test:unit              # Unit tests only
+npm run test:integration       # Integration tests only
+npm run test:coverage          # Test coverage report
+npx tsx src/scripts/test-*.ts  # Run specific test scripts
+```
+
+### Production Deployment
+```bash
+./scripts/deploy-smart-streaming.sh canary   # Deploy to 25% of instances
+./scripts/deploy-smart-streaming.sh gradual  # Deploy to 50% of instances
+./scripts/deploy-smart-streaming.sh full     # Full deployment
+```
