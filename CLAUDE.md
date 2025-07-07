@@ -77,12 +77,16 @@ npm run typecheck   # TypeScript type checking
 
 ### Key Features
 - ✅ BC & AMM monitoring with >95% parse rate
+- ✅ **Accurate graduation detection via bonding curve account monitoring**
+  - Monitors `complete` boolean field in bonding curve accounts
+  - No more relying on SOL threshold estimates
+  - Real-time database updates when graduation detected
 - ✅ Automatic graduation detection and fixing
 - ✅ Price fallback for AMM (trade amounts when reserves unavailable)
 - ✅ Metadata enrichment with rate limiting
 - ✅ Dashboard with real-time token tracking
 - ✅ Stale token detection and removal
-- ✅ Bonding curve progress tracking (0-100%)
+- ✅ Bonding curve progress tracking (0-100% based on 84 SOL target)
 - ✅ FDV calculation (10x market cap for pump.fun tokens)
 - ✅ Fault tolerance with circuit breakers and auto-recovery
 - ✅ State checkpointing for crash recovery
@@ -274,54 +278,43 @@ POOL_MAX_RETRIES=3
   - Bonding curve tokens continue using 10% estimate (they don't have traditional liquidity pools)
   - Methodology follows standard AMM liquidity calculation (2× one side of pool)
 
-- ⚠️ **BC Progress Calculation Limitation**:
-  - Our calculation uses a hardcoded 85 SOL graduation threshold
-  - This is an estimation and doesn't match pump.fun's actual graduation mechanism
-  - Tokens showing 100% progress may still be trading on bonding curve
-  - The actual graduation trigger is more complex (possibly market cap based)
-  - We're not monitoring the bonding curve account's `complete` field
-  - Dashboard now shows "~100%" for tokens at or above the threshold to indicate estimation
-  - See `docs/BONDING_CURVE_PROGRESS_ISSUE.md` for detailed analysis and implementation guide
+- ⚠️ **BC Progress Calculation Limitation (RESOLVED)**:
+  - Previously used hardcoded 85 SOL graduation threshold (now updated to 84 SOL)
+  - Now monitors bonding curve account's `complete` field for accurate graduation detection
+  - Dashboard shows "COMPLETE" for tokens with complete flag set
+  - Shows "~100%" for tokens at estimated threshold without complete flag
+  - See `docs/BONDING_CURVE_PROGRESS_ISSUE.md` for historical context
 
-- ✅ **Bonding Curve Account Monitoring Integration (July 7)**:
-  - **Step 1 ✅**: Added account subscription to pump.fun owned accounts using owner filter
-  - **Step 2 ✅**: Integrated account handler with both BondingCurveAccountHandler and fallback parsing
-    - Handler automatically activates when IDL is present
-    - Fallback parsing handles accounts when IDL is unavailable
-    - Both handlers emit BONDING_CURVE_PROGRESS_UPDATE events
-    - Enhanced debug logging for first 5 account updates
-    - Stats now show whether handler or fallback is active
-  - **Step 3 ✅**: Updated progress calculation in PriceCalculator
-    - Changed BONDING_CURVE_PROGRESS_SOL from 85 to 84
-    - Added isComplete parameter to calculateBondingCurveProgress method
-    - Method returns 100% when isComplete is true
-    - Comments updated to reflect Shyft examples
-  - **Step 4 ✅**: Added IDL and Account Coder
-    - IDL file exists at `src/idls/pump_0.1.0.json`
-    - BorshAccountsCoder initialized in initializeServices
-    - Fallback parsing enhanced to use accountCoder when available
-    - BondingCurveAccountHandler uses the same IDL
-    - Verified BondingCurve type has all required fields including `complete`
-  - **Step 5 ✅**: Update Database on Progress Changes
-    - Implemented change detection to avoid unnecessary updates
-    - Updates both `bonding_curve_complete` and `latest_bonding_curve_progress`
-    - Also updates `graduated_to_amm` when complete flag is true
-    - Can update by mint_address or bonding_curve_key
-    - BondingCurveAccountHandler can perform direct DB updates
-    - Event listener in TokenLifecycleMonitor also updates DB
-    - Test script confirms updates are working: 6 updates in last hour
-  - Created BondingCurveAccountHandler for modular account processing
-  - Updated graduation threshold from 85 to 84 SOL (as per Shyft examples)
-  - Account monitoring uses lamports for accurate progress calculation
-  - Detects graduation via the `complete` boolean field in bonding curve accounts
-  - Added BONDING_CURVE_UPDATE and BONDING_CURVE_PROGRESS_UPDATE events
-  - Handler requires pump.fun IDL file at `src/idls/pump_0.1.0.json`
-  - More accurate than transaction-based progress tracking
-  - Added database column `bonding_curve_complete` to store definitive graduation status
-  - Dashboard displays "COMPLETE" for tokens with complete flag set
-  - Enhanced logging to track when complete flag is detected
-  - Migration script: `npx tsx src/scripts/run-bc-complete-migration.ts`
-  - Test script: `npx tsx src/scripts/test-bc-account-handler.ts`
+- ✅ **Bonding Curve Account Monitoring Integration (July 7)** - FULLY COMPLETED:
+  - **Overview**: Implemented accurate bonding curve progress tracking using account monitoring
+  - **Key Achievement**: Now detects graduation via the `complete` boolean field instead of estimates
+  
+  **Implementation Steps Completed**:
+  1. **Account Subscription** ✅: Subscribed to pump.fun owned accounts using owner filter
+  2. **Account Handler** ✅: Created BondingCurveAccountHandler with IDL-based parsing
+  3. **Progress Calculation** ✅: Updated threshold from 85 to 84 SOL, added isComplete parameter
+  4. **IDL Integration** ✅: Loaded pump.fun IDL with BorshAccountsCoder for robust parsing
+  5. **Database Updates** ✅: Real-time updates with change detection and dual update paths
+  
+  **Technical Details**:
+  - Graduation threshold: 84 SOL (confirmed by Shyft examples)
+  - Progress calculation: Based on account lamports, not virtual reserves
+  - Database columns: `bonding_curve_complete` (boolean), `latest_bonding_curve_progress` (numeric)
+  - Events: BONDING_CURVE_UPDATE, BONDING_CURVE_PROGRESS_UPDATE
+  - IDL location: `src/idls/pump_0.1.0.json`
+  
+  **Features**:
+  - Dual parsing: BondingCurveAccountHandler (with IDL) or fallback parsing
+  - Change detection prevents unnecessary database writes
+  - Updates graduated_to_amm when complete flag is true
+  - Dashboard shows "COMPLETE" for graduated tokens
+  - Enhanced logging: "🎯 COMPLETE FLAG DETECTED!" when graduation detected
+  
+  **Scripts**:
+  - Migration: `npx tsx src/scripts/run-bc-complete-migration.ts`
+  - Test handler: `npx tsx src/scripts/test-bc-account-handler.ts`
+  - Test DB updates: `npx tsx src/scripts/test-bc-database-updates.ts`
+  - Test IDL: `npx tsx src/scripts/test-idl-loading.ts`
 
 ### Latest Changes (July 5-6)
 - ✅ **Connection Pool Implementation (Session 1)**:
