@@ -9,11 +9,9 @@ import { createLogger } from '../../core/logger';
 import {
   Job,
   JobOptions,
-  JobPriority,
   JobProcessor,
   JobQueue,
   JobStatus,
-  JobType,
   HolderAnalysisJobData,
   QueueStats,
   JobEvent,

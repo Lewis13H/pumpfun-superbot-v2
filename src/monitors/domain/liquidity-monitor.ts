@@ -10,7 +10,6 @@ import { UnifiedEventParser } from '../../utils/parsers/unified-event-parser';
 // import { AmmFeeService } from '../../services/amm/amm-fee-service';
 // import { LpPositionCalculator } from '../../services/amm/lp-position-calculator';
 import chalk from 'chalk';
-import bs58 from 'bs58';
 
 // Program IDs
 const PUMP_SWAP_PROGRAM = '61acRgpURKTU8LKPJKs6WQa18KzD9ogavXzjxfD84KLu';
@@ -221,7 +220,7 @@ export class LiquidityMonitor extends BaseMonitor {
       });
       
       // Create parse context from gRPC data
-      const context = this.createParseContext(data);
+      const context = UnifiedEventParser.createContext(data);
       const event = this.eventParser.parse(context);
       const events = event ? [event] : [];
       
@@ -269,7 +268,7 @@ export class LiquidityMonitor extends BaseMonitor {
   private async processTransaction(data: any): Promise<void> {
     try {
       // Create parse context from gRPC data
-      const context = this.createParseContext(data);
+      const context = UnifiedEventParser.createContext(data);
       
       // Debug: Log transaction details
       const logs = context.logs || [];
@@ -493,50 +492,9 @@ export class LiquidityMonitor extends BaseMonitor {
   /**
    * Create parse context from gRPC data
    */
-  private createParseContext(data: any): any {
-    // Handle transaction data
-    if (data.transaction) {
-      const tx = data.transaction.transaction.transaction;
-      const meta = data.transaction.transaction.meta;
-      
-      // Extract account keys
-      const accountKeys = tx.message.accountKeys.map((key: any) => 
-        typeof key === 'string' ? key : bs58.encode(key)
-      );
-      
-      return {
-        signature: bs58.encode(tx.signatures[0]),
-        slot: BigInt(data.transaction.slot),
-        blockTime: data.transaction.blockTime,
-        accounts: accountKeys,
-        logs: meta?.logMessages || [],
-        instructions: tx.message.instructions || [],
-        innerInstructions: meta?.innerInstructions || []
-      };
-    }
-    
-    // Handle account data
-    if (data.account) {
-      return {
-        signature: 'account-update',
-        slot: BigInt(data.account.slot),
-        blockTime: Date.now() / 1000,
-        accounts: [data.account.account.pubkey],
-        logs: [],
-        instructions: [],
-        innerInstructions: []
-      };
-    }
-    
-    return {
-      signature: 'unknown',
-      slot: 0n,
-      blockTime: Date.now() / 1000,
-      accounts: [],
-      logs: [],
-      instructions: [],
-      innerInstructions: []
-    };
+  private _createParseContext(data: any): any {
+    // Use the UnifiedEventParser's static method to create context
+    return UnifiedEventParser.createContext(data);
   }
   
   /**

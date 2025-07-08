@@ -7,9 +7,7 @@ import { EventEmitter } from 'events';
 import { createLogger } from '../../core/logger';
 import { HolderAnalysisJobQueue } from './holder-analysis-job-queue';
 import { 
-  RecurringJobConfig, 
-  JobOptions,
-  HolderAnalysisJobData 
+  RecurringJobConfig
 } from '../../types/holder-analysis-job.types';
 
 const logger = createLogger('HolderAnalysisJobScheduler');
@@ -450,7 +448,7 @@ export class HolderAnalysisJobScheduler extends EventEmitter {
   /**
    * Fetch top tokens from database (placeholder)
    */
-  private async fetchTopTokens(limit: number): Promise<string[]> {
+  private async fetchTopTokens(_limit: number): Promise<string[]> {
     // This would query your database for top tokens by market cap
     // For now, return empty array
     logger.warn('fetchTopTokens not implemented - using placeholder');
@@ -469,7 +467,7 @@ export class HolderAnalysisJobScheduler extends EventEmitter {
   /**
    * Fetch tokens with poor scores (placeholder)
    */
-  private async fetchPoorScoreTokens(threshold: number): Promise<string[]> {
+  private async fetchPoorScoreTokens(_threshold: number): Promise<string[]> {
     // This would query your database for tokens with low scores
     logger.warn('fetchPoorScoreTokens not implemented - using placeholder');
     return [];

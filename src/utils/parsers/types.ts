@@ -102,6 +102,10 @@ export interface ParseContext {
   userAddress?: string;
   fullTransaction?: any; // Full gRPC transaction data for IDL parsing
   programId?: string; // Program ID for event parsing
+  meta?: any; // Transaction meta including inner instructions
+  innerInstructions?: any[]; // Direct access to inner instructions
+  preTokenBalances?: any[]; // Pre-transaction token balances
+  postTokenBalances?: any[]; // Post-transaction token balances
 }
 
 export interface ParseStrategy {

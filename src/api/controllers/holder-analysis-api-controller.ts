@@ -15,7 +15,7 @@ import { HolderAnalysisJobMonitor } from '../../services/holder-analysis/holder-
 const logger = createLogger('HolderAnalysisAPI');
 
 export class HolderAnalysisApiController {
-  // private analysisService: HolderAnalysisService; // Direct instance not used - using job processor
+  private _analysisService: HolderAnalysisService;
   private jobQueue: HolderAnalysisJobQueue;
   private jobProcessor: HolderAnalysisJobProcessor;
   private jobScheduler: HolderAnalysisJobScheduler;
@@ -27,7 +27,7 @@ export class HolderAnalysisApiController {
     shyftApiKey?: string
   ) {
     // Initialize services
-    this.analysisService = new HolderAnalysisService(
+    this._analysisService = new HolderAnalysisService(
       pool,
       heliusApiKey || process.env.HELIUS_API_KEY || '',
       shyftApiKey || process.env.SHYFT_API_KEY || ''
@@ -291,7 +291,7 @@ export class HolderAnalysisApiController {
    * GET /api/holder-analysis/schedules
    * Get scheduled jobs
    */
-  async getSchedules(req: Request, res: Response): Promise<void> {
+  async getSchedules(_req: Request, res: Response): Promise<void> {
     try {
       const schedules = this.jobScheduler.getScheduledJobs();
 
@@ -313,7 +313,7 @@ export class HolderAnalysisApiController {
    * GET /api/holder-analysis/metrics
    * Get system metrics
    */
-  async getMetrics(req: Request, res: Response): Promise<void> {
+  async getMetrics(_req: Request, res: Response): Promise<void> {
     try {
       const dashboardData = await this.jobMonitor.getDashboardData();
 
@@ -335,7 +335,7 @@ export class HolderAnalysisApiController {
    * GET /api/holder-analysis/top-tokens
    * Get tokens with best holder scores
    */
-  async getTopTokens(_req: Request, res: Response): Promise<void> {
+  async getTopTokens(req: Request, res: Response): Promise<void> {
     try {
       const limit = parseInt(req.query.limit as string) || 20;
       
@@ -378,7 +378,7 @@ export class HolderAnalysisApiController {
    * GET /api/holder-analysis/distribution/:mintAddress
    * Get detailed holder distribution data
    */
-  async getDistribution(_req: Request, res: Response): Promise<void> {
+  async getDistribution(req: Request, res: Response): Promise<void> {
     try {
       const { mintAddress } = req.params;
       

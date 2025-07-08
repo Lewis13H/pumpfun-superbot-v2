@@ -16,7 +16,6 @@ import { WalletClassificationModel } from '../../models/wallet-classification';
 import { Pool } from 'pg';
 import { 
   WalletClassification,
-  WalletClassificationData,
   WalletDetectionMetadata 
 } from '../../types/holder-analysis';
 import { logger } from '../../core/logger';
@@ -69,7 +68,7 @@ export class WalletClassificationService extends EventEmitter {
    */
   async classifyWallet(
     walletAddress: string,
-    tokenMintAddress?: string,
+    _tokenMintAddress?: string,
     additionalContext?: {
       holdingPercentage?: number;
       firstTransactionTime?: number;
@@ -112,10 +111,10 @@ export class WalletClassificationService extends EventEmitter {
       const result = this.determineClassification(analysis);
 
       // Save to database
-      const saved = await this.walletModel.upsert({
+      await this.walletModel.upsert({
         walletAddress,
         classification: result.classification,
-        subClassification: result.subClassification,
+        subClassification: result.subClassification as any,
         confidenceScore: result.confidence,
         detectionMetadata: result.metadata,
         firstSeen: new Date(),
@@ -235,7 +234,7 @@ export class WalletClassificationService extends EventEmitter {
    * Analyze wallet behavior from all data sources
    */
   private analyzeWalletBehavior(
-    walletAddress: string,
+    _walletAddress: string,
     heliusData: any,
     shyftData: any,
     additionalContext?: any

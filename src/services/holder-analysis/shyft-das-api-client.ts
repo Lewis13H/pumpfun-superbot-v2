@@ -402,7 +402,7 @@ export class ShyftDasApiClient {
   /**
    * Helper: Get token creation transaction
    */
-  private async getTokenCreationTransaction(mintAddress: string): Promise<any> {
+  private async getTokenCreationTransaction(_mintAddress: string): Promise<any> {
     try {
       // This would need to search for the token creation transaction
       // For now, return null as this requires more complex logic

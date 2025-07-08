@@ -16,6 +16,8 @@ import { ConfigService } from './core/config';
 import { TOKENS } from './core/container';
 import { EnhancedStaleTokenDetector } from './services/token-management/enhanced-stale-token-detector';
 import { RealtimePriceCache } from './services/pricing/realtime-price-cache';
+import { HolderAnalysisIntegration } from './services/holder-analysis/holder-analysis-integration';
+import { Pool } from 'pg';
 
 // Set log level to ERROR for minimal output
 Logger.setGlobalLevel(LogLevel.ERROR);
@@ -39,6 +41,9 @@ interface SystemStats {
   activeMonitors: Set<string>;
   staleTokens: number;
   tokensRecovered: number;
+  holderAnalyses: number;
+  holderAnalysisQueue: number;
+  averageHolderScore: number;
 }
 
 const stats: SystemStats = {
@@ -55,7 +60,10 @@ const stats: SystemStats = {
   solPrice: 0,
   activeMonitors: new Set(),
   staleTokens: 0,
-  tokensRecovered: 0
+  tokensRecovered: 0,
+  holderAnalyses: 0,
+  holderAnalysisQueue: 0,
+  averageHolderScore: 0
 };
 
 // Terminal utilities
@@ -72,8 +80,8 @@ function displayStats() {
   const seconds = runtime % 60;
   const runtimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   
-  // Clear previous stats display (7 lines)
-  moveCursor(7);
+  // Clear previous stats display (8 lines)
+  moveCursor(8);
   
   console.log(chalk.gray('─'.repeat(60)));
   console.log(chalk.cyan('📊 System Statistics') + chalk.gray(` | Runtime: ${runtimeStr} | SOL: $${stats.solPrice.toFixed(2)}`));
@@ -101,7 +109,14 @@ function displayStats() {
     chalk.gray('Auto-removal: ON')
   );
   
-  // Fourth row: Monitor status
+  // Fourth row: Holder analysis stats
+  console.log(
+    chalk.blue(`Analyses: ${stats.holderAnalyses}`) + ' | ' +
+    chalk.yellow(`Queue: ${stats.holderAnalysisQueue}`) + ' | ' +
+    chalk.magenta(`Avg Score: ${stats.averageHolderScore.toFixed(0)}`)
+  );
+  
+  // Fifth row: Monitor status
   const monitorStatus = Array.from(stats.activeMonitors).map(m => 
     chalk.green('●') + ' ' + m
   ).join(' | ');
@@ -131,7 +146,7 @@ async function startMonitors() {
     
     // Pre-resolve shared services
     await container.resolve(TOKENS.StreamClient);
-    await container.resolve(TOKENS.DatabaseService);
+    const dbService = await container.resolve(TOKENS.DatabaseService);
     await container.resolve(TOKENS.SolPriceService);
     await container.resolve(TOKENS.GraduationHandler);
     
@@ -196,11 +211,55 @@ async function startMonitors() {
     
     // Graduation fixer is now integrated into TokenLifecycleService
     
+    // Start holder analysis integration
+    let holderAnalysis: HolderAnalysisIntegration | null = null;
+    try {
+      // Get database pool from dbService
+      const pool = (dbService as any).pool as Pool;
+      
+      holderAnalysis = new HolderAnalysisIntegration(pool, eventBus, {
+        marketCapThreshold: 18888,
+        solThreshold: 125,
+        enableAutoAnalysis: true,
+        maxConcurrentAnalyses: 3,
+        analysisIntervalHours: 6
+      });
+      
+      // Listen to holder analysis events
+      holderAnalysis.on('analysis:queued', (data) => {
+        stats.holderAnalysisQueue++;
+        logger.debug(`Holder analysis queued for ${data.mintAddress}`);
+      });
+      
+      holderAnalysis.on('analysis:completed', (data) => {
+        stats.holderAnalyses++;
+        stats.holderAnalysisQueue = Math.max(0, stats.holderAnalysisQueue - 1);
+        if (data.score) {
+          // Update average score
+          stats.averageHolderScore = 
+            stats.holderAnalyses === 1 
+              ? data.score 
+              : (stats.averageHolderScore * (stats.holderAnalyses - 1) + data.score) / stats.holderAnalyses;
+        }
+      });
+      
+      holderAnalysis.on('analysis:failed', () => {
+        stats.holderAnalysisQueue = Math.max(0, stats.holderAnalysisQueue - 1);
+      });
+      
+      await holderAnalysis.start();
+      stats.activeMonitors.add('HolderAnalysis');
+      logger.debug('Holder analysis integration started');
+    } catch (error) {
+      logger.error('Failed to start holder analysis integration', error as Error);
+      // Non-critical, continue without holder analysis
+    }
+    
     clearLine();
     console.log(chalk.green('✅ All systems operational\n'));
     
     // Initial stats display
-    console.log('\n'.repeat(6)); // Make space for stats
+    console.log('\n'.repeat(7)); // Make space for stats (1 more line)
     displayStats();
     
     // Update stats every 5 seconds
@@ -213,8 +272,20 @@ async function startMonitors() {
       stats.tokensRecovered = detectorStats.tokensRecovered;
     }, 10000); // Every 10 seconds
     
+    // Update holder analysis queue stats periodically
+    if (holderAnalysis) {
+      setInterval(async () => {
+        try {
+          const queueStats = await holderAnalysis.getQueueStats();
+          stats.holderAnalysisQueue = queueStats.pending + queueStats.processing;
+        } catch (error) {
+          // Ignore errors
+        }
+      }, 5000); // Every 5 seconds
+    }
+    
     // Setup graceful shutdown
-    setupGracefulShutdown(monitors, logger, container);
+    setupGracefulShutdown(monitors, logger, container, holderAnalysis);
     
   } catch (error) {
     logger.error('Failed to start system', error as Error);
@@ -311,7 +382,7 @@ function setupEventListeners(eventBus: EventBus, _logger: Logger) {
 /**
  * Setup graceful shutdown
  */
-function setupGracefulShutdown(monitors: any[], logger: Logger, container?: any) {
+function setupGracefulShutdown(monitors: any[], logger: Logger, container?: any, holderAnalysis?: HolderAnalysisIntegration | null) {
   let isShuttingDown = false;
   
   const shutdown = async () => {
@@ -337,6 +408,16 @@ function setupGracefulShutdown(monitors: any[], logger: Logger, container?: any)
       // Graduation fixer is now integrated into TokenLifecycleService
     }
     
+    // Stop holder analysis integration
+    if (holderAnalysis) {
+      try {
+        console.log(chalk.yellow('Stopping holder analysis integration...'));
+        await holderAnalysis.stop();
+      } catch (error) {
+        logger.error('Error stopping holder analysis', error as Error);
+      }
+    }
+    
     // Print final stats
     const runtime = Math.floor((Date.now() - stats.startTime.getTime()) / 60);
     console.log(chalk.cyan('\n📊 Final Statistics:'));
@@ -345,6 +426,8 @@ function setupGracefulShutdown(monitors: any[], logger: Logger, container?: any)
     console.log(chalk.gray(`   Total volume: $${Math.floor(stats.totalVolume).toLocaleString()}`));
     console.log(chalk.gray(`   Tokens discovered: ${stats.tokensDiscovered}`));
     console.log(chalk.gray(`   Graduations: ${stats.graduations}`));
+    console.log(chalk.gray(`   Holder analyses: ${stats.holderAnalyses}`));
+    console.log(chalk.gray(`   Average holder score: ${stats.averageHolderScore.toFixed(0)}`));
     console.log(chalk.gray(`   Errors: ${stats.errors}`));
     
     await new Promise(resolve => setTimeout(resolve, 2000));

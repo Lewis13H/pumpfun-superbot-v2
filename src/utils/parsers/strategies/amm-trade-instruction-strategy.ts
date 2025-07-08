@@ -192,7 +192,7 @@ export class AMMTradeInstructionStrategy implements ParseStrategy {
     return BigInt(low) + (BigInt(high) << 32n);
   }
 
-  private extractActualAmounts(logs: string[], isBuy: boolean): { solAmount: bigint, tokenAmount: bigint } | null {
+  private extractActualAmounts(logs: string[], _isBuy: boolean): { solAmount: bigint, tokenAmount: bigint } | null {
     // Try to extract from ray_log
     for (const log of logs) {
       if (log.includes('ray_log:')) {

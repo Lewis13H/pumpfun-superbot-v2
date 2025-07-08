@@ -28,10 +28,10 @@ export class HolderAnalysisJobProcessor extends EventEmitter {
   private workers: Map<string, Worker> = new Map();
   private options: Required<ProcessorOptions>;
   private analysisService: HolderAnalysisService;
-  private isShuttingDown = false;
+  private _isShuttingDown = false;
 
   constructor(
-    private pool: Pool,
+    pool: Pool,
     options: ProcessorOptions = {}
   ) {
     super();
@@ -337,7 +337,7 @@ export class HolderAnalysisJobProcessor extends EventEmitter {
   /**
    * Assign a worker to a job
    */
-  private assignWorker(jobId: string): string {
+  private assignWorker(_jobId: string): string {
     // Find idle worker
     for (const [id, worker] of this.workers) {
       if (worker.status === 'idle') {
@@ -384,7 +384,7 @@ export class HolderAnalysisJobProcessor extends EventEmitter {
    * Shutdown workers gracefully
    */
   async shutdown(): Promise<void> {
-    this.isShuttingDown = true;
+    this._isShuttingDown = true;
     
     // Wait for busy workers to complete
     const busyWorkers = Array.from(this.workers.values()).filter(w => w.status === 'busy');

@@ -242,7 +242,7 @@ export class HeliusApiClient {
       analysis.mev_activity = this.detectMEVActivity(transactions);
 
       // Bundler detection
-      analysis.bundler_usage = transactions.some(tx => 
+      analysis.bundler_usage = transactions.some((tx: any) => 
         tx.description?.includes('bundle') || 
         tx.feePayer !== walletAddress
       );

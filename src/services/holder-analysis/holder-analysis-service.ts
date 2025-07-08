@@ -16,7 +16,6 @@ import { TokenHolderAnalysisModel } from '../../models/token-holder-analysis';
 import { 
   TokenHolderAnalysis,
   HolderSnapshot,
-  HolderAnalysisMetadata,
   TokenHolderDetails,
   HolderCounts,
   HoldingPercentages,
@@ -51,7 +50,7 @@ export class HolderAnalysisService extends EventEmitter {
   private analysisModel: TokenHolderAnalysisModel;
 
   constructor(
-    private pool: Pool,
+    pool: Pool,
     heliusApiKey?: string,
     shyftApiKey?: string
   ) {
@@ -132,7 +131,7 @@ export class HolderAnalysisService extends EventEmitter {
       const distributionMetrics = this.metricsCalculator.calculateMetrics(holderData.holders);
 
       // Step 4: Classify wallets
-      let classifiedWallets: Map<string, WalletClassificationData> = new Map();
+      let classifiedWallets: Map<string, any> = new Map();
       if (classifyWallets && holderData.holders.length > 0) {
         this.emit('analysis_progress', { mintAddress, step: 'classifying_wallets' });
         
@@ -311,7 +310,7 @@ export class HolderAnalysisService extends EventEmitter {
    */
   private async countHoldersByType(
     holders: any[],
-    classifications: Map<string, WalletClassificationData>
+    classifications: Map<string, any>
   ): Promise<HolderCounts> {
     const counts: HolderCounts = {
       total: holders.length,
@@ -348,7 +347,7 @@ export class HolderAnalysisService extends EventEmitter {
    */
   private async calculateHoldingPercentages(
     holders: any[],
-    classifications: Map<string, WalletClassificationData>
+    classifications: Map<string, any>
   ): Promise<HoldingPercentages> {
     const holdings = {
       organic: BigInt(0),
@@ -401,7 +400,7 @@ export class HolderAnalysisService extends EventEmitter {
    */
   private async calculateTrends(
     mintAddress: string,
-    currentCounts: HolderCounts
+    _currentCounts: HolderCounts
   ): Promise<{ [K in TimeWindow]?: HolderTrends }> {
     // This would calculate trends from historical snapshots
     // For now, return mock trends
@@ -428,10 +427,10 @@ export class HolderAnalysisService extends EventEmitter {
    */
   private async enrichTopHolders(
     topHolders: any[],
-    classifications: Map<string, WalletClassificationData>
+    _classifications: Map<string, any>
   ): Promise<TokenHolderDetails[]> {
     return topHolders.map((holder, index) => {
-      const classification = classifications.get(holder.address);
+      // const _classification = classifications.get(holder.address);
       
       return {
         mintAddress: holder.mintAddress,
@@ -450,7 +449,7 @@ export class HolderAnalysisService extends EventEmitter {
    * Group classified wallets by type
    */
   private groupClassifiedWallets(
-    classifications: Map<string, WalletClassificationData>
+    classifications: Map<string, any>
   ): TokenHolderAnalysis['classifiedWallets'] {
     const grouped = {
       snipers: [] as WalletClassificationData[],

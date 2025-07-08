@@ -64,7 +64,6 @@ export class AMMTradeIDLStrategy implements ParseStrategy {
       
       // Find AMM instruction
       let ammInstruction = null;
-      let instructionIndex = -1;
       
       for (let i = 0; i < instructions.length; i++) {
         const ix = instructions[i];
@@ -75,7 +74,6 @@ export class AMMTradeIDLStrategy implements ParseStrategy {
         if (programId !== AMM_PROGRAM || !ix.data) continue;
         
         ammInstruction = ix;
-        instructionIndex = i;
         break;
       }
       
@@ -98,9 +96,9 @@ export class AMMTradeIDLStrategy implements ParseStrategy {
       let instructionData: any;
       try {
         if (isBuy) {
-          instructionData = this.coder.instruction.decode(dataBuffer, 'base64');
+          instructionData = this.coder.instruction.decode(dataBuffer);
         } else {
-          instructionData = this.coder.instruction.decode(dataBuffer, 'base64');
+          instructionData = this.coder.instruction.decode(dataBuffer);
         }
       } catch (e) {
         // Fallback to manual parsing if IDL decode fails

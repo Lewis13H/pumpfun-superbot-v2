@@ -9,6 +9,8 @@ import { BCTradeStrategy } from './strategies/bc-trade-strategy';
 import { BCTradeIDLStrategy } from './strategies/bc-trade-idl-strategy';
 import { AMMTradeStrategy } from './strategies/amm-trade-strategy';
 import { AMMTradeInstructionStrategy } from './strategies/amm-trade-instruction-strategy';
+import { AMMTradeInnerIxStrategy } from './strategies/amm-trade-inner-ix-strategy';
+import { AMMTradeHeuristicStrategy } from './strategies/amm-trade-heuristic-strategy';
 import { LiquidityStrategy } from './strategies/liquidity-strategy';
 import { Logger } from '../../core/logger';
 import { EventBus } from '../../core/event-bus';
@@ -37,8 +39,10 @@ export class UnifiedEventParser {
     this.strategies = options.strategies || [
       new BCTradeIDLStrategy(),          // BC trades using IDL (most accurate)
       new BCTradeStrategy(),             // BC trades fallback
-      new AMMTradeInstructionStrategy(), // AMM trades from instruction data (primary)
-      new AMMTradeStrategy(),            // AMM trades from logs (fallback)
+      new AMMTradeInnerIxStrategy(),     // AMM trades from inner instructions (most accurate but not available in gRPC)
+      new AMMTradeHeuristicStrategy(),   // AMM trades with heuristics to get reasonable amounts
+      new AMMTradeInstructionStrategy(), // AMM trades from instruction data (has slippage issue)
+      new AMMTradeStrategy(),            // AMM trades from logs (last resort)
       new LiquidityStrategy()            // Liquidity events
     ];
     
@@ -287,7 +291,11 @@ export class UnifiedEventParser {
       data: instructionData,
       accountKeys: message?.accountKeys || [],
       userAddress: accounts[0], // First account is usually the fee payer/user
-      fullTransaction: grpcData // Pass full gRPC data for IDL parsing
+      fullTransaction: grpcData, // Pass full gRPC data for IDL parsing
+      meta: meta, // Include meta data with inner instructions
+      innerInstructions: meta?.innerInstructions || [],
+      preTokenBalances: meta?.preTokenBalances || [],
+      postTokenBalances: meta?.postTokenBalances || []
     };
   }
 }
