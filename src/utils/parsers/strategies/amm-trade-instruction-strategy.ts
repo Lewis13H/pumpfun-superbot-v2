@@ -145,9 +145,7 @@ export class AMMTradeInstructionStrategy implements ParseStrategy {
         outputMint: isBuy ? tokenMint || 'unknown' : SOL_MINT,
         outAmount: isBuy ? tokenAmount : solAmount,
         solAmount,
-        tokenAmount,
-        virtualSolReserves: 0n, // Not available from instruction data
-        virtualTokenReserves: 0n // Not available from instruction data
+        tokenAmount
       };
     } catch (error) {
       logger.debug('Failed to parse AMM trade from instruction', { error, signature: context.signature });

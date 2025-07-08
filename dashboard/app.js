@@ -321,7 +321,7 @@ function renderTokens() {
     if (!tokenTableBody) return;
     
     if (filteredTokens.length === 0) {
-        tokenTableBody.innerHTML = '<tr><td colspan="8" class="no-data">No tokens found</td></tr>';
+        tokenTableBody.innerHTML = '<tr><td colspan="9" class="no-data">No tokens found</td></tr>';
         if (loadingSpinner) loadingSpinner.style.display = 'none';
         return;
     }
@@ -364,6 +364,9 @@ function renderTokens() {
                             </div>
                         </div>
                     </div>
+                </td>
+                <td class="holder-score-cell">
+                    ${formatHolderScore(token.holder_score)}
                 </td>
                 <td class="mcap-cell">
                     <div>$${formatNumber(marketCap)} <span class="sol-mcap">(${currentSolPrice > 0 ? formatNumber(marketCap / currentSolPrice) + ' SOL' : ''})</span></div>
@@ -571,7 +574,7 @@ function formatAge(timestamp) {
 
 function showError(message) {
     if (tokenTableBody) {
-        tokenTableBody.innerHTML = `<tr><td colspan="8" class="no-data" style="color: var(--red);">${message}</td></tr>`;
+        tokenTableBody.innerHTML = `<tr><td colspan="9" class="no-data" style="color: var(--red);">${message}</td></tr>`;
     }
     if (loadingSpinner) loadingSpinner.style.display = 'none';
 }
@@ -586,6 +589,40 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
+}
+
+// Format holder score with color coding
+function formatHolderScore(score) {
+    if (!score && score !== 0) {
+        return '<span class="holder-score-badge" style="background: var(--bg-light); color: var(--text-dim);">--</span>';
+    }
+    
+    const numScore = parseInt(score);
+    let color, bgColor, label;
+    
+    if (numScore >= 250) {
+        color = '#14CB82';
+        bgColor = 'rgba(20, 203, 130, 0.1)';
+        label = 'A+';
+    } else if (numScore >= 200) {
+        color = '#FFD700';
+        bgColor = 'rgba(255, 215, 0, 0.1)';
+        label = 'A';
+    } else if (numScore >= 150) {
+        color = '#FF9800';
+        bgColor = 'rgba(255, 152, 0, 0.1)';
+        label = 'B';
+    } else if (numScore >= 100) {
+        color = '#FF6B6B';
+        bgColor = 'rgba(255, 107, 107, 0.1)';
+        label = 'C';
+    } else {
+        color = '#F44336';
+        bgColor = 'rgba(244, 67, 54, 0.1)';
+        label = 'D';
+    }
+    
+    return `<span class="holder-score-badge" style="background: ${bgColor}; color: ${color}; border: 1px solid ${color}; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 12px;" title="Holder Score: ${numScore}/300">${label}</span>`;
 }
 
 // Get gradient color based on progress percentage

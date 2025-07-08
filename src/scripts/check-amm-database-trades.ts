@@ -77,7 +77,7 @@ async function checkAMMTrades() {
         tk.name,
         t.mint_address
       FROM trades_unified t
-      LEFT JOIN tokens_unified tk ON t.mint_address = tk.mint
+      LEFT JOIN tokens_unified tk ON t.mint_address = tk.mint_address
       WHERE t.program = 'amm_pool'
       ORDER BY t.created_at DESC
       LIMIT 10
@@ -111,14 +111,14 @@ async function checkAMMTrades() {
         tk.symbol,
         tk.name,
         tk.graduated_to_amm,
-        tk.graduation_timestamp,
+        tk.graduation_at,
         COUNT(t.id) as trade_count,
         MAX(t.created_at) as last_trade
       FROM tokens_unified tk
-      INNER JOIN trades_unified t ON tk.mint = t.mint_address
+      INNER JOIN trades_unified t ON tk.mint_address = t.mint_address
       WHERE t.program = 'amm_pool'
       AND tk.graduated_to_amm = true
-      GROUP BY tk.mint_address, tk.symbol, tk.name, tk.graduated_to_amm, tk.graduation_timestamp
+      GROUP BY tk.mint_address, tk.symbol, tk.name, tk.graduated_to_amm, tk.graduation_at
       ORDER BY trade_count DESC
       LIMIT 10
     `);

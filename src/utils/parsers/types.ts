@@ -34,8 +34,8 @@ export interface TradeEvent extends BaseEvent {
   userAddress: string;
   solAmount: bigint;
   tokenAmount: bigint;
-  virtualSolReserves: bigint;
-  virtualTokenReserves: bigint;
+  virtualSolReserves?: bigint; // Made optional - only available for BC trades
+  virtualTokenReserves?: bigint; // Made optional - only available for BC trades
   realSolReserves?: bigint;
   realTokenReserves?: bigint;
   // Phase 1 additions

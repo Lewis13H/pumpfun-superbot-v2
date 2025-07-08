@@ -137,9 +137,7 @@ export class AMMTradeInnerIxStrategy implements ParseStrategy {
         outputMint: isBuy ? tokenMint || 'unknown' : SOL_MINT,
         outAmount: isBuy ? actualAmounts.tokenAmount : actualAmounts.solAmount,
         solAmount: actualAmounts.solAmount,
-        tokenAmount: actualAmounts.tokenAmount,
-        virtualSolReserves: 0n, // Not available from inner instructions
-        virtualTokenReserves: 0n // Not available from inner instructions
+        tokenAmount: actualAmounts.tokenAmount
       };
     } catch (error) {
       logger.debug('Failed to parse AMM trade from inner instructions', { error, signature: context.signature });

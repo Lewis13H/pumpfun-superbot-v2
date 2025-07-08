@@ -65,13 +65,26 @@ export class TradeHandler {
           priceInLamports: (event.priceUsd / solPriceUsd) * 1e9
         };
       } else {
-        // Fallback to calculating from reserves
-        const reserves: ReserveInfo = {
-          solReserves: event.virtualSolReserves,
-          tokenReserves: event.virtualTokenReserves,
-          isVirtual: true
-        };
-        priceInfo = this.priceCalculator.calculatePrice(reserves, solPriceUsd);
+        // Fallback to calculating from reserves if available
+        if (event.virtualSolReserves && event.virtualTokenReserves) {
+          const reserves: ReserveInfo = {
+            solReserves: event.virtualSolReserves,
+            tokenReserves: event.virtualTokenReserves,
+            isVirtual: true
+          };
+          priceInfo = this.priceCalculator.calculatePrice(reserves, solPriceUsd);
+        } else {
+          // Use trade amounts to calculate price (SOL/token ratio)
+          const priceInSol = Number(event.solAmount) / Number(event.tokenAmount);
+          const priceInUsd = priceInSol * solPriceUsd;
+          
+          priceInfo = {
+            priceInUsd,
+            marketCapUsd: 0, // Unknown without supply info
+            priceInSol,
+            priceInLamports: priceInSol * 1e9
+          };
+        }
       }
       
       // Create trade record with sanitized string fields

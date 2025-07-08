@@ -155,9 +155,7 @@ export class AMMTradeIDLStrategy implements ParseStrategy {
         outputMint: isBuy ? tokenMint || 'unknown' : SOL_MINT,
         outAmount: isBuy ? tokenAmount : solAmount,
         solAmount,
-        tokenAmount,
-        virtualSolReserves: 0n,
-        virtualTokenReserves: 0n
+        tokenAmount
       };
     } catch (error) {
       logger.debug('Failed to parse AMM trade with IDL', { error, signature: context.signature });

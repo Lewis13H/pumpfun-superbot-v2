@@ -118,9 +118,7 @@ export class AMMTradeHeuristicStrategy implements ParseStrategy {
         outputMint: isBuy ? tokenMint || 'unknown' : SOL_MINT,
         outAmount: isBuy ? tokenAmount : solAmount,
         solAmount,
-        tokenAmount,
-        virtualSolReserves: 0n,
-        virtualTokenReserves: 0n
+        tokenAmount
       };
     } catch (error) {
       logger.debug('Failed to parse AMM trade with heuristics', { error, signature: context.signature });

@@ -109,7 +109,13 @@ app.get('/api/tokens', async (_req, res) => {
         (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1) as sol_price,
         -- Always calculate USD price from SOL price for better precision
         -- The latest_price_usd column only has 4 decimal places which causes issues for small prices
-        t.latest_price_sol * (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1) as calculated_price_usd
+        t.latest_price_sol * (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1) as calculated_price_usd,
+        -- Get latest holder score
+        (SELECT hs.holder_score 
+         FROM holder_snapshots hs 
+         WHERE hs.mint_address = t.mint_address 
+         ORDER BY hs.snapshot_time DESC 
+         LIMIT 1) as holder_score
       FROM tokens_unified t
       WHERE t.threshold_crossed_at IS NOT NULL
       ORDER BY t.latest_market_cap_usd DESC NULLS LAST
@@ -227,7 +233,13 @@ app.get('/api/tokens/realtime', async (_req, res) => {
         t.total_trades,
         t.unique_traders_24h,
         EXTRACT(EPOCH FROM (NOW() - COALESCE(t.token_created_at, t.first_seen_at))) as age_seconds,
-        (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1) as sol_price
+        (SELECT price FROM sol_prices ORDER BY created_at DESC LIMIT 1) as sol_price,
+        -- Get latest holder score
+        (SELECT hs.holder_score 
+         FROM holder_snapshots hs 
+         WHERE hs.mint_address = t.mint_address 
+         ORDER BY hs.snapshot_time DESC 
+         LIMIT 1) as holder_score
       FROM tokens_unified t
       WHERE t.threshold_crossed_at IS NOT NULL
       ORDER BY t.latest_market_cap_usd DESC NULLS LAST
