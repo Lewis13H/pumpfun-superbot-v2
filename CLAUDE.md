@@ -325,8 +325,38 @@ POOL_MAX_RETRIES=3
   - Test DB updates: `npx tsx src/scripts/test-bc-database-updates.ts`
   - Test IDL: `npx tsx src/scripts/test-idl-loading.ts`
 
-### Latest Changes (July 7-8)
-- ✅ **Token Holder Analysis Implementation (Sessions 1-6)**:
+### Latest Changes (July 8)
+- ✅ **AMM Token Creation Fixed**:
+  - **Issue**: AMM trades weren't creating tokens in the database
+  - **Root Cause**: 
+    - AMM trades had 0 reserves in parsed data
+    - Price calculation failed (no reserves = no price)
+    - Market cap was $0, below the $1000 threshold
+    - Tokens weren't saved to database
+  - **Solution Implemented**:
+    1. Integrated AMM reserves fetcher into main app
+    2. Removed AMM threshold (changed from $1000 to $0)
+    3. Added reserve fetching to trade processing pipeline
+    4. AMM tokens now marked as graduated with bonding_curve_complete = true
+  - **Current Status**: AMM tokens are being created and saved
+  - **Price/Market Cap Fix Implemented (July 8)**:
+    - **Issue**: Market caps inflated by 10-20x (e.g., showing $279B instead of $144K)
+    - **Root Cause**: 
+      - Used 1B token supply for all calculations
+      - Should use circulating supply instead
+      - For pump.fun AMM tokens, circulating = tokens in AMM pool
+    - **Solution**: Updated PriceCalculator to:
+      - Accept `isAmmToken` parameter
+      - For AMM tokens: market cap = price × tokens in pool
+      - For BC tokens: market cap = price × (total supply × 10%)
+    - **Result**: Market caps reduced by 10-20x to more realistic values
+    - **Note**: Exact values may differ from DexScreener due to:
+      - Different reserve snapshots
+      - Additional liquidity on other DEXes
+      - Price aggregation methods
+
+### Latest Changes (July 8)
+- ✅ **Token Holder Analysis Implementation (Sessions 1-7 Complete)**:
   - **Session 1 - Database Schema & Core Models**:
     - Created comprehensive database schema for holder analysis
     - 5 new tables: holder_snapshots, wallet_classifications, token_holder_details, holder_analysis_metadata, holder_trends
@@ -359,27 +389,26 @@ POOL_MAX_RETRIES=3
     - Top tokens grid view with score rankings
     - Holder distribution table with wallet classifications
     - System metrics and health monitoring dashboard
-  - **Session 6 - Token Detail Page UI Redesign** (July 8):
-    - Enhanced token detail page with tab navigation system
-    - New "Holders" tab with comprehensive analytics:
-      - Holder Score Badge with visual progress bar (0-300)
-      - Score Breakdown showing all positive/negative factors
-      - Distribution Chart (doughnut) for wallet types
-      - Key Metrics Grid (holders, concentration, Gini)
-      - Classifications Table with risk badges
-      - Growth Chart for holder trends
-      - Top 20 Holders Table with wallet types
-    - Real-time features:
-      - WebSocket integration for live updates
-      - Job queue monitoring with progress
-      - Auto-refresh every 30 seconds
-    - Visual enhancements:
-      - Dark theme consistent with dashboard
-      - Color-coded ratings and risk levels
-      - Interactive Chart.js visualizations
-      - Responsive design for all screen sizes
-    - Files: `token-detail-enhanced.html`, `token-detail-enhanced.js`
-    - Access: `http://localhost:3001/token-detail-enhanced.html?mint=TOKEN_ADDRESS`
+  - **Session 6 - Token Detail Page Integration**:
+    - Added holder analysis section to token detail page
+    - Shows holder score with visual gauge
+    - Distribution metrics and holder breakdown
+    - Top holders table with percentages
+    - Real-time updates when analysis completes
+  - **Session 7 - Main Dashboard Integration**:
+    - Added "Holder" column to main dashboard showing score grades (A+/A/B/C/D)
+    - Color-coded badges for quick visual assessment
+    - Integrated with HolderAnalysisIntegration service for automatic analysis
+    - Market cap threshold: $18,888 for automatic analysis
+  - **Enhanced Holder Fetching (July 8)**:
+    - **Complete Holder Data**: Implemented Helius `getTokenAccounts` method to fetch ALL token holders
+    - **HeliusCompleteHolderFetcher**: New service using pagination to get complete holder lists
+    - **Rate-Limited Scripts**: Conservative analysis scripts respecting API limits
+    - **Multiple Data Sources**:
+      - Standard RPC: Top 20 holders only (fast, suitable for quick analysis)
+      - Helius Complete: ALL holders with pagination (detailed distribution analysis)
+      - Automatic fallback: Helius → Shyft → RPC
+    - **API Configuration**: Uses only Helius and Shyft endpoints as requested
   - **Key Features**:
     - Automated wallet classification with confidence scoring
     - Distribution health analysis with actionable insights
@@ -390,28 +419,15 @@ POOL_MAX_RETRIES=3
     - Real-time monitoring with alerts and health scores
     - Web dashboard with interactive visualizations
     - WebSocket support for live updates
-    - Enhanced token detail page with holder analytics tab
+    - Complete holder data fetching (not just top 20)
+    - Rate-limited batch processing for all eligible tokens
+  - **Scripts**:
+    - `analyze-tokens-complete-holders.ts`: Fetches ALL holders for detailed analysis
+    - `analyze-tokens-with-rate-limits.ts`: Conservative batch processing
+    - `test-complete-holder-fetch.ts`: Tests complete holder fetching
+    - `check-holder-analysis-status.ts`: Status overview and coverage report
   - **Located in**: `src/services/holder-analysis/`
-  - **Dashboards**: 
-    - Holder Analysis: `http://localhost:3001/holder-analysis.html`
-    - Token Detail Enhanced: `http://localhost:3001/token-detail-enhanced.html?mint=ADDRESS`
-  - **TypeScript Fixes** (July 8):
-    - Fixed 27 TypeScript compilation errors
-    - Fixed missing property errors
-    - Added underscore prefix to unused parameters
-    - Fixed type mismatches in wallet classification
-    - Removed unused imports
-    - Temporarily disabled noUnusedLocals/noUnusedParameters in tsconfig.json
-    - Build now completes successfully
-  - **Session 7 - Integration with Main App** (July 8):
-    - Created HolderAnalysisIntegration service for main app integration
-    - Integrated with EventBus to listen for TOKEN_DISCOVERED, TOKEN_GRADUATED, PRICE_UPDATE events
-    - Automatic analysis triggers when tokens meet thresholds ($18,888 or 125 SOL)
-    - Added holder analysis stats to main dashboard (analyses count, queue size, avg score)
-    - Modified index.ts to start holder analysis on app startup
-    - Added graceful shutdown for holder analysis system
-    - Dashboard now shows 8 lines of stats with holder analysis row
-    - Test script: `npx tsx src/scripts/test-holder-analysis-integration.ts`
+  - **Dashboard**: `http://localhost:3001/holder-analysis.html`
 
 ### Latest Changes (July 5-6)
 - ✅ **Connection Pool Implementation (Session 1)**:

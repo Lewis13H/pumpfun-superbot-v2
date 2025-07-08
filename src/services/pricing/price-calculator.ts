@@ -39,7 +39,8 @@ export interface PriceImpactResult {
 
 export class PriceCalculator {
   private logger = new Logger({ context: 'PriceCalculator' });
-  private readonly TOTAL_SUPPLY = 1_000_000_000; // 1B tokens
+  private readonly TOTAL_SUPPLY = 1_000_000_000; // 1B tokens (pump.fun default)
+  private readonly PUMP_FUN_CIRCULATING_RATIO = 0.1; // Only 10% circulating for pump.fun
   private readonly TOKEN_DECIMALS = 6;
   private readonly BONDING_CURVE_PROGRESS_SOL = 84; // SOL needed for graduation (as per Shyft examples)
   private readonly BONDING_CURVE_MIN_SOL = 25; // Minimum expected SOL in BC
@@ -50,7 +51,9 @@ export class PriceCalculator {
    */
   calculatePrice(
     reserves: ReserveInfo,
-    solPriceUsd: number = 180
+    solPriceUsd: number = 180,
+    isAmmToken: boolean = false,
+    totalSupply?: bigint
   ): PriceInfo {
     if (reserves.solReserves === 0n || reserves.tokenReserves === 0n) {
       return {
@@ -71,8 +74,23 @@ export class PriceCalculator {
     // Calculate price in USD
     const priceInUsd = priceInSol * solPriceUsd;
     
-    // Calculate market cap (price * total supply)
-    const marketCapUsd = priceInUsd * this.TOTAL_SUPPLY;
+    // Calculate market cap based on circulating supply
+    let marketCapUsd: number;
+    
+    if (isAmmToken) {
+      // For AMM tokens, use the tokens in the pool as circulating supply
+      // This is more accurate than assuming a fixed percentage
+      marketCapUsd = priceInUsd * tokenReserves;
+    } else if (totalSupply) {
+      // If we have the actual total supply, use 10% as circulating
+      const totalSupplyNum = Number(totalSupply) / Math.pow(10, this.TOKEN_DECIMALS);
+      const circulatingSupply = totalSupplyNum * this.PUMP_FUN_CIRCULATING_RATIO;
+      marketCapUsd = priceInUsd * circulatingSupply;
+    } else {
+      // Default: assume 1B total supply with 10% circulating
+      const circulatingSupply = this.TOTAL_SUPPLY * this.PUMP_FUN_CIRCULATING_RATIO;
+      marketCapUsd = priceInUsd * circulatingSupply;
+    }
     
     // Price in lamports (for legacy compatibility)
     const priceInLamports = priceInSol * Number(LAMPORTS_PER_SOL);

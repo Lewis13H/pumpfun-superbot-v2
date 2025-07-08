@@ -56,7 +56,7 @@ export class HolderAnalysisService extends EventEmitter {
   ) {
     super();
     
-    this.dataFetcher = new HolderDataFetcher(heliusApiKey, shyftApiKey);
+    this.dataFetcher = new HolderDataFetcher(heliusApiKey, shyftApiKey, process.env.SOLANA_RPC_URL);
     this.walletClassifier = new WalletClassificationService(pool, heliusApiKey, shyftApiKey);
     this.scoreCalculator = new HolderScoreCalculator();
     this.metricsCalculator = new DistributionMetricsCalculator();

@@ -71,7 +71,7 @@ export class ConfigService {
       },
       monitors: {
         bcSaveThreshold: this.parseNumber(process.env.BC_SAVE_THRESHOLD, 8888),
-        ammSaveThreshold: this.parseNumber(process.env.AMM_SAVE_THRESHOLD, 1000),
+        ammSaveThreshold: this.parseNumber(process.env.AMM_SAVE_THRESHOLD, 0),
         saveAllTokens: process.env.SAVE_ALL_TOKENS === 'true',
         displayInterval: this.parseNumber(process.env.DISPLAY_INTERVAL, 10000),
         debugParseErrors: process.env.DEBUG_PARSE_ERRORS === 'true'

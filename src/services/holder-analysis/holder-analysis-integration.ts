@@ -259,12 +259,11 @@ export class HolderAnalysisIntegration extends EventEmitter {
   private async analyzeExistingTokens(): Promise<void> {
     try {
       const result = await this.pool.query(`
-        SELECT mint_address, symbol, latest_market_cap_usd
+        SELECT mint_address, symbol, latest_market_cap_usd, graduated_to_amm
         FROM tokens_unified
         WHERE latest_market_cap_usd >= $1
-          AND graduated_to_amm = true
         ORDER BY latest_market_cap_usd DESC
-        LIMIT 50
+        LIMIT 100
       `, [this.config.marketCapThreshold]);
 
       logger.info(`Found ${result.rows.length} high-value tokens to analyze`);

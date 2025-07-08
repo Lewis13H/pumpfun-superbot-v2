@@ -668,6 +668,66 @@ export class UnifiedDbServiceV2 {
   }
 
   /**
+   * Get token by mint address
+   */
+  async getTokenByMint(mintAddress: string): Promise<any> {
+    try {
+      const result = await db.query(
+        `SELECT * FROM tokens_unified WHERE mint_address = $1`,
+        [mintAddress]
+      );
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error('Error getting token by mint:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update token reserves and recalculate price
+   */
+  async updateTokenReserves(data: {
+    mintAddress: string;
+    virtualSolReserves: bigint;
+    virtualTokenReserves: bigint;
+    priceInSol: number;
+    priceInUsd: number;
+    marketCapUsd: number;
+    poolAddress?: string;
+    lpMint?: string;
+  }): Promise<void> {
+    try {
+      await db.query(
+        `UPDATE tokens_unified 
+         SET latest_virtual_sol_reserves = $2,
+             latest_virtual_token_reserves = $3,
+             latest_price_sol = $4,
+             latest_price_usd = $5,
+             latest_market_cap_usd = $6,
+             current_price_sol = $4,
+             current_price_usd = $5,
+             current_market_cap_usd = $6,
+             pool_address = COALESCE($7, pool_address),
+             lp_mint = COALESCE($8, lp_mint),
+             updated_at = NOW()
+         WHERE mint_address = $1`,
+        [
+          data.mintAddress,
+          data.virtualSolReserves.toString(),
+          data.virtualTokenReserves.toString(),
+          data.priceInSol,
+          data.priceInUsd,
+          data.marketCapUsd,
+          data.poolAddress || null,
+          data.lpMint || null
+        ]
+      );
+    } catch (error) {
+      console.error('Error updating token reserves:', error);
+    }
+  }
+
+  /**
    * Cleanup and close
    */
   async close(): Promise<void> {

@@ -7,6 +7,9 @@
 
 import { HeliusApiClient, HeliusTokenHolder } from './helius-api-client';
 import { ShyftDasApiClient, ShyftTokenHolder } from './shyft-das-api-client';
+import { RPCHolderFetcher, RPCTokenHolder } from './rpc-holder-fetcher';
+import { EnhancedHolderFetcher } from './enhanced-holder-fetcher';
+import { HeliusCompleteHolderFetcher } from './helius-complete-holder-fetcher';
 import { logger } from '../../core/logger';
 import { EventEmitter } from 'events';
 
@@ -30,29 +33,40 @@ export interface TokenHolderData {
   holders: NormalizedTokenHolder[];
   totalHolders: number;
   fetchedAt: Date;
-  source: 'helius' | 'shyft' | 'mixed';
+  source: 'rpc' | 'helius' | 'shyft' | 'mixed';
 }
 
 export interface FetcherOptions {
-  preferredSource?: 'helius' | 'shyft';
+  preferredSource?: 'rpc' | 'helius' | 'shyft' | 'helius-complete';
   maxHolders?: number;
   enableFallback?: boolean;
   cacheResults?: boolean;
   cacheTTL?: number; // in seconds
+  completeData?: boolean; // Fetch ALL holders instead of just top holders
 }
 
 export class HolderDataFetcher extends EventEmitter {
+  private rpcFetcher: RPCHolderFetcher;
+  private enhancedFetcher: EnhancedHolderFetcher;
+  private completeFetcher: HeliusCompleteHolderFetcher;
   private heliusClient: HeliusApiClient;
   private shyftClient: ShyftDasApiClient;
   private cache: Map<string, { data: TokenHolderData; expiry: number }> = new Map();
 
   constructor(
     heliusApiKey?: string,
-    shyftApiKey?: string
+    shyftApiKey?: string,
+    rpcUrl?: string
   ) {
     super();
+    this.rpcFetcher = new RPCHolderFetcher(rpcUrl, heliusApiKey);
+    this.enhancedFetcher = new EnhancedHolderFetcher(heliusApiKey, shyftApiKey);
+    this.completeFetcher = new HeliusCompleteHolderFetcher(heliusApiKey);
     this.heliusClient = new HeliusApiClient(heliusApiKey);
     this.shyftClient = new ShyftDasApiClient(shyftApiKey);
+    
+    // Forward events from enhanced fetcher
+    this.enhancedFetcher.on('fetch_complete', (data) => this.emit('fetch_complete', data));
   }
 
   /**
@@ -63,11 +77,12 @@ export class HolderDataFetcher extends EventEmitter {
     options: FetcherOptions = {}
   ): Promise<TokenHolderData | null> {
     const {
-      preferredSource = 'shyft',
+      preferredSource = 'rpc',
       maxHolders = 1000,
       enableFallback = true,
       cacheResults = true,
-      cacheTTL = 300 // 5 minutes
+      cacheTTL = 300, // 5 minutes
+      completeData = false
     } = options;
 
     // Check cache first
@@ -83,18 +98,105 @@ export class HolderDataFetcher extends EventEmitter {
 
     let result: TokenHolderData | null = null;
 
-    // Try preferred source first
-    if (preferredSource === 'helius') {
+    // If complete data is requested and we have Helius API key, use complete fetcher
+    if (completeData && preferredSource === 'helius-complete' && process.env.HELIUS_API_KEY) {
+      try {
+        const completeData = await this.completeFetcher.fetchAllHolders(mintAddress, {
+          pageLimit: Math.ceil(maxHolders / 1000), // 1000 per page
+          includeZeroBalances: false
+        });
+        
+        if (completeData) {
+          result = {
+            mintAddress: completeData.mintAddress,
+            tokenInfo: completeData.tokenInfo,
+            holders: completeData.holders.slice(0, maxHolders).map(h => ({
+              address: h.address,
+              balance: h.balance,
+              uiBalance: h.uiBalance,
+              percentage: h.percentage,
+              rank: h.rank
+            })),
+            totalHolders: completeData.uniqueHolders,
+            fetchedAt: completeData.fetchedAt,
+            source: 'helius' as any
+          };
+          
+          logger.info(`Successfully fetched complete holder data for ${mintAddress}: ${completeData.uniqueHolders} holders`);
+        }
+      } catch (error) {
+        logger.error(`Complete fetcher failed for ${mintAddress}:`, error);
+      }
+    }
+
+    // If not using complete data or it failed, try enhanced fetcher
+    if (!result) {
+      try {
+        const enhancedData = await this.enhancedFetcher.fetchHolderData(mintAddress, {
+          maxHolders,
+          useCache: false // We handle caching at this level
+        });
+        
+        if (enhancedData) {
+          // Convert enhanced data to our format
+          result = {
+            mintAddress: enhancedData.mintAddress,
+            tokenInfo: {
+              name: enhancedData.tokenInfo.name,
+              symbol: enhancedData.tokenInfo.symbol,
+              decimals: enhancedData.tokenInfo.decimals,
+              supply: enhancedData.tokenInfo.supply,
+              creator: enhancedData.tokenInfo.creator
+            },
+            holders: enhancedData.holders.map(h => ({
+              address: h.address,
+              balance: h.amount,
+              uiBalance: h.uiAmount,
+              percentage: h.percentage,
+              rank: h.rank
+            })),
+            totalHolders: enhancedData.totalHolders,
+            fetchedAt: enhancedData.fetchedAt,
+            source: enhancedData.source as any
+          };
+          
+          logger.info(`Successfully fetched from enhanced fetcher (${enhancedData.source}) for ${mintAddress}`);
+        }
+      } catch (error) {
+        logger.error(`Enhanced fetcher failed for ${mintAddress}:`, error);
+      }
+    }
+
+    // Fallback to original methods if enhanced fetcher fails
+    if (!result && preferredSource === 'rpc') {
+      result = await this.fetchFromRPC(mintAddress, maxHolders);
+      if (!result && enableFallback) {
+        logger.info(`RPC failed for ${mintAddress}, falling back to Helius`);
+        result = await this.fetchFromHelius(mintAddress, maxHolders);
+        if (!result) {
+          logger.info(`Helius failed for ${mintAddress}, falling back to Shyft`);
+          result = await this.fetchFromShyft(mintAddress, maxHolders);
+        }
+      }
+    } else if (preferredSource === 'helius') {
       result = await this.fetchFromHelius(mintAddress, maxHolders);
       if (!result && enableFallback) {
-        logger.info(`Helius failed for ${mintAddress}, falling back to Shyft`);
-        result = await this.fetchFromShyft(mintAddress, maxHolders);
+        logger.info(`Helius failed for ${mintAddress}, falling back to RPC`);
+        result = await this.fetchFromRPC(mintAddress, maxHolders);
+        if (!result) {
+          logger.info(`RPC failed for ${mintAddress}, falling back to Shyft`);
+          result = await this.fetchFromShyft(mintAddress, maxHolders);
+        }
       }
     } else {
       result = await this.fetchFromShyft(mintAddress, maxHolders);
       if (!result && enableFallback) {
-        logger.info(`Shyft failed for ${mintAddress}, falling back to Helius`);
-        result = await this.fetchFromHelius(mintAddress, maxHolders);
+        logger.info(`Shyft failed for ${mintAddress}, falling back to RPC`);
+        result = await this.fetchFromRPC(mintAddress, maxHolders);
+        if (!result) {
+          logger.info(`RPC failed for ${mintAddress}, falling back to Helius`);
+          result = await this.fetchFromHelius(mintAddress, maxHolders);
+        }
       }
     }
 
@@ -110,6 +212,48 @@ export class HolderDataFetcher extends EventEmitter {
     });
 
     return result;
+  }
+
+  /**
+   * Fetch from RPC
+   */
+  private async fetchFromRPC(
+    mintAddress: string,
+    maxHolders: number
+  ): Promise<TokenHolderData | null> {
+    try {
+      const rpcData = await this.rpcFetcher.fetchHolderData(mintAddress, maxHolders, false);
+      if (!rpcData) {
+        return null;
+      }
+
+      // Transform RPC data to our format
+      const normalizedHolders: NormalizedTokenHolder[] = rpcData.holders.map(holder => ({
+        address: holder.address,
+        balance: holder.amount,
+        uiBalance: holder.uiAmount,
+        percentage: holder.percentage,
+        rank: holder.rank
+      }));
+
+      return {
+        mintAddress,
+        tokenInfo: {
+          name: 'Unknown', // RPC doesn't provide metadata
+          symbol: 'Unknown',
+          decimals: rpcData.tokenInfo.decimals,
+          supply: rpcData.tokenInfo.supply,
+          creator: undefined
+        },
+        holders: normalizedHolders,
+        totalHolders: rpcData.totalHolders,
+        fetchedAt: rpcData.fetchedAt,
+        source: 'rpc' as any
+      };
+    } catch (error) {
+      logger.error(`Failed to fetch from RPC for ${mintAddress}:`, error);
+      return null;
+    }
   }
 
   /**

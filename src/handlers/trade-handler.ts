@@ -11,6 +11,7 @@ import { EventBus, EVENTS } from '../core/event-bus';
 import { ConfigService } from '../core/config';
 import { Logger } from '../core/logger';
 import { sanitizeUtf8 } from '../utils/sanitizers/utf8-sanitizer';
+import { AmmReservesFetcher } from '../services/amm/amm-reserves-fetcher';
 
 export interface TradeHandlerOptions {
   tokenRepo: TokenRepository;
@@ -72,18 +73,62 @@ export class TradeHandler {
             tokenReserves: event.virtualTokenReserves,
             isVirtual: true
           };
-          priceInfo = this.priceCalculator.calculatePrice(reserves, solPriceUsd);
+          priceInfo = this.priceCalculator.calculatePrice(reserves, solPriceUsd, event.type === EventType.AMM_TRADE);
         } else {
-          // Use trade amounts to calculate price (SOL/token ratio)
-          const priceInSol = Number(event.solAmount) / Number(event.tokenAmount);
-          const priceInUsd = priceInSol * solPriceUsd;
-          
-          priceInfo = {
-            priceInUsd,
-            marketCapUsd: 0, // Unknown without supply info
-            priceInSol,
-            priceInLamports: priceInSol * 1e9
-          };
+          // For AMM trades, try to fetch reserves
+          if (event.type === EventType.AMM_TRADE) {
+            try {
+              const ammReservesFetcher = AmmReservesFetcher.getInstance();
+              const reserveData = await ammReservesFetcher.fetchReservesForToken(event.mintAddress);
+              
+              if (reserveData && reserveData.solReserves && reserveData.tokenReserves) {
+                const reserves: ReserveInfo = {
+                  solReserves: BigInt(reserveData.solReserves),
+                  tokenReserves: BigInt(reserveData.tokenReserves),
+                  isVirtual: false
+                };
+                priceInfo = this.priceCalculator.calculatePrice(reserves, solPriceUsd, true); // AMM token
+                
+                // Update event with fetched reserves for future reference
+                event.virtualSolReserves = reserves.solReserves;
+                event.virtualTokenReserves = reserves.tokenReserves;
+              } else {
+                // Fallback to trade amount calculation
+                const priceInSol = Number(event.solAmount) / Number(event.tokenAmount);
+                const priceInUsd = priceInSol * solPriceUsd;
+                
+                priceInfo = {
+                  priceInUsd,
+                  marketCapUsd: priceInUsd * 1e9, // Assume 1B supply for AMM tokens
+                  priceInSol,
+                  priceInLamports: priceInSol * 1e9
+                };
+              }
+            } catch (error) {
+              this.logger.debug('Failed to fetch AMM reserves', { mintAddress: event.mintAddress, error });
+              // Fallback to trade amount calculation
+              const priceInSol = Number(event.solAmount) / Number(event.tokenAmount);
+              const priceInUsd = priceInSol * solPriceUsd;
+              
+              priceInfo = {
+                priceInUsd,
+                marketCapUsd: priceInUsd * 1e9, // Assume 1B supply for AMM tokens
+                priceInSol,
+                priceInLamports: priceInSol * 1e9
+              };
+            }
+          } else {
+            // BC trades or others - use trade amounts
+            const priceInSol = Number(event.solAmount) / Number(event.tokenAmount);
+            const priceInUsd = priceInSol * solPriceUsd;
+            
+            priceInfo = {
+              priceInUsd,
+              marketCapUsd: 0, // Unknown without supply info
+              priceInSol,
+              priceInLamports: priceInSol * 1e9
+            };
+          }
         }
       }
       
@@ -203,6 +248,7 @@ export class TradeHandler {
       currentPriceUsd: priceInfo.priceInUsd,
       currentMarketCapUsd: priceInfo.marketCapUsd,
       graduatedToAmm: event.type === EventType.AMM_TRADE,
+      bondingCurveComplete: event.type === EventType.AMM_TRADE,
       priceSource: event.type === EventType.BC_TRADE ? 'bonding_curve' : 'amm',
       firstProgram: event.type === EventType.BC_TRADE ? 'bonding_curve' : 'amm_pool',
       currentProgram: event.type === EventType.BC_TRADE ? 'bonding_curve' : 'amm_pool',

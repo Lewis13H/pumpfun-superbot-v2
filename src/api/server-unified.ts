@@ -514,6 +514,34 @@ app.get('/api/tokens/near-graduation', async (_req, res) => {
 
 // Removed duplicate /api/tokens/realtime endpoint - using the first one defined earlier
 
+// API endpoint for testing holder score
+app.get('/api/test/holder-score', async (_req, res) => {
+  try {
+    const query = `
+      SELECT 
+        t.mint_address,
+        t.symbol,
+        (SELECT hs.holder_score 
+         FROM holder_snapshots hs 
+         WHERE hs.mint_address = t.mint_address 
+         ORDER BY hs.snapshot_time DESC 
+         LIMIT 1) as holder_score
+      FROM tokens_unified t
+      WHERE t.symbol = 'MINTR'
+    `;
+    
+    const result = await pool.query(query);
+    
+    console.log('Test endpoint - MINTR holder_score:', result.rows[0]?.holder_score);
+    
+    res.json(result.rows);
+    
+  } catch (error) {
+    console.error('Error in test endpoint:', error);
+    res.status(500).json({ error: 'Failed to test holder score' });
+  }
+});
+
 // API endpoint for top gainers
 app.get('/api/tokens/gainers', async (_req, res) => {
   try {

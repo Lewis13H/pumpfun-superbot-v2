@@ -39,6 +39,7 @@ export interface Token {
   latestVirtualSolReserves?: bigint;
   latestVirtualTokenReserves?: bigint;
   latestBondingCurveProgress?: number;
+  bondingCurveComplete?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }

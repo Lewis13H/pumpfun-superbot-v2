@@ -209,6 +209,12 @@ async function startMonitors() {
     stats.activeMonitors.add('StaleDetector');
     logger.debug('Enhanced stale token detector started');
     
+    // Start AMM reserves fetcher
+    const { AmmReservesFetcher } = await import('./services/amm/amm-reserves-fetcher');
+    const ammReservesFetcher = AmmReservesFetcher.getInstance(eventBus);
+    stats.activeMonitors.add('AmmReserves');
+    logger.debug('AMM reserves fetcher started');
+    
     // Graduation fixer is now integrated into TokenLifecycleService
     
     // Start holder analysis integration
