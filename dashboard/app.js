@@ -603,26 +603,21 @@ function formatHolderScore(score) {
     if (numScore >= 250) {
         color = '#14CB82';
         bgColor = 'rgba(20, 203, 130, 0.1)';
-        label = 'A+';
     } else if (numScore >= 200) {
         color = '#FFD700';
         bgColor = 'rgba(255, 215, 0, 0.1)';
-        label = 'A';
     } else if (numScore >= 150) {
         color = '#FF9800';
         bgColor = 'rgba(255, 152, 0, 0.1)';
-        label = 'B';
     } else if (numScore >= 100) {
         color = '#FF6B6B';
         bgColor = 'rgba(255, 107, 107, 0.1)';
-        label = 'C';
     } else {
         color = '#F44336';
         bgColor = 'rgba(244, 67, 54, 0.1)';
-        label = 'D';
     }
     
-    return `<span class="holder-score-badge" style="background: ${bgColor}; color: ${color}; border: 1px solid ${color}; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 12px;" title="Holder Score: ${numScore}/300">${label}</span>`;
+    return `<span class="holder-score-badge" style="background: ${bgColor}; color: ${color}; border: 1px solid ${color}; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 12px;" title="Holder Score: ${numScore}/300">${numScore}</span>`;
 }
 
 // Get gradient color based on progress percentage

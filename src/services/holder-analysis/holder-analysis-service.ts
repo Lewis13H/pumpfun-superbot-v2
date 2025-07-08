@@ -99,7 +99,7 @@ export class HolderAnalysisService extends EventEmitter {
       if (!forceRefresh) {
         const latestSnapshot = await this.snapshotModel.getLatest(mintAddress);
         if (latestSnapshot && this.isSnapshotFresh(latestSnapshot)) {
-          logger.info(`Using cached analysis for ${mintAddress}`);
+          logger.debug(`Using cached analysis for ${mintAddress}`);
           const cachedAnalysis = await this.buildAnalysisFromSnapshot(latestSnapshot);
           
           await this.updateAnalysisStatus(metadata.id!, 'completed', {

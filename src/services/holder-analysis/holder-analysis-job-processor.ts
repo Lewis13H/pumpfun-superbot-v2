@@ -63,7 +63,7 @@ export class HolderAnalysisJobProcessor extends EventEmitter {
   createProcessor(): JobProcessor<HolderAnalysisJobData> {
     return async (job: Job<HolderAnalysisJobData>) => {
       const workerId = this.assignWorker(job.id);
-      logger.info(`Worker ${workerId} processing job ${job.id} (${job.type})`);
+      logger.debug(`Worker ${workerId} processing job ${job.id} (${job.type})`);
 
       try {
         // Update worker stats
@@ -132,7 +132,7 @@ export class HolderAnalysisJobProcessor extends EventEmitter {
       throw new Error('mintAddress is required for single analysis');
     }
 
-    logger.info(`Analyzing token ${mintAddress}`);
+    logger.debug(`Analyzing token ${mintAddress}`);
     
     // Report progress
     this.emit('job_progress', { 
@@ -145,7 +145,7 @@ export class HolderAnalysisJobProcessor extends EventEmitter {
       forceRefresh: options?.forceRefresh || false,
       maxHolders: options?.maxHolders || 1000,
       enableTrends: options?.enableTrends !== false,
-      classifyWallets: options?.classifyWallets !== false,
+      classifyWallets: options?.classifyWallets === true, // Changed: now false by default
       saveSnapshot: options?.saveSnapshot !== false
     });
 
@@ -165,7 +165,7 @@ export class HolderAnalysisJobProcessor extends EventEmitter {
       throw new Error('mintAddresses array is required for batch analysis');
     }
 
-    logger.info(`Batch analyzing ${mintAddresses.length} tokens`);
+    logger.debug(`Batch analyzing ${mintAddresses.length} tokens`);
     
     const results = [];
     const errors = [];
@@ -186,7 +186,7 @@ export class HolderAnalysisJobProcessor extends EventEmitter {
           forceRefresh: options?.forceRefresh || false,
           maxHolders: options?.maxHolders || 500, // Lower for batch
           enableTrends: options?.enableTrends || false, // Disable by default for batch
-          classifyWallets: options?.classifyWallets !== false,
+          classifyWallets: options?.classifyWallets === true, // Changed: now false by default
           saveSnapshot: options?.saveSnapshot !== false
         });
 

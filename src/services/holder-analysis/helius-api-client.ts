@@ -6,6 +6,7 @@
 
 import axios, { AxiosInstance } from 'axios';
 import { logger } from '../../core/logger';
+import { API_RATE_LIMITERS } from '../../utils/api-rate-limiter';
 
 export interface HeliusTokenHolder {
   owner: string;
@@ -88,9 +89,16 @@ export class HeliusApiClient {
     // Add response interceptor for error handling
     this.client.interceptors.response.use(
       (response) => response,
-      (error) => {
+      async (error) => {
         if (error.response) {
-          logger.error(`Helius API error: ${error.response.status} - ${error.response.data?.error || error.message}`);
+          // Handle rate limiting specifically
+          if (error.response.status === 429) {
+            logger.warn(`Helius API rate limited - waiting before retry`);
+            // Wait 2 seconds before allowing retry
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } else {
+            logger.error(`Helius API error: ${error.response.status} - ${error.response.data?.error || error.message}`);
+          }
         } else {
           logger.error('Helius API network error:', error.message);
         }
@@ -108,13 +116,15 @@ export class HeliusApiClient {
     limit: number = 100
   ): Promise<HeliusTokenHoldersResponse | null> {
     try {
-      const response = await this.client.post('/token/holders', {
-        mint: mintAddress,
-        page,
-        limit
-      }, {
-        params: { 'api-key': this.apiKey }
-      });
+      const response = await API_RATE_LIMITERS.helius.execute(async () => 
+        this.client.post('/token/holders', {
+          mint: mintAddress,
+          page,
+          limit
+        }, {
+          params: { 'api-key': this.apiKey }
+        })
+      );
 
       return response.data;
     } catch (error) {
@@ -164,51 +174,73 @@ export class HeliusApiClient {
    * Get wallet information and classification hints
    */
   async getWalletInfo(walletAddress: string): Promise<HeliusWalletInfo | null> {
-    try {
-      const response = await this.client.get(`/addresses/${walletAddress}/balances`, {
-        params: { 'api-key': this.apiKey }
-      });
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
+      try {
+        const response = await API_RATE_LIMITERS.helius.execute(async () =>
+          this.client.get(`/addresses/${walletAddress}/balances`, {
+            params: { 'api-key': this.apiKey }
+          })
+        );
 
-      // Get transaction history for classification
-      const txResponse = await this.client.get(`/addresses/${walletAddress}/transactions`, {
-        params: { 
-          'api-key': this.apiKey,
-          limit: 100
+        // Get transaction history for classification
+        const txResponse = await API_RATE_LIMITERS.helius.execute(async () =>
+          this.client.get(`/addresses/${walletAddress}/transactions`, {
+            params: { 
+              'api-key': this.apiKey,
+              limit: 100
+            }
+          })
+        );
+
+        const transactions = txResponse.data || [];
+        const firstTx = transactions[transactions.length - 1];
+        const lastTx = transactions[0];
+
+        return {
+          address: walletAddress,
+          sol_balance: response.data.nativeBalance || 0,
+          token_count: response.data.tokens?.length || 0,
+          transaction_count: transactions.length,
+          first_transaction_time: firstTx?.timestamp,
+          last_transaction_time: lastTx?.timestamp
+        };
+      } catch (error: any) {
+        if (error?.response?.status === 429 && retries < maxRetries) {
+          retries++;
+          logger.debug(`Retrying wallet info for ${walletAddress} (attempt ${retries + 1}/${maxRetries + 1})`);
+          // Wait is already handled by interceptor
+          continue;
         }
-      });
-
-      const transactions = txResponse.data || [];
-      const firstTx = transactions[transactions.length - 1];
-      const lastTx = transactions[0];
-
-      return {
-        address: walletAddress,
-        sol_balance: response.data.nativeBalance || 0,
-        token_count: response.data.tokens?.length || 0,
-        transaction_count: transactions.length,
-        first_transaction_time: firstTx?.timestamp,
-        last_transaction_time: lastTx?.timestamp
-      };
-    } catch (error) {
-      logger.error(`Failed to fetch wallet info for ${walletAddress}:`, error);
-      return null;
+        logger.error(`Failed to fetch wallet info for ${walletAddress}:`, error);
+        return null;
+      }
     }
+    return null;
   }
 
   /**
    * Analyze wallet transaction patterns for classification
    */
   async analyzeWalletPatterns(walletAddress: string): Promise<HeliusTransactionPattern | null> {
-    try {
-      const response = await this.client.get(`/addresses/${walletAddress}/transactions`, {
-        params: { 
-          'api-key': this.apiKey,
-          limit: 100,
-          type: 'SWAP'
-        }
-      });
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
+      try {
+        const response = await API_RATE_LIMITERS.helius.execute(async () =>
+          this.client.get(`/addresses/${walletAddress}/transactions`, {
+            params: { 
+              'api-key': this.apiKey,
+              limit: 100,
+              type: 'SWAP'
+            }
+          })
+        );
 
-      const transactions = response.data || [];
+        const transactions = response.data || [];
       
       // Analyze patterns
       const analysis: HeliusTransactionPattern = {
@@ -251,11 +283,19 @@ export class HeliusApiClient {
       if (transactions.length > 50) analysis.trading_frequency = 'high';
       else if (transactions.length > 20) analysis.trading_frequency = 'medium';
 
-      return analysis;
-    } catch (error) {
-      logger.error(`Failed to analyze wallet patterns for ${walletAddress}:`, error);
-      return null;
+        return analysis;
+      } catch (error: any) {
+        if (error?.response?.status === 429 && retries < maxRetries) {
+          retries++;
+          logger.debug(`Retrying wallet patterns for ${walletAddress} (attempt ${retries + 1}/${maxRetries + 1})`);
+          // Wait is already handled by interceptor
+          continue;
+        }
+        logger.error(`Failed to analyze wallet patterns for ${walletAddress}:`, error);
+        return null;
+      }
     }
+    return null;
   }
 
   /**
@@ -263,12 +303,14 @@ export class HeliusApiClient {
    */
   async getTokenMetadata(mintAddress: string): Promise<any> {
     try {
-      const response = await this.client.get(`/token-metadata`, {
-        params: { 
-          'api-key': this.apiKey,
-          mint: mintAddress
-        }
-      });
+      const response = await API_RATE_LIMITERS.helius.execute(async () =>
+        this.client.get(`/token-metadata`, {
+          params: { 
+            'api-key': this.apiKey,
+            mint: mintAddress
+          }
+        })
+      );
 
       return response.data;
     } catch (error) {

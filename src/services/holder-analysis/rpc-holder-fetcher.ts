@@ -45,10 +45,10 @@ export class RPCHolderFetcher extends EventEmitter {
     if (!connectionUrl) {
       if (heliusApiKey || process.env.HELIUS_API_KEY) {
         connectionUrl = `https://mainnet.helius-rpc.com/?api-key=${heliusApiKey || process.env.HELIUS_API_KEY}`;
-        logger.info('Using Helius RPC endpoint');
+        logger.debug('Using Helius RPC endpoint');
       } else if (process.env.SHYFT_RPC_URL) {
         connectionUrl = process.env.SHYFT_RPC_URL;
-        logger.info('Using Shyft RPC endpoint');
+        logger.debug('Using Shyft RPC endpoint');
       } else if (process.env.SOLANA_RPC_URL) {
         connectionUrl = process.env.SOLANA_RPC_URL;
       } else {
@@ -77,12 +77,12 @@ export class RPCHolderFetcher extends EventEmitter {
       if (useCache) {
         const cached = this.cache.get(mintAddress);
         if (cached && cached.expiry > Date.now()) {
-          logger.info(`Using cached holder data for ${mintAddress}`);
+          logger.debug(`Using cached holder data for ${mintAddress}`);
           return cached.data;
         }
       }
 
-      logger.info(`Fetching holder data for ${mintAddress} via RPC`);
+      logger.debug(`Fetching holder data for ${mintAddress} via RPC`);
 
       // Get token mint info
       const mintPubkey = new PublicKey(mintAddress);

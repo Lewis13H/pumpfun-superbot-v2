@@ -8,6 +8,7 @@
 import axios from 'axios';
 import { logger } from '../../core/logger';
 import { EventEmitter } from 'events';
+import { API_RATE_LIMITERS } from '../../utils/api-rate-limiter';
 
 export interface HeliusTokenAccount {
   address: string;
@@ -81,7 +82,7 @@ export class HeliusCompleteHolderFetcher extends EventEmitter {
     } = options;
     
     try {
-      logger.info(`Fetching all holders for ${mintAddress} using Helius getTokenAccounts`);
+      logger.debug(`Fetching all holders for ${mintAddress} using Helius getTokenAccounts`);
       
       // First get token metadata
       const metadata = await this.fetchTokenMetadata(mintAddress);
@@ -140,7 +141,7 @@ export class HeliusCompleteHolderFetcher extends EventEmitter {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       
-      logger.info(`Fetched ${totalAccounts} token accounts for ${holderMap.size} unique holders`);
+      logger.debug(`Fetched ${totalAccounts} token accounts for ${holderMap.size} unique holders`);
       
       // Convert to holder array and calculate percentages
       const totalSupply = metadata.supply ? parseFloat(metadata.supply) : 0;
@@ -154,7 +155,8 @@ export class HeliusCompleteHolderFetcher extends EventEmitter {
             address,
             balance: data.balance,
             uiBalance: data.uiBalance,
-            percentage
+            percentage,
+            rank: 0 // Will be set after sorting
           };
         })
         .sort((a, b) => parseFloat(b.balance) - parseFloat(a.balance));
@@ -187,33 +189,35 @@ export class HeliusCompleteHolderFetcher extends EventEmitter {
     page: number
   ): Promise<HeliusTokenAccountsResponse | null> {
     try {
-      const response = await axios.post<HeliusTokenAccountsResponse>(
-        this.rpcUrl,
-        {
-          jsonrpc: "2.0",
-          id: "helius-holder-fetch",
-          method: "getTokenAccounts",
-          params: {
-            page: page,
-            limit: 1000, // Max limit per page
-            mint: mintAddress,
-            options: {
-              showZeroBalance: false // Filter out zero balance accounts
+      const response = await API_RATE_LIMITERS.helius.execute(async () =>
+        axios.post<HeliusTokenAccountsResponse>(
+          this.rpcUrl,
+          {
+            jsonrpc: "2.0",
+            id: "helius-holder-fetch",
+            method: "getTokenAccounts",
+            params: {
+              page: page,
+              limit: 1000, // Max limit per page
+              mint: mintAddress,
+              options: {
+                showZeroBalance: false // Filter out zero balance accounts
+              }
+            }
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json'
             }
           }
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
+        )
       );
       
       return response.data;
     } catch (error: any) {
       if (error.response?.status === 429) {
         logger.warn(`Rate limited on page ${page}, waiting...`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Increased wait time
         // Retry once
         return this.fetchTokenAccountsPage(mintAddress, page);
       }
@@ -226,13 +230,15 @@ export class HeliusCompleteHolderFetcher extends EventEmitter {
    */
   private async fetchTokenMetadata(mintAddress: string): Promise<any> {
     try {
-      const response = await axios.post(
-        `https://api.helius.xyz/v0/token-metadata?api-key=${this.apiKey}`,
-        {
-          mintAccounts: [mintAddress],
-          includeOffChain: true,
-          disableCache: false
-        }
+      const response = await API_RATE_LIMITERS.helius.execute(async () =>
+        axios.post(
+          `https://api.helius.xyz/v0/token-metadata?api-key=${this.apiKey}`,
+          {
+            mintAccounts: [mintAddress],
+            includeOffChain: true,
+            disableCache: false
+          }
+        )
       );
       
       const metadata = response.data?.[0];

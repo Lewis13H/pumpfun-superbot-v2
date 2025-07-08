@@ -6,9 +6,9 @@
 import { BaseMonitor } from '../../core/base-monitor';
 import { EVENTS } from '../../core/event-bus';
 import { UnifiedEventParser } from '../../utils/parsers/unified-event-parser';
-// import { AmmPoolStateService } from '../../services/amm/amm-pool-state-service';
-// import { AmmFeeService } from '../../services/amm/amm-fee-service';
-// import { LpPositionCalculator } from '../../services/amm/lp-position-calculator';
+import { AmmPoolStateService } from '../../services/amm/amm-pool-state-service';
+import { AmmFeeService } from '../../services/amm/amm-fee-service';
+import { LpPositionCalculator } from '../../services/amm/lp-position-calculator';
 import chalk from 'chalk';
 
 // Program IDs
@@ -42,9 +42,9 @@ export interface PoolMetrics {
 
 export class LiquidityMonitor extends BaseMonitor {
   private eventParser: UnifiedEventParser;
-  // private poolStateService: AmmPoolStateService;
-  // private feeService: AmmFeeService;
-  // private lpCalculator: LpPositionCalculator;
+  private poolStateService: AmmPoolStateService;
+  private feeService: AmmFeeService;
+  private lpCalculator: LpPositionCalculator;
   private metrics: LiquidityMetrics = {
     totalPools: 0,
     totalTVL: 0,
@@ -61,7 +61,7 @@ export class LiquidityMonitor extends BaseMonitor {
   constructor(container: any) {
     super({
       programId: PUMP_AMM_PROGRAM,
-      monitorName: 'LiquidityMonitor',
+      monitorName: 'AmmLiquidityMonitor',  // Changed to include 'Amm' for proper group detection
       monitorType: 'Liquidity',
       monitorGroup: 'amm_pool',
       priority: 'medium',
@@ -70,9 +70,9 @@ export class LiquidityMonitor extends BaseMonitor {
     }, container);
     
     this.eventParser = new UnifiedEventParser({ useIDLParsing: true });
-    // this.poolStateService = AmmPoolStateService.getInstance();
-    // this.feeService = AmmFeeService.getInstance();
-    // this.lpCalculator = LpPositionCalculator.getInstance();
+    this.poolStateService = AmmPoolStateService.getInstance();
+    this.feeService = AmmFeeService.getInstance();
+    this.lpCalculator = LpPositionCalculator.getInstance();
   }
 
   /**
@@ -181,6 +181,12 @@ export class LiquidityMonitor extends BaseMonitor {
     try {
       // Debug: Log data type
       const dataType = data.account ? 'ACCOUNT' : data.transaction ? 'TRANSACTION' : 'UNKNOWN';
+      
+      // Log every 100th message to see if we're getting data
+      if (this.metrics.messagesProcessed % 100 === 0) {
+        this.logger.info(`Processed ${this.metrics.messagesProcessed} messages, Type: ${dataType}`);
+      }
+      
       this.logger.debug(`Processing ${dataType} data`, {
         hasAccount: !!data.account,
         hasTransaction: !!data.transaction,
@@ -221,11 +227,40 @@ export class LiquidityMonitor extends BaseMonitor {
       
       // Create parse context from gRPC data
       const context = UnifiedEventParser.createContext(data);
-      const event = this.eventParser.parse(context);
-      const events = event ? [event] : [];
+      const parsedEvent = this.eventParser.parse(context);
+      const events = parsedEvent ? [parsedEvent] : [];
       
       for (const event of events) {
-        if ((event as any).type === 'amm_pool_state') {
+        // Check if it's a liquidity event
+        const eventType = (event as any).type;
+        
+        if (eventType === 'amm_liquidity_add' || eventType === 'amm_liquidity_remove') {
+          this.logger.info(`💧 Liquidity event parsed!`, {
+            type: eventType,
+            signature: context.signature
+          });
+          
+          // Process the liquidity event
+          if (eventType === 'amm_liquidity_add') {
+            this.metrics.totalLiquidityEvents++;
+            this.eventBus.emit(EVENTS.LIQUIDITY_ADDED, event);
+            
+            // Process through liquidity handler
+            this.eventBus.emit(EVENTS.LIQUIDITY_PROCESSED, {
+              ...event,
+              processed: true
+            });
+          } else if (eventType === 'amm_liquidity_remove') {
+            this.metrics.totalLiquidityEvents++;
+            this.eventBus.emit(EVENTS.LIQUIDITY_REMOVED, event);
+            
+            // Process through liquidity handler
+            this.eventBus.emit(EVENTS.LIQUIDITY_PROCESSED, {
+              ...event,
+              processed: true
+            });
+          }
+        } else if ((event as any).type === 'amm_pool_state') {
           // Update pool state
           const poolData = (event as any).data;
           this.logger.info('🏊 Pool state update detected!', {
@@ -299,8 +334,8 @@ export class LiquidityMonitor extends BaseMonitor {
         });
       }
       
-      const event = this.eventParser.parse(context);
-      const events = event ? [event] : [];
+      const parsedEvent = this.eventParser.parse(context);
+      const events = parsedEvent ? [parsedEvent] : [];
       
       for (const event of events) {
         // Handle different liquidity-related events
@@ -309,9 +344,32 @@ export class LiquidityMonitor extends BaseMonitor {
         
         switch (eventType) {
           case 'amm_liquidity_add':
+            this.metrics.totalLiquidityEvents++;
+            this.logger.info('💧 Liquidity ADD event detected!', { 
+              type: eventType, 
+              signature: context.signature,
+              baseAmount: (event as any).baseAmount?.toString(),
+              quoteAmount: (event as any).quoteAmount?.toString()
+            });
+            this.eventBus.emit(EVENTS.LIQUIDITY_ADDED, event);
+            this.eventBus.emit(EVENTS.LIQUIDITY_PROCESSED, {
+              ...event,
+              processed: true
+            });
+            break;
+            
           case 'amm_liquidity_remove':
             this.metrics.totalLiquidityEvents++;
-            this.logger.info('💧 Liquidity event detected!', { type: eventType, event });
+            this.logger.info('💧 Liquidity REMOVE event detected!', { 
+              type: eventType,
+              signature: context.signature,
+              lpAmount: (event as any).lpAmount?.toString()
+            });
+            this.eventBus.emit(EVENTS.LIQUIDITY_REMOVED, event);
+            this.eventBus.emit(EVENTS.LIQUIDITY_PROCESSED, {
+              ...event,
+              processed: true
+            });
             break;
             
           case 'amm_fee_collect':
@@ -410,13 +468,9 @@ export class LiquidityMonitor extends BaseMonitor {
     this.logger.info('Starting Liquidity Monitor...');
     this.startTime = Date.now();
     
-    // Subscribe to multiple programs
-    const programs = [PUMP_AMM_PROGRAM, PUMP_SWAP_PROGRAM];
-    
-    for (const program of programs) {
-      this.options.programId = program;
-      await super.start();
-    }
+    // The subscription is already configured to monitor all AMM programs
+    // in buildEnhancedSubscribeRequest(), so we just need to start once
+    await super.start();
     
     // Start periodic stats display
     this.startStatsInterval();

@@ -122,7 +122,7 @@ export class HolderDataFetcher extends EventEmitter {
             source: 'helius' as any
           };
           
-          logger.info(`Successfully fetched complete holder data for ${mintAddress}: ${completeData.uniqueHolders} holders`);
+          logger.debug(`Successfully fetched complete holder data for ${mintAddress}: ${completeData.uniqueHolders} holders`);
         }
       } catch (error) {
         logger.error(`Complete fetcher failed for ${mintAddress}:`, error);
@@ -160,7 +160,7 @@ export class HolderDataFetcher extends EventEmitter {
             source: enhancedData.source as any
           };
           
-          logger.info(`Successfully fetched from enhanced fetcher (${enhancedData.source}) for ${mintAddress}`);
+          logger.debug(`Successfully fetched from enhanced fetcher (${enhancedData.source}) for ${mintAddress}`);
         }
       } catch (error) {
         logger.error(`Enhanced fetcher failed for ${mintAddress}:`, error);
@@ -171,32 +171,31 @@ export class HolderDataFetcher extends EventEmitter {
     if (!result && preferredSource === 'rpc') {
       result = await this.fetchFromRPC(mintAddress, maxHolders);
       if (!result && enableFallback) {
-        logger.info(`RPC failed for ${mintAddress}, falling back to Helius`);
+        logger.debug(`RPC failed for ${mintAddress}, falling back to Helius`);
         result = await this.fetchFromHelius(mintAddress, maxHolders);
-        if (!result) {
-          logger.info(`Helius failed for ${mintAddress}, falling back to Shyft`);
-          result = await this.fetchFromShyft(mintAddress, maxHolders);
-        }
+        // Shyft token holder endpoint doesn't exist - skip it
+        // if (!result) {
+        //   logger.debug(`Helius failed for ${mintAddress}, falling back to Shyft`);
+        //   result = await this.fetchFromShyft(mintAddress, maxHolders);
+        // }
       }
     } else if (preferredSource === 'helius') {
       result = await this.fetchFromHelius(mintAddress, maxHolders);
       if (!result && enableFallback) {
-        logger.info(`Helius failed for ${mintAddress}, falling back to RPC`);
+        logger.debug(`Helius failed for ${mintAddress}, falling back to RPC`);
         result = await this.fetchFromRPC(mintAddress, maxHolders);
-        if (!result) {
-          logger.info(`RPC failed for ${mintAddress}, falling back to Shyft`);
-          result = await this.fetchFromShyft(mintAddress, maxHolders);
-        }
+        // Shyft token holder endpoint doesn't exist - skip it
+        // if (!result) {
+        //   logger.debug(`RPC failed for ${mintAddress}, falling back to Shyft`);
+        //   result = await this.fetchFromShyft(mintAddress, maxHolders);
+        // }
       }
     } else {
-      result = await this.fetchFromShyft(mintAddress, maxHolders);
+      // Shyft token holder endpoint doesn't exist - skip to RPC
+      result = await this.fetchFromRPC(mintAddress, maxHolders);
       if (!result && enableFallback) {
-        logger.info(`Shyft failed for ${mintAddress}, falling back to RPC`);
-        result = await this.fetchFromRPC(mintAddress, maxHolders);
-        if (!result) {
-          logger.info(`RPC failed for ${mintAddress}, falling back to Helius`);
-          result = await this.fetchFromHelius(mintAddress, maxHolders);
-        }
+        logger.debug(`RPC failed for ${mintAddress}, falling back to Helius`);
+        result = await this.fetchFromHelius(mintAddress, maxHolders);
       }
     }
 

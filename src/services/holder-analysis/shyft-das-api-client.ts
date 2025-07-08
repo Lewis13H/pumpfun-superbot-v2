@@ -6,6 +6,7 @@
 
 import axios, { AxiosInstance } from 'axios';
 import { logger } from '../../core/logger';
+import { API_RATE_LIMITERS } from '../../utils/api-rate-limiter';
 
 export interface ShyftTokenHolder {
   address: string;
@@ -101,7 +102,12 @@ export class ShyftDasApiClient {
       (response) => response,
       (error) => {
         if (error?.response) {
-          logger.error(`Shyft DAS API error: ${error.response.status} - ${error.response.data?.message || error.message}`);
+          // Downgrade 404 errors for token/holders endpoint since it doesn't exist
+          if (error.response.status === 404 && error.config?.url?.includes('/token/holders')) {
+            logger.debug(`Shyft token/holders endpoint not found (expected)`);
+          } else {
+            logger.error(`Shyft DAS API error: ${error.response.status} - ${error.response.data?.message || error.message}`);
+          }
         } else if (error?.message) {
           logger.error('Shyft DAS API network error:', error.message);
         } else {
@@ -122,14 +128,16 @@ export class ShyftDasApiClient {
     network: string = 'mainnet-beta'
   ): Promise<ShyftHoldersResponse | null> {
     try {
-      const response = await this.client.get('/token/holders', {
-        params: {
-          network,
-          token_address: mintAddress,
-          page,
-          size: limit
-        }
-      });
+      const response = await API_RATE_LIMITERS.shyft.execute(async () =>
+        this.client.get('/token/holders', {
+          params: {
+            network,
+            token_address: mintAddress,
+            page,
+            size: limit
+          }
+        })
+      );
 
       // Transform response to match our interface
       const data = response.data;
@@ -172,8 +180,11 @@ export class ShyftDasApiClient {
           limit
         }
       };
-    } catch (error) {
-      logger.error(`Failed to fetch token holders from Shyft for ${mintAddress}:`, error);
+    } catch (error: any) {
+      // Don't log 404 errors since we know the endpoint doesn't exist
+      if (error?.response?.status !== 404) {
+        logger.error(`Failed to fetch token holders from Shyft for ${mintAddress}:`, error);
+      }
       return null;
     }
   }
@@ -225,12 +236,14 @@ export class ShyftDasApiClient {
     network: string = 'mainnet-beta'
   ): Promise<ShyftWalletAssets | null> {
     try {
-      const response = await this.client.get('/wallet/all_tokens', {
-        params: {
-          network,
-          wallet: walletAddress
-        }
-      });
+      const response = await API_RATE_LIMITERS.shyft.execute(async () =>
+        this.client.get('/wallet/all_tokens', {
+          params: {
+            network,
+            wallet: walletAddress
+          }
+        })
+      );
 
       if (!response.data.success) {
         logger.error('Failed to fetch wallet assets:', response.data.message);
@@ -260,14 +273,16 @@ export class ShyftDasApiClient {
     network: string = 'mainnet-beta'
   ): Promise<ShyftTransactionInfo[]> {
     try {
-      const response = await this.client.get('/transaction/history', {
-        params: {
-          network,
-          account: walletAddress,
-          limit,
-          tx_num: limit
-        }
-      });
+      const response = await API_RATE_LIMITERS.shyft.execute(async () =>
+        this.client.get('/transaction/history', {
+          params: {
+            network,
+            account: walletAddress,
+            limit,
+            tx_num: limit
+          }
+        })
+      );
 
       if (!response.data.success) {
         logger.error('Failed to fetch transaction history:', response.data.message);
@@ -372,12 +387,14 @@ export class ShyftDasApiClient {
     initialSupply?: string;
   } | null> {
     try {
-      const response = await this.client.get('/token/get_info', {
-        params: {
-          network: 'mainnet-beta',
-          token_address: mintAddress
-        }
-      });
+      const response = await API_RATE_LIMITERS.shyft.execute(async () =>
+        this.client.get('/token/get_info', {
+          params: {
+            network: 'mainnet-beta',
+            token_address: mintAddress
+          }
+        })
+      );
 
       if (!response.data.success) {
         return null;

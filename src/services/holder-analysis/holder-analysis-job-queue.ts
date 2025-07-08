@@ -262,7 +262,7 @@ export class HolderAnalysisJobQueue extends EventEmitter implements JobQueue<Hol
       this.activeJobs.delete(job.id);
       
       this.emitJobEvent(job.id, 'completed', { result });
-      logger.info(`Job completed: ${job.id} in ${job.completedAt.getTime() - job.startedAt!.getTime()}ms`);
+      logger.debug(`Job completed: ${job.id} in ${job.completedAt.getTime() - job.startedAt!.getTime()}ms`);
 
       // Remove job if configured
       if (job.metadata?.removeOnComplete !== false) {

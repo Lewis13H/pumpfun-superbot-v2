@@ -161,7 +161,7 @@ export class WalletClassificationService extends EventEmitter {
     const results = new Map<string, ClassificationResult>();
     
     // Process in batches to avoid rate limits
-    const batchSize = 10;
+    const batchSize = 3; // Reduced from 10 to avoid hitting rate limits
     for (let i = 0; i < wallets.length; i += batchSize) {
       const batch = wallets.slice(i, i + batchSize);
       
@@ -191,9 +191,9 @@ export class WalletClassificationService extends EventEmitter {
         }
       });
 
-      // Rate limit protection
+      // Rate limit protection - increased delay to respect API limits
       if (i + batchSize < wallets.length) {
-        await this.delay(1000);
+        await this.delay(3000); // Increased from 2000ms to 3000ms for better rate limiting
       }
     }
 

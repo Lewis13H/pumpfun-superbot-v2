@@ -12,6 +12,7 @@ import { AMMTradeInstructionStrategy } from './strategies/amm-trade-instruction-
 import { AMMTradeInnerIxStrategy } from './strategies/amm-trade-inner-ix-strategy';
 import { AMMTradeHeuristicStrategy } from './strategies/amm-trade-heuristic-strategy';
 import { LiquidityStrategy } from './strategies/liquidity-strategy';
+import { AmmLiquidityStrategy } from './strategies/amm-liquidity-strategy';
 import { Logger } from '../../core/logger';
 import { EventBus } from '../../core/event-bus';
 import bs58 from 'bs58';
@@ -43,7 +44,8 @@ export class UnifiedEventParser {
       new AMMTradeHeuristicStrategy(),   // AMM trades with heuristics to get reasonable amounts
       new AMMTradeInstructionStrategy(), // AMM trades from instruction data (has slippage issue)
       new AMMTradeStrategy(),            // AMM trades from logs (last resort)
-      new LiquidityStrategy()            // Liquidity events
+      new AmmLiquidityStrategy(),        // AMM liquidity events (deposit/withdraw) using IDL
+      new LiquidityStrategy()            // Generic liquidity events fallback
     ];
     
     this.eventBus = options.eventBus;

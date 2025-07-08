@@ -82,25 +82,26 @@ export class EnhancedHolderFetcher extends EventEmitter {
       }
     }
     
-    logger.info(`Fetching holder data for ${mintAddress}`);
+    logger.debug(`Fetching holder data for ${mintAddress}`);
     
     // Try Helius first (best for holder data)
     let result = await this.fetchFromHeliusAPI(mintAddress, maxHolders);
     
     if (!result && this.heliusConnection) {
-      logger.info(`Helius API failed, trying Helius RPC for ${mintAddress}`);
+      logger.debug(`Helius API failed, trying Helius RPC for ${mintAddress}`);
       result = await this.fetchFromHeliusRPC(mintAddress, maxHolders);
     }
     
-    if (!result) {
-      logger.info(`Helius failed, trying Shyft for ${mintAddress}`);
-      result = await this.fetchFromShyftAPI(mintAddress, maxHolders);
-    }
-    
-    if (!result && this.shyftConnection) {
-      logger.info(`Shyft API failed, trying Shyft RPC for ${mintAddress}`);
-      result = await this.fetchFromShyftRPC(mintAddress, maxHolders);
-    }
+    // Shyft token holder endpoint doesn't exist - skip it
+    // if (!result) {
+    //   logger.debug(`Helius failed, trying Shyft for ${mintAddress}`);
+    //   result = await this.fetchFromShyftAPI(mintAddress, maxHolders);
+    // }
+    // 
+    // if (!result && this.shyftConnection) {
+    //   logger.debug(`Shyft API failed, trying Shyft RPC for ${mintAddress}`);
+    //   result = await this.fetchFromShyftRPC(mintAddress, maxHolders);
+    // }
     
     if (result && useCache) {
       this.saveToCache(mintAddress, result);

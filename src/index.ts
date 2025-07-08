@@ -149,6 +149,7 @@ async function startMonitors() {
     const dbService = await container.resolve(TOKENS.DatabaseService);
     await container.resolve(TOKENS.SolPriceService);
     await container.resolve(TOKENS.GraduationHandler);
+    await container.resolve(TOKENS.LiquidityEventHandler);
     
     // Initialize metadata enricher
     await container.resolve(TOKENS.MetadataEnricher);

@@ -204,6 +204,8 @@ The system now features a comprehensive smart streaming architecture with connec
    - Fee collection tracking
    - Pool state monitoring with TVL calculations
    - LP position tracking
+   - Fully integrated with AMM services (AmmPoolStateService, AmmFeeService, LpPositionCalculator)
+   - LiquidityEventHandler now started on application initialization
 
 #### Data Pipeline Architecture
 - **DataPipeline** (`src/services/pipeline/data-pipeline.ts`): Central event processing hub
@@ -356,6 +358,12 @@ POOL_MAX_RETRIES=3
       - Price aggregation methods
 
 ### Latest Changes (July 8)
+- ✅ **Liquidity Monitor Fully Enabled**:
+  - Uncommented imports for AMM services in liquidity-monitor.ts
+  - Enabled AmmPoolStateService, AmmFeeService, and LpPositionCalculator initialization
+  - Added LiquidityEventHandler to startup sequence in index.ts
+  - Liquidity events are now properly processed and stored
+  - No functional overlap with other monitors - each has unique responsibilities
 - ✅ **Token Holder Analysis Implementation (Sessions 1-7 Complete)**:
   - **Session 1 - Database Schema & Core Models**:
     - Created comprehensive database schema for holder analysis
@@ -674,6 +682,39 @@ POOL_MAX_RETRIES=3
     - Hybrid approach: real system metrics with mock optimization data
   - Access at: http://localhost:3001/streaming-metrics.html
   - Note: Dashboard server must be running (`npm run dashboard`)
+
+### Latest Changes (July 8, 2025)
+- ✅ **API Rate Limiting Implementation**:
+  - Created generic `ApiRateLimiter` class in `src/utils/api-rate-limiter.ts`
+  - Implements sliding window rate limiting with configurable limits
+  - Added rate limiting to all Helius and Shyft API calls
+  - Helius limited to 5 requests/second (reduced from 10)
+  - Batch processing with automatic delays between batches
+  - Automatic retry logic for 429 (rate limit) errors
+  - Real-time stats tracking and queue management
+
+- ✅ **Reduced Logging Verbosity**:
+  - Changed routine operations from `logger.info` to `logger.debug`
+  - Affected files: holder-analysis-service, job-processor, job-queue, data-fetcher
+  - System now only logs important events at info level
+  - Significantly cleaner logs without repetitive messages
+
+- ✅ **Disabled Non-Existent APIs**:
+  - Shyft's `/token/holders` endpoint returns 404 - disabled all calls
+  - Commented out Shyft fallbacks in holder data fetching
+  - Changed 404 errors to debug level for expected failures
+  - System now uses RPC (preferably Helius RPC) as primary source
+
+- ✅ **Wallet Classification Optimization**:
+  - Disabled by default to reduce API load (requires `classifyWallets: true`)
+  - Reduced batch size from 10 to 3 wallets
+  - Increased delay between batches from 2s to 3s
+  - Prevents analyzing 100 wallets per token by default
+
+- ✅ **Dashboard UI Update**:
+  - Changed holder score display from letter grades (A-D) to numeric scores (0-300)
+  - Color coding remains: Green (250+), Gold (200+), Orange (150+), Red (100+), Dark Red (<100)
+  - Provides more precise information about holder distribution quality
 
 ### Previous Changes (Jan 4-5)
 - ✅ **Raydium Monitor Fixed and Working** (Jan 4):
