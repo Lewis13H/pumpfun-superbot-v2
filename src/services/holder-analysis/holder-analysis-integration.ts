@@ -259,11 +259,11 @@ export class HolderAnalysisIntegration extends EventEmitter {
   private async analyzeExistingTokens(): Promise<void> {
     try {
       const result = await this.pool.query(`
-        SELECT mint_address, symbol, current_market_cap_usd
+        SELECT mint_address, symbol, latest_market_cap_usd
         FROM tokens_unified
-        WHERE current_market_cap_usd >= $1
+        WHERE latest_market_cap_usd >= $1
           AND graduated_to_amm = true
-        ORDER BY current_market_cap_usd DESC
+        ORDER BY latest_market_cap_usd DESC
         LIMIT 50
       `, [this.config.marketCapThreshold]);
 
@@ -276,7 +276,7 @@ export class HolderAnalysisIntegration extends EventEmitter {
         
         await this.queueAnalysis(token.mint_address, priority, {
           symbol: token.symbol,
-          marketCapUsd: token.current_market_cap_usd,
+          marketCapUsd: token.latest_market_cap_usd,
           trigger: 'initial_scan'
         });
 

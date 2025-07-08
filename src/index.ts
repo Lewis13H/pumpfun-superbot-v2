@@ -214,8 +214,9 @@ async function startMonitors() {
     // Start holder analysis integration
     let holderAnalysis: HolderAnalysisIntegration | null = null;
     try {
-      // Get database pool from dbService
-      const pool = (dbService as any).pool as Pool;
+      // Get database pool from singleton
+      const { db } = await import('./database');
+      const pool = db.getPool();
       
       holderAnalysis = new HolderAnalysisIntegration(pool, eventBus, {
         marketCapThreshold: 18888,
