@@ -93,9 +93,10 @@ export class HeliusApiClient {
         if (error.response) {
           // Handle rate limiting specifically
           if (error.response.status === 429) {
-            logger.warn(`Helius API rate limited - waiting before retry`);
-            // Wait 2 seconds before allowing retry
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            const retryAfter = error.response.headers['retry-after'];
+            const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 5000; // Use Retry-After header or default to 5 seconds
+            logger.warn(`Helius API rate limited - waiting ${waitTime}ms before retry`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
           } else {
             logger.error(`Helius API error: ${error.response.status} - ${error.response.data?.error || error.message}`);
           }
@@ -175,7 +176,7 @@ export class HeliusApiClient {
    */
   async getWalletInfo(walletAddress: string): Promise<HeliusWalletInfo | null> {
     let retries = 0;
-    const maxRetries = 2;
+    const maxRetries = 3; // Increased for consistency
     
     while (retries <= maxRetries) {
       try {
@@ -210,8 +211,9 @@ export class HeliusApiClient {
       } catch (error: any) {
         if (error?.response?.status === 429 && retries < maxRetries) {
           retries++;
-          logger.debug(`Retrying wallet info for ${walletAddress} (attempt ${retries + 1}/${maxRetries + 1})`);
-          // Wait is already handled by interceptor
+          const backoffTime = Math.min(1000 * Math.pow(2, retries), 10000); // Exponential backoff
+          logger.debug(`Retrying wallet info for ${walletAddress} (attempt ${retries + 1}/${maxRetries + 1}) after ${backoffTime}ms`);
+          await new Promise(resolve => setTimeout(resolve, backoffTime));
           continue;
         }
         logger.error(`Failed to fetch wallet info for ${walletAddress}:`, error);
@@ -226,7 +228,7 @@ export class HeliusApiClient {
    */
   async analyzeWalletPatterns(walletAddress: string): Promise<HeliusTransactionPattern | null> {
     let retries = 0;
-    const maxRetries = 2;
+    const maxRetries = 3; // Increased from 2 to 3 for better resilience
     
     while (retries <= maxRetries) {
       try {
@@ -287,8 +289,9 @@ export class HeliusApiClient {
       } catch (error: any) {
         if (error?.response?.status === 429 && retries < maxRetries) {
           retries++;
-          logger.debug(`Retrying wallet patterns for ${walletAddress} (attempt ${retries + 1}/${maxRetries + 1})`);
-          // Wait is already handled by interceptor
+          const backoffTime = Math.min(1000 * Math.pow(2, retries), 10000); // Exponential backoff: 2s, 4s, 8s (max 10s)
+          logger.debug(`Retrying wallet patterns for ${walletAddress} (attempt ${retries + 1}/${maxRetries + 1}) after ${backoffTime}ms`);
+          await new Promise(resolve => setTimeout(resolve, backoffTime));
           continue;
         }
         logger.error(`Failed to analyze wallet patterns for ${walletAddress}:`, error);

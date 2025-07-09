@@ -1,0 +1,186 @@
+{
+  "version": "0.1.0",
+  "name": "pump_fun",
+  "metadata": {
+    "name": "pump_fun",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Pump.fun bonding curve program with complete event definitions"
+  },
+  "events": [
+    {
+      "name": "CreateEvent",
+      "discriminator": [27, 114, 169, 77, 222, 235, 99, 41],
+      "fields": [
+        {
+          "name": "mint",
+          "type": "publicKey",
+          "description": "The mint address of the created token"
+        },
+        {
+          "name": "bondingCurve",
+          "type": "publicKey",
+          "description": "The bonding curve account address"
+        },
+        {
+          "name": "creator",
+          "type": "publicKey",
+          "description": "The creator's wallet address"
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "Token name"
+        },
+        {
+          "name": "symbol",
+          "type": "string",
+          "description": "Token symbol"
+        },
+        {
+          "name": "uri",
+          "type": "string",
+          "description": "Metadata URI"
+        },
+        {
+          "name": "decimals",
+          "type": "u8",
+          "description": "Token decimals (usually 6)"
+        },
+        {
+          "name": "virtualSolReserves",
+          "type": "u64",
+          "description": "Initial virtual SOL reserves"
+        },
+        {
+          "name": "virtualTokenReserves",
+          "type": "u64",
+          "description": "Initial virtual token reserves"
+        }
+      ]
+    },
+    {
+      "name": "TradeEvent",
+      "discriminator": [218, 156, 192, 87, 133, 46, 254, 144],
+      "fields": [
+        {
+          "name": "mint",
+          "type": "publicKey",
+          "description": "Token mint address"
+        },
+        {
+          "name": "trader",
+          "type": "publicKey",
+          "description": "Trader wallet address"
+        },
+        {
+          "name": "tokenAmount",
+          "type": "u64",
+          "description": "Amount of tokens traded"
+        },
+        {
+          "name": "solAmount",
+          "type": "u64",
+          "description": "Amount of SOL traded"
+        },
+        {
+          "name": "isBuy",
+          "type": "bool",
+          "description": "True if buy, false if sell"
+        },
+        {
+          "name": "virtualSolReserves",
+          "type": "u64",
+          "description": "Virtual SOL reserves after trade"
+        },
+        {
+          "name": "virtualTokenReserves",
+          "type": "u64",
+          "description": "Virtual token reserves after trade"
+        },
+        {
+          "name": "realSolReserves",
+          "type": "u64",
+          "description": "Real SOL reserves after trade"
+        },
+        {
+          "name": "realTokenReserves",
+          "type": "u64",
+          "description": "Real token reserves after trade"
+        },
+        {
+          "name": "bondingCurve",
+          "type": "publicKey",
+          "description": "Bonding curve account"
+        }
+      ]
+    },
+    {
+      "name": "CompleteEvent",
+      "discriminator": [95, 114, 97, 156, 212, 46, 152, 8],
+      "fields": [
+        {
+          "name": "mint",
+          "type": "publicKey",
+          "description": "Token mint address"
+        },
+        {
+          "name": "bondingCurve",
+          "type": "publicKey",
+          "description": "Bonding curve account"
+        },
+        {
+          "name": "virtualSolReserves",
+          "type": "u64",
+          "description": "Final virtual SOL reserves"
+        },
+        {
+          "name": "virtualTokenReserves",
+          "type": "u64",
+          "description": "Final virtual token reserves"
+        },
+        {
+          "name": "realSolReserves",
+          "type": "u64",
+          "description": "Final real SOL reserves"
+        },
+        {
+          "name": "realTokenReserves",
+          "type": "u64",
+          "description": "Final real token reserves"
+        },
+        {
+          "name": "timestamp",
+          "type": "i64",
+          "description": "Completion timestamp"
+        }
+      ]
+    },
+    {
+      "name": "SetParamsEvent",
+      "discriminator": [148, 27, 184, 191, 122, 149, 62, 239],
+      "fields": [
+        {
+          "name": "bondingCurve",
+          "type": "publicKey",
+          "description": "Bonding curve account"
+        },
+        {
+          "name": "buyFeeBps",
+          "type": "u16",
+          "description": "Buy fee in basis points"
+        },
+        {
+          "name": "sellFeeBps",
+          "type": "u16",
+          "description": "Sell fee in basis points"
+        },
+        {
+          "name": "targetSol",
+          "type": "u64",
+          "description": "Target SOL for graduation"
+        }
+      ]
+    }
+  ]
+}

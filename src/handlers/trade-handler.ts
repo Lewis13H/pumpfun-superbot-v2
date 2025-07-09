@@ -19,6 +19,7 @@ export interface TradeHandlerOptions {
   priceCalculator: PriceCalculator;
   eventBus: EventBus;
   config: ConfigService;
+  ammReservesFetcher?: AmmReservesFetcher;
 }
 
 export class TradeHandler {
@@ -28,6 +29,7 @@ export class TradeHandler {
   private eventBus: EventBus;
   private config: ConfigService;
   private logger: Logger;
+  private ammReservesFetcher?: AmmReservesFetcher;
   
   // Caches
   private tokenCache = new Map<string, Token>();
@@ -40,6 +42,7 @@ export class TradeHandler {
     this.priceCalculator = options.priceCalculator;
     this.eventBus = options.eventBus;
     this.config = options.config;
+    this.ammReservesFetcher = options.ammReservesFetcher;
     this.logger = new Logger({ context: 'TradeHandler' });
     
     // Start batch save interval
@@ -75,48 +78,29 @@ export class TradeHandler {
           };
           priceInfo = this.priceCalculator.calculatePrice(reserves, solPriceUsd, event.type === EventType.AMM_TRADE);
         } else {
-          // For AMM trades, try to fetch reserves
+          // For AMM trades, calculate from trade amounts
           if (event.type === EventType.AMM_TRADE) {
-            try {
-              const ammReservesFetcher = AmmReservesFetcher.getInstance();
-              const reserveData = await ammReservesFetcher.fetchReservesForToken(event.mintAddress);
-              
-              if (reserveData && reserveData.solReserves && reserveData.tokenReserves) {
-                const reserves: ReserveInfo = {
-                  solReserves: BigInt(reserveData.solReserves),
-                  tokenReserves: BigInt(reserveData.tokenReserves),
-                  isVirtual: false
-                };
-                priceInfo = this.priceCalculator.calculatePrice(reserves, solPriceUsd, true); // AMM token
-                
-                // Update event with fetched reserves for future reference
-                event.virtualSolReserves = reserves.solReserves;
-                event.virtualTokenReserves = reserves.tokenReserves;
-              } else {
-                // Fallback to trade amount calculation
-                const priceInSol = Number(event.solAmount) / Number(event.tokenAmount);
-                const priceInUsd = priceInSol * solPriceUsd;
-                
-                priceInfo = {
-                  priceInUsd,
-                  marketCapUsd: priceInUsd * 1e9, // Assume 1B supply for AMM tokens
-                  priceInSol,
-                  priceInLamports: priceInSol * 1e9
-                };
-              }
-            } catch (error) {
-              this.logger.debug('Failed to fetch AMM reserves', { mintAddress: event.mintAddress, error });
-              // Fallback to trade amount calculation
-              const priceInSol = Number(event.solAmount) / Number(event.tokenAmount);
-              const priceInUsd = priceInSol * solPriceUsd;
-              
-              priceInfo = {
-                priceInUsd,
-                marketCapUsd: priceInUsd * 1e9, // Assume 1B supply for AMM tokens
-                priceInSol,
-                priceInLamports: priceInSol * 1e9
-              };
-            }
+            // Calculate price from the actual trade
+            const priceInSol = Number(event.solAmount) / Number(event.tokenAmount);
+            const priceInUsd = priceInSol * solPriceUsd;
+            
+            // For AMM tokens, we need to use actual circulating supply
+            // Without reserves, we can't calculate accurate market cap
+            // Use a more realistic circulating supply estimate (100M tokens for AMM)
+            const REALISTIC_AMM_CIRCULATING_SUPPLY = 1e8; // 100M tokens
+            
+            priceInfo = {
+              priceInUsd,
+              marketCapUsd: priceInUsd * REALISTIC_AMM_CIRCULATING_SUPPLY,
+              priceInSol,
+              priceInLamports: priceInSol * 1e9
+            };
+            
+            // Log that we need reserves for accurate calculation
+            this.logger.debug('AMM trade without reserves - using estimated supply', { 
+              mintAddress: event.mintAddress,
+              estimatedSupply: REALISTIC_AMM_CIRCULATING_SUPPLY
+            });
           } else {
             // BC trades or others - use trade amounts
             const priceInSol = Number(event.solAmount) / Number(event.tokenAmount);

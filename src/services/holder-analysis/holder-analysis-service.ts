@@ -13,6 +13,9 @@ import { HolderScoreCalculator } from './holder-score-calculator';
 import { DistributionMetricsCalculator } from './distribution-metrics-calculator';
 import { HolderSnapshotModel } from '../../models/holder-snapshot';
 import { TokenHolderAnalysisModel } from '../../models/token-holder-analysis';
+import { HolderHistoryService } from './historical/holder-history-service';
+import { HolderTrendAnalyzer } from './historical/trend-analyzer';
+import { HolderAlertService } from './reports/alert-service';
 import { 
   TokenHolderAnalysis,
   HolderSnapshot,
@@ -48,11 +51,15 @@ export class HolderAnalysisService extends EventEmitter {
   private metricsCalculator: DistributionMetricsCalculator;
   private snapshotModel: HolderSnapshotModel;
   private analysisModel: TokenHolderAnalysisModel;
+  private historyService: HolderHistoryService;
+  private trendAnalyzer: HolderTrendAnalyzer;
+  private alertService: HolderAlertService;
 
   constructor(
     pool: Pool,
     heliusApiKey?: string,
-    shyftApiKey?: string
+    shyftApiKey?: string,
+    eventBus?: any
   ) {
     super();
     
@@ -62,6 +69,9 @@ export class HolderAnalysisService extends EventEmitter {
     this.metricsCalculator = new DistributionMetricsCalculator();
     this.snapshotModel = new HolderSnapshotModel(pool);
     this.analysisModel = new TokenHolderAnalysisModel(pool);
+    this.historyService = new HolderHistoryService(pool);
+    this.trendAnalyzer = new HolderTrendAnalyzer(pool);
+    this.alertService = new HolderAlertService(pool, eventBus || this);
 
     // Forward events from sub-services
     this.dataFetcher.on('fetch_complete', (data) => this.emit('data_fetched', data));
@@ -488,7 +498,7 @@ export class HolderAnalysisService extends EventEmitter {
     );
 
     if (hasChanged) {
-      await this.snapshotModel.create({
+      const snapshot: HolderSnapshot = {
         mintAddress: analysis.mintAddress,
         snapshotTime: new Date(),
         totalHolders: analysis.holderCounts.total,
@@ -501,7 +511,23 @@ export class HolderAnalysisService extends EventEmitter {
         holderScore: analysis.holderScore,
         scoreBreakdown: analysis.scoreBreakdown,
         rawDataHash: dataHash
-      });
+      };
+
+      // Save to main snapshot model
+      await this.snapshotModel.create(snapshot);
+
+      // Also save to historical tracking service
+      await this.historyService.saveSnapshot(snapshot);
+
+      // Check for alerts after saving snapshot
+      try {
+        const alerts = await this.alertService.checkAlerts(analysis.mintAddress);
+        if (alerts.length > 0) {
+          logger.info(`Generated ${alerts.length} alerts for ${analysis.mintAddress}`);
+        }
+      } catch (error) {
+        logger.error('Error checking alerts:', error);
+      }
 
       // Also save holder details
       if (holderData.holders.length > 0) {
@@ -557,5 +583,49 @@ export class HolderAnalysisService extends EventEmitter {
     );
 
     return changes;
+  }
+
+  /**
+   * Get holder history with trends
+   */
+  async getHolderHistory(
+    mintAddress: string,
+    period: '1h' | '6h' | '24h' | '7d' | '30d' = '7d'
+  ): Promise<any> {
+    return await this.historyService.getHolderHistory({ mintAddress, period });
+  }
+
+  /**
+   * Get comprehensive trends analysis
+   */
+  async analyzeTrends(
+    mintAddress: string,
+    period: '1h' | '6h' | '24h' | '7d' | '30d' = '7d'
+  ): Promise<any> {
+    return await this.trendAnalyzer.analyzeTrends(mintAddress, period);
+  }
+
+  /**
+   * Get active alerts for a token
+   */
+  async getActiveAlerts(mintAddress?: string): Promise<any[]> {
+    return await this.alertService.getActiveAlerts(mintAddress);
+  }
+
+  /**
+   * Get alert history for a token
+   */
+  async getAlertHistory(
+    mintAddress: string,
+    period: '24h' | '7d' | '30d' = '7d'
+  ): Promise<any[]> {
+    return await this.alertService.getAlertHistory(mintAddress, period);
+  }
+
+  /**
+   * Acknowledge an alert
+   */
+  async acknowledgeAlert(alertId: number): Promise<void> {
+    await this.alertService.acknowledgeAlert(alertId);
   }
 }

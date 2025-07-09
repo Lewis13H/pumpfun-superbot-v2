@@ -216,6 +216,12 @@ async function startMonitors() {
     stats.activeMonitors.add('AmmReserves');
     logger.debug('AMM reserves fetcher started');
     
+    // Start AMM trade enricher
+    const { AmmTradeEnricher } = await import('./services/amm/amm-trade-enricher');
+    const ammTradeEnricher = new AmmTradeEnricher(eventBus);
+    stats.activeMonitors.add('AmmEnricher');
+    logger.debug('AMM trade enricher started');
+    
     // Graduation fixer is now integrated into TokenLifecycleService
     
     // Start holder analysis integration

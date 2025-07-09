@@ -180,7 +180,7 @@ export class BatchRateLimiter extends ApiRateLimiter {
 export const API_RATE_LIMITERS = {
   helius: new ApiRateLimiter({
     name: 'Helius',
-    maxRequests: 5, // Reduced from 10 to 5 requests per second
+    maxRequests: 4, // Further reduced to 4 requests per second for safety margin
     windowMs: 1000
   }),
   

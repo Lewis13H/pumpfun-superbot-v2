@@ -223,6 +223,13 @@ export class AmmPoolStateService {
   }
   
   /**
+   * Get pool state by mint address (alias for getPoolState)
+   */
+  getPoolStateByMint(mintAddress: string): AmmPoolState | undefined {
+    return this.poolStates.get(mintAddress);
+  }
+  
+  /**
    * Get pool state by pool address
    */
   getPoolStateByAddress(poolAddress: string): AmmPoolState | undefined {

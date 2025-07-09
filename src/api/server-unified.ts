@@ -13,6 +13,7 @@ import { createStaleTokenEndpoints } from './stale-token-endpoints';
 import { RealtimePriceCache } from '../services/pricing/realtime-price-cache';
 import { setupNewEndpoints } from './setup-new-endpoints';
 import { createHolderAnalysisRoutes } from './routes/holder-analysis-routes';
+import { createHolderAnalysisHistoricalRoutes } from './holder-analysis-historical-routes';
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;
@@ -73,6 +74,9 @@ setupNewEndpoints(app).catch(console.error);
 
 // Register holder analysis endpoints
 app.use('/api', createHolderAnalysisRoutes(pool));
+
+// Register holder analysis historical endpoints
+app.use('/api/v1', createHolderAnalysisHistoricalRoutes(pool));
 
 // Get realtime price cache instance
 const realtimePriceCache = RealtimePriceCache.getInstance();

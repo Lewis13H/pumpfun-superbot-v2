@@ -40,7 +40,7 @@ export interface PriceImpactResult {
 export class PriceCalculator {
   private logger = new Logger({ context: 'PriceCalculator' });
   private readonly TOTAL_SUPPLY = 1_000_000_000; // 1B tokens (pump.fun default)
-  private readonly PUMP_FUN_CIRCULATING_RATIO = 0.1; // Only 10% circulating for pump.fun
+  private readonly PUMP_FUN_CIRCULATING_RATIO = 1.0; // 100% circulating for pump.fun BC tokens
   private readonly TOKEN_DECIMALS = 6;
   private readonly BONDING_CURVE_PROGRESS_SOL = 84; // SOL needed for graduation (as per Shyft examples)
   private readonly BONDING_CURVE_MIN_SOL = 25; // Minimum expected SOL in BC
@@ -82,12 +82,12 @@ export class PriceCalculator {
       // This is more accurate than assuming a fixed percentage
       marketCapUsd = priceInUsd * tokenReserves;
     } else if (totalSupply) {
-      // If we have the actual total supply, use 10% as circulating
+      // If we have the actual total supply, use 100% as circulating for BC tokens
       const totalSupplyNum = Number(totalSupply) / Math.pow(10, this.TOKEN_DECIMALS);
       const circulatingSupply = totalSupplyNum * this.PUMP_FUN_CIRCULATING_RATIO;
       marketCapUsd = priceInUsd * circulatingSupply;
     } else {
-      // Default: assume 1B total supply with 10% circulating
+      // Default: assume 1B total supply with 100% circulating for BC tokens
       const circulatingSupply = this.TOTAL_SUPPLY * this.PUMP_FUN_CIRCULATING_RATIO;
       marketCapUsd = priceInUsd * circulatingSupply;
     }

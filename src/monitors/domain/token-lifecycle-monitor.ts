@@ -8,11 +8,13 @@ import chalk from 'chalk';
 import * as borsh from '@coral-xyz/borsh';
 import { BaseMonitor, MonitorOptions } from '../../core/base-monitor';
 import { Container, TOKENS } from '../../core/container';
-import { EventType, TradeType } from '../../utils/parsers/types';
+import { EventType, TradeType, TradeEvent } from '../../utils/parsers/types';
 import { UnifiedEventParser } from '../../utils/parsers/unified-event-parser';
 import { TradeHandler } from '../../handlers/trade-handler';
 // TokenLifecycleService functionality integrated directly into this monitor
 import { PUMP_PROGRAM } from '../../utils/config/constants';
+import { idlEventParser, IDLEventParser } from '../../services/parsing/idl-event-parser';
+import { TransactionFormatter } from '../../utils/parsers/transaction-formatter';
 import { EVENTS } from '../../core/event-bus';
 import { enableErrorSuppression } from '../../utils/parsers/error-suppressor';
 import { performanceMonitor } from '../../services/monitoring/performance-monitor';
@@ -98,6 +100,9 @@ interface TokenState {
 export class TokenLifecycleMonitor extends BaseMonitor {
   private parser!: UnifiedEventParser;
   private tradeHandler!: TradeHandler;
+  private idlEventParser!: IDLEventParser;
+  private txFormatter!: TransactionFormatter;
+  private useIDLParsing: boolean = true;
   // Remove unused lifecycleService - functionality is integrated directly
   protected stats: TokenLifecycleStats;
   private tokenStates: Map<string, TokenState> = new Map();
@@ -241,6 +246,11 @@ export class TokenLifecycleMonitor extends BaseMonitor {
     this.parser = await this.container.resolve(TOKENS.EventParser);
     this.tradeHandler = await this.container.resolve(TOKENS.TradeHandler);
     // Lifecycle functionality is integrated directly into this monitor
+    
+    // Initialize IDL-based parsing
+    this.idlEventParser = idlEventParser;
+    this.txFormatter = new TransactionFormatter();
+    this.useIDLParsing = process.env.USE_IDL_PARSING !== 'false'; // Default to true
     
     // Get smart stream manager if available
     try {
@@ -676,6 +686,60 @@ export class TokenLifecycleMonitor extends BaseMonitor {
    * Process transaction (from BC transaction monitor)
    */
   private async processTransaction(data: any): Promise<void> {
+    try {
+      // Try IDL-based parsing first if enabled
+      if (this.useIDLParsing) {
+        const idlParsed = await this.processWithIDL(data);
+        if (idlParsed) {
+          return; // Successfully processed with IDL
+        }
+      }
+      
+      // Fallback to manual parsing
+      await this.processWithManualParsing(data);
+    } catch (error) {
+      this.stats.parseErrors++;
+      this.logger.error('Failed to process transaction', error as Error);
+    }
+  }
+  
+  /**
+   * Process transaction using IDL-based parsing
+   */
+  private async processWithIDL(data: any): Promise<boolean> {
+    try {
+      // Format transaction for IDL parser
+      const formatted = this.formatTransaction(data);
+      if (!formatted) return false;
+      
+      // Parse with IDL
+      const events = this.idlEventParser.parseTransaction(formatted);
+      
+      if (events.length === 0) {
+        return false; // No events found, try manual parsing
+      }
+      
+      // Process each event
+      for (const event of events) {
+        await this.handleParsedEvent(event, formatted);
+      }
+      
+      // Emit IDL parsing success metric
+      if (this.eventBus) {
+        this.eventBus.emit('IDL_EVENT_PARSED', { count: events.length });
+      }
+      
+      return true;
+    } catch (error) {
+      this.logger.debug('IDL parsing failed, will try manual parsing', { error });
+      return false;
+    }
+  }
+  
+  /**
+   * Fallback to manual parsing
+   */
+  private async processWithManualParsing(data: any): Promise<void> {
     const context = UnifiedEventParser.createContext(data);
     
     // Track event size
@@ -833,6 +897,301 @@ export class TokenLifecycleMonitor extends BaseMonitor {
     const GRADUATION_SOL_TARGET = 84; // 84 SOL as per Shyft examples
     const progress = (solInCurve / GRADUATION_SOL_TARGET) * 100;
     return Math.min(progress, 100);
+  }
+  
+  /**
+   * Format transaction for IDL parser
+   */
+  private formatTransaction(data: any): any {
+    try {
+      // Extract the raw transaction data from gRPC structure
+      const rawTx = data.transaction?.transaction || data.transaction || data;
+      
+      // Format transaction with proper structure
+      const formatted = {
+        signature: this.extractSignature(rawTx),
+        slot: rawTx.slot || data.slot,
+        blockTime: rawTx.blockTime || Date.now() / 1000,
+        success: rawTx.meta?.err === null,
+        fee: rawTx.meta?.fee || 0,
+        accounts: this.extractAccounts(rawTx),
+        instructions: this.extractInstructions(rawTx),
+        innerInstructions: rawTx.meta?.innerInstructions || [],
+        logs: rawTx.meta?.logMessages || [],
+        meta: rawTx.meta
+      };
+      
+      return formatted;
+    } catch (error) {
+      this.logger.debug('Failed to format transaction', { error });
+      return null;
+    }
+  }
+  
+  private extractSignature(rawTx: any): string {
+    const sig = rawTx.transaction?.signatures?.[0] || rawTx.signatures?.[0] || rawTx.signature;
+    if (!sig) return '';
+    
+    if (typeof sig === 'string') return sig;
+    if (Buffer.isBuffer(sig)) return require('bs58').encode(sig);
+    if (sig.type === 'Buffer' && Array.isArray(sig.data)) {
+      return require('bs58').encode(Buffer.from(sig.data));
+    }
+    return '';
+  }
+  
+  private extractAccounts(rawTx: any): any[] {
+    try {
+      const message = rawTx.transaction?.message || rawTx.message;
+      if (!message) return [];
+      
+      const accountKeys = message.accountKeys || [];
+      return accountKeys.map((key: any, index: number) => ({
+        pubkey: typeof key === 'string' ? key : key.toString(),
+        isSigner: index < (message.header?.numRequiredSignatures || 0),
+        isWritable: this.isWritableAccount(message, index)
+      }));
+    } catch (error) {
+      return [];
+    }
+  }
+  
+  private isWritableAccount(message: any, index: number): boolean {
+    const header = message.header;
+    if (!header) return false;
+    
+    const numSigners = header.numRequiredSignatures || 0;
+    const numReadonlySigners = header.numReadonlySignedAccounts || 0;
+    const numReadonlyUnsigned = header.numReadonlyUnsignedAccounts || 0;
+    
+    if (index < numSigners - numReadonlySigners) return true;
+    if (index >= message.accountKeys.length - numReadonlyUnsigned) return false;
+    return true;
+  }
+  
+  private extractInstructions(rawTx: any): any[] {
+    try {
+      const message = rawTx.transaction?.message || rawTx.message;
+      if (!message) return [];
+      
+      const instructions = message.instructions || [];
+      const accountKeys = message.accountKeys || [];
+      
+      return instructions.map((ix: any) => ({
+        programId: accountKeys[ix.programIdIndex] || '',
+        accounts: (ix.accounts || []).map((idx: number) => accountKeys[idx] || ''),
+        data: ix.data || ''
+      }));
+    } catch (error) {
+      return [];
+    }
+  }
+  
+  /**
+   * Handle parsed IDL event
+   */
+  private async handleParsedEvent(event: any, transaction: any): Promise<void> {
+    const signature = transaction.signature;
+    
+    switch (event.name) {
+      case 'Create':
+      case 'CreateEvent':
+        await this.handleTokenCreationEvent(event.data, signature);
+        break;
+        
+      case 'Trade':
+      case 'TradeEvent':
+        await this.handleTradeEvent(event.data, signature, transaction);
+        break;
+        
+      case 'Complete':
+      case 'CompleteEvent':
+      case 'Graduation':
+        await this.handleGraduationEvent(event.data, signature);
+        break;
+        
+      case 'SetParams':
+      case 'UpdateParams':
+        await this.handleParamsUpdateEvent(event.data, signature);
+        break;
+        
+      default:
+        this.logger.debug('Unhandled event type', { eventName: event.name });
+    }
+  }
+  
+  private async handleTokenCreationEvent(data: any, signature: string): Promise<void> {
+    const mintAddress = data.mint?.toString() || data.mintAddress;
+    const bondingCurveKey = data.bondingCurve?.toString() || data.bondingCurveKey;
+    const creator = data.creator?.toString() || data.user;
+    
+    if (!mintAddress) return;
+    
+    // Create token state
+    const state: TokenState = {
+      mintAddress,
+      bondingCurveKey,
+      creator,
+      firstSeen: new Date(),
+      lastUpdate: new Date(),
+      complete: false,
+      progress: 0,
+      tradeCount: 0,
+      buyCount: 0,
+      sellCount: 0,
+      totalVolume: 0,
+      phase: 'created'
+    };
+    
+    this.tokenStates.set(mintAddress, state);
+    this.stats.tokensCreated++;
+    this.stats.activeTokens.add(mintAddress);
+    
+    // Track bonding curve mapping
+    if (bondingCurveKey) {
+      this.bondingCurveToMint.set(bondingCurveKey, mintAddress);
+      if (this.bcAccountHandler) {
+        this.bcAccountHandler.addMapping(bondingCurveKey, mintAddress);
+      }
+    }
+    
+    // Emit creation event
+    this.eventBus.emit(EVENTS.TOKEN_CREATED, {
+      mintAddress,
+      bondingCurveKey,
+      creator,
+      signature,
+      timestamp: new Date()
+    });
+    
+    this.logger.info('Token created (IDL)', {
+      mint: mintAddress.substring(0, 8) + '...',
+      creator: creator?.substring(0, 8) + '...'
+    });
+  }
+  
+  private async handleTradeEvent(data: any, signature: string, transaction: any): Promise<void> {
+    const mintAddress = data.mint?.toString() || data.mintAddress;
+    const trader = data.trader?.toString() || data.user;
+    const isBuy = data.isBuy !== undefined ? data.isBuy : data.is_buy;
+    const tokenAmount = BigInt(data.tokenAmount || data.token_amount || 0);
+    const solAmount = BigInt(data.solAmount || data.sol_amount || 0);
+    const virtualSolReserves = BigInt(data.virtualSolReserves || data.virtual_sol_reserves || 0);
+    const virtualTokenReserves = BigInt(data.virtualTokenReserves || data.virtual_token_reserves || 0);
+    
+    if (!mintAddress) return;
+    
+    // Update stats
+    this.stats.trades++;
+    if (isBuy) {
+      this.stats.buys++;
+    } else {
+      this.stats.sells++;
+    }
+    
+    // Calculate volume
+    const volumeUsd = Number(solAmount) / 1e9 * this.currentSolPrice;
+    this.stats.volume += volumeUsd;
+    
+    // Update or create token state
+    let state = this.tokenStates.get(mintAddress);
+    if (!state) {
+      // First trade for this token - might be creation
+      await this.handleTokenCreationFromTrade(data, signature);
+      state = this.tokenStates.get(mintAddress);
+    }
+    
+    if (state) {
+      state.tradeCount++;
+      if (isBuy) {
+        state.buyCount++;
+      } else {
+        state.sellCount++;
+      }
+      state.totalVolume += volumeUsd;
+      state.virtualSolReserves = virtualSolReserves;
+      state.virtualTokenReserves = virtualTokenReserves;
+      state.lastUpdate = new Date();
+      
+      // Calculate progress
+      const progress = this.calculateBondingCurveProgress(virtualSolReserves);
+      state.progress = progress;
+      
+      // Update phase
+      if (progress > 90 && state.phase !== 'near-graduation' && state.phase !== 'graduated') {
+        state.phase = 'near-graduation';
+        this.stats.nearGraduations++;
+      }
+    }
+    
+    // Pass to trade handler
+    const tradeEvent: TradeEvent = {
+      type: EventType.BC_TRADE,
+      signature,
+      mintAddress,
+      tradeType: isBuy ? TradeType.BUY : TradeType.SELL,
+      userAddress: trader,
+      tokenAmount: tokenAmount,  // Amount traded
+      solAmount: solAmount,      // Amount traded
+      virtualTokenReserves: virtualTokenReserves,
+      virtualSolReserves: virtualSolReserves,
+      slot: BigInt(transaction.slot || 0),
+      blockTime: transaction.blockTime || Date.now() / 1000,
+      programId: PUMP_PROGRAM
+    };
+    
+    await this.tradeHandler.processTrade(tradeEvent, this.currentSolPrice);
+  }
+  
+  private async handleGraduationEvent(data: any, signature: string): Promise<void> {
+    const mintAddress = data.mint?.toString() || data.mintAddress;
+    const bondingCurve = data.bondingCurve?.toString() || data.bondingCurveKey;
+    
+    if (!mintAddress) return;
+    
+    const state = this.tokenStates.get(mintAddress);
+    if (state) {
+      state.phase = 'graduated';
+      state.complete = true;
+      state.progress = 100;
+    }
+    
+    this.stats.graduations++;
+    this.stats.graduatedTokens.add(mintAddress);
+    
+    // Emit graduation event
+    this.eventBus.emit(EVENTS.TOKEN_GRADUATED, {
+      mintAddress,
+      bondingCurveKey: bondingCurve,
+      signature,
+      timestamp: new Date()
+    });
+    
+    this.logger.info('🎓 Token graduated (IDL)!', {
+      mint: mintAddress.substring(0, 8) + '...',
+      signature
+    });
+  }
+  
+  private async handleParamsUpdateEvent(data: any, signature: string): Promise<void> {
+    // Handle parameter updates if needed
+    this.logger.debug('Params update event', { data, signature });
+  }
+  
+  private async handleTokenCreationFromTrade(data: any, signature: string): Promise<void> {
+    // When we see the first trade, treat it as token creation
+    const mintAddress = data.mint?.toString() || data.mintAddress;
+    const bondingCurveKey = data.bondingCurve?.toString() || data.bondingCurveKey;
+    const creator = data.user?.toString() || data.trader;
+    
+    await this.handleTokenCreationEvent({
+      mint: mintAddress,
+      bondingCurve: bondingCurveKey,
+      creator,
+      name: data.name,
+      symbol: data.symbol,
+      uri: data.uri
+    }, signature);
   }
 
   /**

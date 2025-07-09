@@ -345,7 +345,7 @@ export class HolderAnalysisApiController {
           t.symbol,
           t.name,
           t.image_uri,
-          t.current_market_cap_usd,
+          t.latest_market_cap_usd,
           ham.holder_score,
           ham.holder_count,
           ham.top_10_percentage,
@@ -356,7 +356,7 @@ export class HolderAnalysisApiController {
         FROM holder_analysis_metadata ham
         JOIN tokens_unified t ON ham.mint_address = t.mint_address
         WHERE ham.holder_score IS NOT NULL
-        ORDER BY ham.holder_score DESC, t.current_market_cap_usd DESC
+        ORDER BY ham.holder_score DESC, t.latest_market_cap_usd DESC
         LIMIT $1
       `, [limit]);
 
@@ -442,7 +442,7 @@ export class HolderAnalysisApiController {
         t.symbol,
         t.name,
         t.image_uri,
-        t.current_market_cap_usd
+        t.latest_market_cap_usd
       FROM holder_analysis_metadata ham
       LEFT JOIN tokens_unified t ON ham.mint_address = t.mint_address
       WHERE ham.mint_address = $1
@@ -463,7 +463,7 @@ export class HolderAnalysisApiController {
         t.symbol,
         t.name,
         t.image_uri,
-        t.current_market_cap_usd
+        t.latest_market_cap_usd
       FROM holder_analysis_metadata ham
       LEFT JOIN tokens_unified t ON ham.mint_address = t.mint_address
       WHERE ham.mint_address = ANY($1)

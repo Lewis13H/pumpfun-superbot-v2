@@ -285,6 +285,9 @@ export class TradingActivityMonitor extends BaseMonitor {
     // Add to trade window for pattern analysis
     this.addToTradeWindow(trade, venue, slippage);
     
+    // Emit pre-process event for enrichment (especially for AMM trades)
+    await this.eventBus.emit('PRE_PROCESS_TRADE', trade);
+    
     // Process the trade normally
     // The trade handler will emit the appropriate events (BC_TRADE, AMM_TRADE)
     await this.tradeHandler.processTrade(trade, this.currentSolPrice);
