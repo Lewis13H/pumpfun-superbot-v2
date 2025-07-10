@@ -909,21 +909,31 @@
             document.getElementById('token-name').textContent = tokenData.name || 'Lorem Ipsum';
             document.getElementById('token-symbol').textContent = tokenData.symbol || 'LOREM';
             
-            // Get the best available price - prioritize calculated_price_usd for accuracy
-            const currentPrice = parseFloat(tokenData.calculated_price_usd) || 
-                               parseFloat(tokenData.current_price_usd) || 
-                               parseFloat(tokenData.latest_price_usd) || 0;
+            // Get the best available price - calculate from SOL price for accuracy
+            const priceSol = parseFloat(tokenData.latest_price_sol) || parseFloat(tokenData.current_price_sol) || 0;
+            const solPrice = parseFloat(tokenData.sol_price) || 0;
             
-            // Format price with appropriate decimals based on value
+            // Calculate USD price from SOL price for better precision
+            let currentPrice = 0;
+            if (priceSol > 0 && solPrice > 0) {
+                currentPrice = priceSol * solPrice;
+            } else {
+                // Fallback to stored USD prices
+                currentPrice = parseFloat(tokenData.calculated_price_usd) || 
+                              parseFloat(tokenData.current_price_usd) || 
+                              parseFloat(tokenData.latest_price_usd) || 0;
+            }
+            
+            // Format price with appropriate decimals based on value (added 2 more decimals)
             let priceText;
             if (currentPrice < 0.00001) {
-                priceText = `$${currentPrice.toFixed(8)}`;
+                priceText = `$${currentPrice.toFixed(10)}`;
             } else if (currentPrice < 0.001) {
-                priceText = `$${currentPrice.toFixed(6)}`;
+                priceText = `$${currentPrice.toFixed(8)}`;
             } else if (currentPrice < 1) {
-                priceText = `$${currentPrice.toFixed(4)}`;
+                priceText = `$${currentPrice.toFixed(6)}`;
             } else {
-                priceText = `$${formatNumber(currentPrice, 2)}`;
+                priceText = `$${formatNumber(currentPrice, 4)}`;
             }
             document.getElementById('token-price').textContent = priceText;
             
@@ -1024,32 +1034,35 @@
                         document.getElementById('header-sol-timestamp').textContent = timeText;
                     }
                     
-                    // Update connection status
-                    const statusDot = document.getElementById('status-dot');
-                    const statusText = document.getElementById('status-text');
-                    const streamIcon = document.getElementById('stream-icon');
-                    
-                    if (data.monitors && data.monitors.stream_status === 'connected') {
-                        statusDot.classList.add('connected');
-                        statusDot.style.backgroundColor = '#4CAF50';
-                        statusText.textContent = 'Connected';
-                        statusText.style.color = '#4CAF50';
-                        streamIcon.style.color = '#4CAF50';
-                    } else {
-                        statusDot.classList.remove('connected');
-                        statusDot.style.backgroundColor = '#666';
-                        statusText.textContent = 'Disconnected';
-                        statusText.style.color = '#666';
-                        streamIcon.style.color = '#666';
-                    }
+                    // Update connection status - consider it connected if we got a successful response
+                    updateConnectionStatus(true);
+                } else {
+                    updateConnectionStatus(false);
                 }
             } catch (error) {
                 console.error('Error updating system status:', error);
-                // Set disconnected state on error
-                document.getElementById('status-dot').style.backgroundColor = '#666';
-                document.getElementById('status-text').textContent = 'Disconnected';
-                document.getElementById('status-text').style.color = '#666';
-                document.getElementById('stream-icon').style.color = '#666';
+                updateConnectionStatus(false);
+            }
+        }
+        
+        // Update connection status indicator
+        function updateConnectionStatus(isConnected) {
+            const statusDot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+            const streamIcon = document.getElementById('stream-icon');
+            
+            if (isConnected) {
+                statusDot.classList.add('connected');
+                statusDot.style.backgroundColor = '#4CAF50';
+                statusText.textContent = 'Connected';
+                statusText.style.color = '#4CAF50';
+                streamIcon.style.color = '#4CAF50';
+            } else {
+                statusDot.classList.remove('connected');
+                statusDot.style.backgroundColor = '#666';
+                statusText.textContent = 'Disconnected';
+                statusText.style.color = '#666';
+                streamIcon.style.color = '#666';
             }
         }
         
