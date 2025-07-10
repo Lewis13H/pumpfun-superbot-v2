@@ -1,6 +1,7 @@
 /**
  * AMM Trade Heuristic Parsing Strategy
- * Uses heuristics to determine reasonable trade amounts when metadata is not available
+ * Fallback parser for pump.swap AMM trades when unified parser fails
+ * Uses heuristics and pattern matching for edge cases
  */
 
 import { ParseStrategy, ParseContext, AMMTradeEvent, EventType, TradeType } from '../types';

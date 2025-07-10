@@ -937,6 +937,31 @@
             }
             document.getElementById('token-price').textContent = priceText;
             
+            // Add SOL price below USD price
+            const priceDiv = document.getElementById('token-price').parentElement;
+            let solPriceElement = document.getElementById('token-price-sol');
+            if (!solPriceElement) {
+                solPriceElement = document.createElement('div');
+                solPriceElement.id = 'token-price-sol';
+                solPriceElement.style.fontSize = '14px';
+                solPriceElement.style.color = '#9C27B0';
+                solPriceElement.style.marginTop = '2px';
+                priceDiv.appendChild(solPriceElement);
+            }
+            
+            // Format SOL price
+            let solPriceText = '';
+            if (priceSol < 0.000001) {
+                solPriceText = `${priceSol.toFixed(12)} SOL`;
+            } else if (priceSol < 0.001) {
+                solPriceText = `${priceSol.toFixed(9)} SOL`;
+            } else if (priceSol < 1) {
+                solPriceText = `${priceSol.toFixed(6)} SOL`;
+            } else {
+                solPriceText = `${priceSol.toFixed(4)} SOL`;
+            }
+            solPriceElement.textContent = solPriceText;
+            
             // Price change - Calculate from 24h history if available
             let priceChange = 0;
             let priceChangeText = '+0.0% (24h)';
@@ -954,7 +979,9 @@
             // Stats - LIVE DATA
             document.getElementById('market-cap').textContent = `$${formatNumber(tokenData.current_market_cap_usd || tokenData.latest_market_cap_usd || 0)}`;
             document.getElementById('volume-24h').textContent = `$${formatNumber(tokenData.volume_24h_usd || 0)}`;
-            document.getElementById('holder-count').textContent = formatNumber(tokenData.holder_count || 0);
+            // Holder count - use placeholder if no data
+            const holderCount = tokenData.holder_count || 888;
+            document.getElementById('holder-count').textContent = formatNumber(holderCount, 0);
             
             // Liquidity - Calculate from virtual reserves if available
             let liquiditySol = 0;

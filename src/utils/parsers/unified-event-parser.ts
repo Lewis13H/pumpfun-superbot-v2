@@ -7,10 +7,14 @@ import { ParseStrategy, ParseContext, ParsedEvent } from './types';
 // Import all parsing strategies
 import { BCTradeStrategy } from './strategies/bc-trade-strategy';
 import { BCTradeIDLStrategy } from './strategies/bc-trade-idl-strategy';
+// Consolidated AMM strategies (reduced from 6 to 2)
+import { UnifiedAmmTradeStrategy } from './strategies/unified-amm-trade-strategy';
+import { AMMTradeHeuristicStrategy } from './strategies/amm-trade-heuristic-strategy';
+// Legacy AMM strategies (for backward compatibility - to be removed)
 import { AMMTradeStrategy } from './strategies/amm-trade-strategy';
 import { AMMTradeInstructionStrategy } from './strategies/amm-trade-instruction-strategy';
 import { AMMTradeInnerIxStrategy } from './strategies/amm-trade-inner-ix-strategy';
-import { AMMTradeHeuristicStrategy } from './strategies/amm-trade-heuristic-strategy';
+// Liquidity strategies
 import { LiquidityStrategy } from './strategies/liquidity-strategy';
 import { AmmLiquidityStrategy } from './strategies/amm-liquidity-strategy';
 import { Logger } from '../../core/logger';
@@ -38,17 +42,37 @@ export class UnifiedEventParser {
   };
 
   constructor(options: ParserOptions = {}) {
-    // Include all parsing strategies for domain monitors to use
-    this.strategies = options.strategies || [
-      new BCTradeIDLStrategy(),          // BC trades using IDL (most accurate)
-      new BCTradeStrategy(),             // BC trades fallback
-      new AMMTradeInnerIxStrategy(),     // AMM trades from inner instructions (most accurate)
-      new AMMTradeHeuristicStrategy(),   // AMM trades with heuristics to get reasonable amounts
-      new AMMTradeInstructionStrategy(), // AMM trades from instruction data (has slippage issue)
-      new AMMTradeStrategy(),            // AMM trades from logs (last resort)
-      new AmmLiquidityStrategy(),        // AMM liquidity events (deposit/withdraw) using IDL
-      new LiquidityStrategy()            // Generic liquidity events fallback
-    ];
+    // Phase 2 consolidation: Reduced AMM strategies from 6 to 2
+    const useConsolidatedParsers = process.env.USE_CONSOLIDATED_PARSERS !== 'false';
+    
+    if (useConsolidatedParsers) {
+      // New consolidated strategy setup
+      this.strategies = options.strategies || [
+        // BC strategies (unchanged)
+        new BCTradeIDLStrategy(),          // BC trades using IDL (most accurate)
+        new BCTradeStrategy(),             // BC trades fallback
+        
+        // AMM strategies (consolidated from 6 to 2)
+        new UnifiedAmmTradeStrategy(),     // Primary AMM parser (combines IDL, inner IX, logs)
+        new AMMTradeHeuristicStrategy(),   // Fallback AMM parser for edge cases
+        
+        // Liquidity strategies (unchanged)
+        new AmmLiquidityStrategy(),        // AMM liquidity events (deposit/withdraw) using IDL
+        new LiquidityStrategy()            // Generic liquidity events fallback
+      ];
+    } else {
+      // Legacy strategy setup (for rollback)
+      this.strategies = options.strategies || [
+        new BCTradeIDLStrategy(),          // BC trades using IDL (most accurate)
+        new BCTradeStrategy(),             // BC trades fallback
+        new AMMTradeInnerIxStrategy(),     // AMM trades from inner instructions (most accurate)
+        new AMMTradeHeuristicStrategy(),   // AMM trades with heuristics to get reasonable amounts
+        new AMMTradeInstructionStrategy(), // AMM trades from instruction data (has slippage issue)
+        new AMMTradeStrategy(),            // AMM trades from logs (last resort)
+        new AmmLiquidityStrategy(),        // AMM liquidity events (deposit/withdraw) using IDL
+        new LiquidityStrategy()            // Generic liquidity events fallback
+      ];
+    }
     
     this.eventBus = options.eventBus;
     this.logger = new Logger({ 
@@ -59,6 +83,13 @@ export class UnifiedEventParser {
 
     // Initialize strategy stats
     this.strategies.forEach(s => this.stats.byStrategy.set(s.name || 'unnamed', 0));
+    
+    // Log which parser mode we're using
+    this.logger.info('Parser initialized', {
+      mode: useConsolidatedParsers ? 'consolidated' : 'legacy',
+      ammStrategies: useConsolidatedParsers ? 2 : 6,
+      totalStrategies: this.strategies.length
+    });
   }
 
   /**
