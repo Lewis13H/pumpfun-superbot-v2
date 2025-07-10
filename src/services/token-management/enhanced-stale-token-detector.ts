@@ -42,6 +42,11 @@ export interface EnhancedStaleDetectionConfig extends StaleDetectionConfig {
   // Monitoring
   enableDetailedLogging: boolean;
   logStaleDetectionRuns: boolean;
+  
+  // Startup price check
+  enableStartupPriceCheck: boolean;
+  startupPriceCheckThreshold: number;
+  startupCheckMaxAge: number; // minutes since last trade to trigger check
 }
 
 export class EnhancedStaleTokenDetector {
@@ -104,6 +109,11 @@ export class EnhancedStaleTokenDetector {
       maxRecoveryAttempts: 3,
       enableDetailedLogging: true,
       logStaleDetectionRuns: true,
+      
+      // Startup price check config
+      enableStartupPriceCheck: true,
+      startupPriceCheckThreshold: 20000, // $20k
+      startupCheckMaxAge: 30, // 30 minutes
       
       ...config,
     };
@@ -175,12 +185,144 @@ export class EnhancedStaleTokenDetector {
       console.log(chalk.yellow(`📊 Found ${stats.total_stale} stale tokens (avg ${stats.avg_stale_minutes} min stale)`));
       console.log(chalk.yellow(`🗑️  ${stats.marked_for_removal} tokens marked for removal`));
       
+      // Perform startup price check for high-value tokens
+      if (this.config.enableStartupPriceCheck) {
+        await this.performStartupPriceCheck();
+      }
+      
       // Run initial scan
       await this.scanForStaleTokens();
       
     } catch (error) {
       console.error(chalk.red('❌ Initial scan failed:'), error);
     }
+  }
+  
+  /**
+   * Perform startup price check for high-value tokens
+   * This ensures tokens like Paperbon showing $49k when they're actually $3k get corrected
+   */
+  private async performStartupPriceCheck(): Promise<void> {
+    console.log(chalk.blue(`💰 Checking prices for tokens above $${this.config.startupPriceCheckThreshold.toLocaleString()}...`));
+    
+    try {
+      // Get high-value tokens that haven't traded recently
+      const highValueTokens = await db.query(`
+        SELECT 
+          mint_address,
+          symbol,
+          name,
+          latest_market_cap_usd,
+          latest_price_sol,
+          last_trade_at,
+          graduated_to_amm,
+          EXTRACT(EPOCH FROM (NOW() - last_trade_at)) / 60 as minutes_since_trade
+        FROM tokens_unified
+        WHERE latest_market_cap_usd >= $1
+          AND EXTRACT(EPOCH FROM (NOW() - last_trade_at)) / 60 > $2
+          AND threshold_crossed_at IS NOT NULL
+        ORDER BY latest_market_cap_usd DESC
+        LIMIT 100
+      `, [this.config.startupPriceCheckThreshold, this.config.startupCheckMaxAge]);
+      
+      if (highValueTokens.rows.length === 0) {
+        console.log(chalk.gray('No high-value tokens need price verification'));
+        return;
+      }
+      
+      console.log(chalk.yellow(`🔍 Found ${highValueTokens.rows.length} high-value tokens needing price verification`));
+      
+      // Queue these tokens for immediate recovery with high priority
+      let queuedCount = 0;
+      for (const token of highValueTokens.rows) {
+        const priority = this.calculateRecoveryPriority({
+          marketCapUsd: token.latest_market_cap_usd,
+          minutesSinceTrade: token.minutes_since_trade,
+          tier: this.getTierForMarketCap(token.latest_market_cap_usd)
+        });
+        
+        // Add extra priority for startup check
+        const adjustedPriority = Math.min(priority + 20, 100);
+        
+        this.recoveryQueue.add([{
+          mintAddress: token.mint_address,
+          symbol: token.symbol,
+          marketCapUsd: token.latest_market_cap_usd,
+          staleDuration: token.minutes_since_trade,
+          priority: adjustedPriority
+        }]);
+        
+        queuedCount++;
+        
+        if (this.config.enableDetailedLogging) {
+          console.log(chalk.gray(
+            `   📍 ${token.symbol || token.mint_address.slice(0, 8)} - $${token.latest_market_cap_usd.toLocaleString()} (${Math.round(token.minutes_since_trade)}min old)`
+          ));
+        }
+      }
+      
+      console.log(chalk.green(`✅ Queued ${queuedCount} tokens for startup price verification`));
+      
+      // Log some example tokens being checked
+      const examples = highValueTokens.rows.slice(0, 3);
+      examples.forEach((token: any) => {
+        console.log(chalk.blue(
+          `   Example: ${token.symbol || 'Unknown'} showing $${token.latest_market_cap_usd.toLocaleString()}`
+        ));
+      });
+      
+    } catch (error) {
+      console.error(chalk.red('❌ Startup price check failed:'), error);
+    }
+  }
+  
+  /**
+   * Get tier for a given market cap
+   */
+  private getTierForMarketCap(marketCapUsd: number): string {
+    for (const tier of this.config.tiers) {
+      if (marketCapUsd >= tier.thresholdUsd) {
+        return tier.name;
+      }
+    }
+    return 'micro';
+  }
+  
+  /**
+   * Calculate recovery priority based on market cap and staleness
+   */
+  private calculateRecoveryPriority(token: {
+    marketCapUsd: number;
+    minutesSinceTrade: number;
+    tier: string;
+  }): number {
+    // Base priority from tier
+    const tier = this.config.tiers.find(t => t.name === token.tier);
+    let priority = tier?.priority || 20;
+    
+    // Adjust for market cap (0-50 points)
+    if (token.marketCapUsd >= 100000) {
+      priority += 50;
+    } else if (token.marketCapUsd >= 50000) {
+      priority += 40;
+    } else if (token.marketCapUsd >= 20000) {
+      priority += 30;
+    } else if (token.marketCapUsd >= 10000) {
+      priority += 20;
+    } else if (token.marketCapUsd >= 5000) {
+      priority += 10;
+    }
+    
+    // Adjust for staleness (0-30 points)
+    if (token.minutesSinceTrade > 120) {
+      priority += 30;
+    } else if (token.minutesSinceTrade > 60) {
+      priority += 20;
+    } else if (token.minutesSinceTrade > 30) {
+      priority += 10;
+    }
+    
+    return Math.min(priority, 100);
   }
   
   /**

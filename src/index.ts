@@ -239,6 +239,29 @@ async function startMonitors() {
       // Non-critical, continue without metadata enricher
     }
     
+    // Start specialized monitors for graduation detection
+    try {
+      const { db } = await import('./database');
+      const pool = db.getPool();
+      
+      // Pool Creation Monitor - catches graduation events
+      const { PoolCreationMonitor } = await import('./monitors/specialized/pool-creation-monitor');
+      const poolCreationMonitor = new PoolCreationMonitor(eventBus, pool);
+      await poolCreationMonitor.start();
+      stats.activeMonitors.add('PoolCreation');
+      logger.debug('Pool creation monitor started');
+      
+      // Bonding Curve Completion Monitor - tracks BC completions
+      const { BondingCurveCompletionMonitor } = await import('./monitors/specialized/bonding-curve-completion-monitor');
+      const bcCompletionMonitor = new BondingCurveCompletionMonitor(eventBus, pool);
+      await bcCompletionMonitor.start();
+      stats.activeMonitors.add('BCComplete');
+      logger.debug('BC completion monitor started');
+    } catch (error) {
+      logger.error('Failed to start specialized monitors', error as Error);
+      // Non-critical, continue without specialized monitors
+    }
+    
     // Start holder analysis integration
     let holderAnalysis: HolderAnalysisIntegration | null = null;
     try {

@@ -11,6 +11,7 @@ import { createServer } from 'http';
 import { registerPerformanceEndpoints } from './performance-metrics-endpoints';
 import { createStaleTokenEndpoints } from './stale-token-endpoints';
 import { RealtimePriceCache } from '../services/pricing/realtime-price-cache';
+import { PriceCalculator } from '../services/pricing/price-calculator';
 import { setupNewEndpoints } from './setup-new-endpoints';
 import { createHolderAnalysisRoutes } from './routes/holder-analysis-routes';
 import { createHolderAnalysisHistoricalRoutes } from './holder-analysis-historical-routes';
@@ -84,6 +85,9 @@ app.use('/', createParsingMetricsRoutes(pool));
 
 // Get realtime price cache instance
 const realtimePriceCache = RealtimePriceCache.getInstance();
+
+// Create price calculator instance
+const priceCalculator = new PriceCalculator();
 
 // API endpoint for tokens - unified schema
 app.get('/api/tokens', async (_req, res) => {
@@ -276,10 +280,25 @@ app.get('/api/tokens/realtime', async (_req, res) => {
       const solPrice = parseFloat(token.sol_price) || 0;
       const calcPrice = priceSol * solPrice;
       
+      // Recalculate BC progress if we have token reserves and not graduated
+      let recalculatedProgress = token.latest_bonding_curve_progress;
+      if (!token.graduated_to_amm && token.latest_virtual_token_reserves) {
+        try {
+          const tokenReserves = BigInt(token.latest_virtual_token_reserves);
+          recalculatedProgress = priceCalculator.calculateBondingCurveProgress(
+            tokenReserves,
+            token.bonding_curve_complete
+          );
+        } catch (error) {
+          console.error('Error recalculating BC progress:', error);
+        }
+      }
+      
       return {
         ...token,
         // Always calculate from SOL price for better precision
         calculated_price_usd: calcPrice,
+        latest_bonding_curve_progress: recalculatedProgress,
         realtime_updated: false
       };
     });
@@ -514,7 +533,24 @@ app.get('/api/tokens/:mintAddress', async (req, res) => {
       return;
     }
     
-    res.json(result.rows[0]);
+    // Get the token data
+    let tokenData = result.rows[0];
+    
+    // Recalculate BC progress if we have token reserves and not graduated
+    if (!tokenData.graduated_to_amm && tokenData.latest_virtual_token_reserves) {
+      try {
+        const tokenReserves = BigInt(tokenData.latest_virtual_token_reserves);
+        const recalculatedProgress = priceCalculator.calculateBondingCurveProgress(
+          tokenReserves,
+          tokenData.bonding_curve_complete
+        );
+        tokenData.latest_bonding_curve_progress = recalculatedProgress;
+      } catch (error) {
+        console.error('Error recalculating BC progress for token detail:', error);
+      }
+    }
+    
+    res.json(tokenData);
     
   } catch (error) {
     console.error('Error fetching token details:', error);

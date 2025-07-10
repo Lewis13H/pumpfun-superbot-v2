@@ -124,10 +124,12 @@ export class BCTradeIDLStrategy implements ParseStrategy {
       // Get reserves from logs or compute budget
       const reserves = this.extractReservesFromLogs(context.logs);
 
-      // Calculate bonding curve progress
-      const solInCurve = Number(reserves.sol) / 1e9;
-      const GRADUATION_THRESHOLD = 84; // SOL - as per Shyft examples
-      const bondingCurveProgress = Math.min((solInCurve / GRADUATION_THRESHOLD) * 100, 100);
+      // Calculate bonding curve progress based on token depletion
+      const INITIAL_BC_TOKENS = 793_000_000; // ~793M tokens initially in BC
+      const TOKEN_DECIMALS = 6;
+      const tokensRemaining = Number(reserves.token) / Math.pow(10, TOKEN_DECIMALS);
+      const tokensSold = INITIAL_BC_TOKENS - tokensRemaining;
+      const bondingCurveProgress = Math.min(Math.max((tokensSold / INITIAL_BC_TOKENS) * 100, 0), 100);
 
       return {
         type: EventType.BC_TRADE,

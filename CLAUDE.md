@@ -98,6 +98,8 @@ Main tables:
 1. **TokenLifecycleMonitor**: BC creation, trading, graduation
 2. **TradingActivityMonitor**: Cross-venue trading, MEV detection
 3. **LiquidityMonitor**: Pool liquidity tracking
+4. **PoolCreationMonitor**: AMM pool creation detection (graduations)
+5. **BondingCurveCompletionMonitor**: BC completion tracking
 
 ### Infrastructure
 - Connection pooling with health monitoring
@@ -109,6 +111,12 @@ Main tables:
 ## Recent Updates (July 2025)
 
 ### Latest Changes
+- ✅ **Specialized Graduation Monitors** (July 10, 2025):
+  - Added PoolCreationMonitor for detecting AMM pool creation (graduations)
+  - Added BondingCurveCompletionMonitor for tracking BC completions
+  - Triple redundancy for graduation detection (AMM trades, pool creation, BC completion)
+  - Database schema enhanced with graduation tracking columns
+  - Stores pool address and graduation signature for verification
 - ✅ AMM Parsing Implementation (Phases 1-4):
   - Parse Success Metrics service with detailed tracking
   - Consolidated parsing strategies (6→2 for AMM)
@@ -146,7 +154,7 @@ Main tables:
 ## Known Issues & Solutions
 
 1. **Shyft gRPC limit**: Wait 5-10 minutes
-2. **Missed graduations**: Auto-fixed by GraduationFixerService
+2. **Missed graduations**: Now handled by triple redundancy (PoolCreationMonitor + BCCompletionMonitor + AMM trades)
 3. **Price precision**: API calculates from SOL price
 4. **Shyft holder endpoints return 404**: Using Helius RPC for complete holder data
 5. **20 holder RPC limit**: Resolved by using HeliusCompleteHolderFetcher
@@ -176,13 +184,22 @@ npx tsx src/scripts/test-pool-state-coordinator.ts
 # Metadata enrichment
 npx tsx src/scripts/test-metadata-enrichment.ts
 npx tsx src/scripts/enrich-high-value-tokens.ts
+
+# Graduation detection
+npx tsx src/scripts/test-specialized-monitors.ts
+npx tsx src/scripts/analyze-graduation-system.ts
+npx tsx src/scripts/monitor-pool-creation.ts
 ```
 
 ## Code Structure
 
 ```
 src/
-├── monitors/domain/          # Domain monitors
+├── monitors/
+│   ├── domain/              # Domain monitors
+│   └── specialized/         # Specialized monitors
+│       ├── pool-creation-monitor.ts
+│       └── bonding-curve-completion-monitor.ts
 ├── services/
 │   ├── core/                # Smart streaming
 │   ├── pipeline/            # Event processing

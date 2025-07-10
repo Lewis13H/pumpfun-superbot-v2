@@ -393,7 +393,7 @@ export class UnifiedGraphQLPriceRecovery {
       solPriceUsd
     );
 
-    const progress = this.priceCalculator.calculateBondingCurveProgress(virtualSolReserves);
+    const progress = this.priceCalculator.calculateBondingCurveProgress(virtualTokenReserves);
 
     return {
       mintAddress,

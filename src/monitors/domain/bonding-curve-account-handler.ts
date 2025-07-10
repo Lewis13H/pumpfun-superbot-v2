@@ -28,8 +28,9 @@ export class BondingCurveAccountHandler {
   private bondingCurveDiscriminator: Buffer;
   private lastProgressUpdate: Map<string, { progress: number; complete: boolean }> = new Map();
   
-  // Constants from Shyft examples
-  private readonly GRADUATION_SOL_TARGET = 84; // 84 SOL for graduation
+  // Constants for token-based progress calculation
+  private readonly BONDING_CURVE_INITIAL_TOKENS = 793_000_000; // ~793M tokens initially in BC
+  private readonly TOKEN_DECIMALS = 6;
   private readonly LAMPORTS_PER_SOL = 1_000_000_000;
 
   constructor(
@@ -130,9 +131,14 @@ export class BondingCurveAccountHandler {
       }
       const lamports = accountData.account.lamports;
 
-      // Calculate progress based on lamports (following Shyft example)
+      // Calculate progress based on token depletion (matches pump.fun display)
+      const virtualTokenReserves = decodedData.virtualTokenReserves || 0;
+      const tokensRemaining = Number(virtualTokenReserves) / Math.pow(10, this.TOKEN_DECIMALS);
+      const tokensSold = this.BONDING_CURVE_INITIAL_TOKENS - tokensRemaining;
+      const progress = Math.min(Math.max((tokensSold / this.BONDING_CURVE_INITIAL_TOKENS) * 100, 0), 100);
+      
+      // Keep SOL tracking for reference
       const solInCurve = lamports / this.LAMPORTS_PER_SOL;
-      const progress = Math.min((solInCurve / this.GRADUATION_SOL_TARGET) * 100, 100);
 
       // Get associated mint address
       const mintAddress = this.bondingCurveToMint.get(pubkey);
@@ -158,6 +164,7 @@ export class BondingCurveAccountHandler {
         mint: mintAddress?.substring(0, 8) + '...',
         complete: decodedData.complete,
         progress: progress.toFixed(2),
+        tokensRemaining: tokensRemaining.toFixed(2) + 'M',
         solInCurve: solInCurve.toFixed(4)
       });
 
@@ -167,6 +174,7 @@ export class BondingCurveAccountHandler {
           bondingCurve: pubkey.substring(0, 8) + '...',
           mint: mintAddress?.substring(0, 8) + '...',
           progress: `${progress.toFixed(1)}%`,
+          tokensRemaining: (tokensRemaining / 1e6).toFixed(1) + 'M',
           complete: decodedData.complete,
           solInCurve: solInCurve.toFixed(2)
         });
@@ -194,15 +202,16 @@ export class BondingCurveAccountHandler {
         // Update database directly if available
         if (this.database && mintAddress) {
           try {
+            // Only update bonding_curve_complete and progress, NOT graduated_to_amm
+            // Graduation happens when AMM pool is created, not when BC completes
             await this.database.query(
               `UPDATE tokens_unified 
                SET bonding_curve_complete = $1,
                    latest_bonding_curve_progress = $2,
-                   graduated_to_amm = $3,
                    updated_at = NOW()
-               WHERE mint_address = $4
-                  OR (bonding_curve_key = $5 AND bonding_curve_key IS NOT NULL)`,
-              [decodedData.complete, progress, decodedData.complete, mintAddress, pubkey]
+               WHERE mint_address = $3
+                  OR (bonding_curve_key = $4 AND bonding_curve_key IS NOT NULL)`,
+              [decodedData.complete, progress, mintAddress, pubkey]
             );
             
             this.logger.debug('Direct DB update from account handler', {

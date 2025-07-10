@@ -241,8 +241,8 @@ export class TradeHandler {
       createdAt: now
     };
     
-    // Add reserves for AMM tokens (store as raw bigint values)
-    if (event.type === EventType.AMM_TRADE && event.virtualSolReserves && event.virtualTokenReserves) {
+    // Add reserves for both AMM and BC tokens (store as raw bigint values)
+    if (event.virtualSolReserves && event.virtualTokenReserves) {
       token.latestVirtualSolReserves = event.virtualSolReserves;
       token.latestVirtualTokenReserves = event.virtualTokenReserves;
     }
@@ -290,14 +290,32 @@ export class TradeHandler {
       priceSource: event.type === EventType.BC_TRADE ? 'bonding_curve' : 'amm'
     };
     
-    // Update current_program for AMM trades
+    // Always update reserves if available (store as raw bigint values)
+    if (event.virtualSolReserves && event.virtualTokenReserves) {
+      updateData.latestVirtualSolReserves = event.virtualSolReserves;
+      updateData.latestVirtualTokenReserves = event.virtualTokenReserves;
+    }
+    
+    // Update current_program and graduation status for AMM trades
     if (event.type === EventType.AMM_TRADE) {
       updateData.currentProgram = 'amm_pool';
+      updateData.graduatedToAmm = true;
+      updateData.bondingCurveComplete = true;
       
-      // Update reserves if available (store as raw bigint values)
-      if (event.virtualSolReserves && event.virtualTokenReserves) {
-        updateData.latestVirtualSolReserves = event.virtualSolReserves;
-        updateData.latestVirtualTokenReserves = event.virtualTokenReserves;
+      // Log graduation detection
+      if (!token.graduatedToAmm) {
+        this.logger.info('Token graduation to AMM detected', {
+          mintAddress: event.mintAddress,
+          signature: event.signature,
+          marketCapUsd: priceInfo.marketCapUsd
+        });
+        
+        // Emit graduation event
+        this.eventBus.emit(EVENTS.TOKEN_GRADUATED, {
+          mintAddress: event.mintAddress,
+          marketCapUsd: priceInfo.marketCapUsd,
+          signature: event.signature
+        });
       }
     } else if (event.type === EventType.BC_TRADE && 'bondingCurveProgress' in event) {
       // Update bonding curve progress for BC trades
@@ -314,6 +332,8 @@ export class TradeHandler {
     token.lastPriceUpdate = new Date();
     if (event.type === EventType.AMM_TRADE) {
       token.currentProgram = 'amm_pool';
+      token.graduatedToAmm = true;
+      token.bondingCurveComplete = true;
     }
     
     // Check threshold crossing

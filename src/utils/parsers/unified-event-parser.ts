@@ -7,6 +7,8 @@ import { ParseStrategy, ParseContext, ParsedEvent } from './types';
 // Import all parsing strategies
 import { BCTradeStrategy } from './strategies/bc-trade-strategy';
 import { BCTradeIDLStrategy } from './strategies/bc-trade-idl-strategy';
+// Enhanced AMM strategy with discriminator detection and fixed mint/amount extraction
+import { EnhancedAmmTradeStrategyV2 } from './strategies/enhanced-amm-trade-strategy-v2';
 // Consolidated AMM strategies (reduced from 6 to 2)
 import { UnifiedAmmTradeStrategy } from './strategies/unified-amm-trade-strategy';
 import { AMMTradeHeuristicStrategy } from './strategies/amm-trade-heuristic-strategy';
@@ -52,9 +54,10 @@ export class UnifiedEventParser {
         new BCTradeIDLStrategy(),          // BC trades using IDL (most accurate)
         new BCTradeStrategy(),             // BC trades fallback
         
-        // AMM strategies (consolidated from 6 to 2)
-        new UnifiedAmmTradeStrategy(),     // Primary AMM parser (combines IDL, inner IX, logs)
-        new AMMTradeHeuristicStrategy(),   // Fallback AMM parser for edge cases
+        // AMM strategies (enhanced with discriminator detection and fixed mint/amount extraction)
+        new EnhancedAmmTradeStrategyV2(),   // Primary AMM parser with discriminator detection V2
+        new UnifiedAmmTradeStrategy(),      // Secondary AMM parser (combines IDL, inner IX, logs)
+        new AMMTradeHeuristicStrategy(),    // Fallback AMM parser for edge cases
         
         // Liquidity strategies (unchanged)
         new AmmLiquidityStrategy(),        // AMM liquidity events (deposit/withdraw) using IDL
@@ -86,9 +89,10 @@ export class UnifiedEventParser {
     
     // Log which parser mode we're using
     this.logger.info('Parser initialized', {
-      mode: useConsolidatedParsers ? 'consolidated' : 'legacy',
-      ammStrategies: useConsolidatedParsers ? 2 : 6,
-      totalStrategies: this.strategies.length
+      mode: useConsolidatedParsers ? 'enhanced' : 'legacy',
+      ammStrategies: useConsolidatedParsers ? 3 : 6,
+      totalStrategies: this.strategies.length,
+      primaryAmmParser: useConsolidatedParsers ? 'EnhancedAmmTradeStrategy' : 'AMMTradeInnerIxStrategy'
     });
   }
 

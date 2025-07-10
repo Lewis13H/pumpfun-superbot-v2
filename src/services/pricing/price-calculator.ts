@@ -42,7 +42,7 @@ export class PriceCalculator {
   private readonly TOTAL_SUPPLY = 1_000_000_000; // 1B tokens (pump.fun default)
   private readonly PUMP_FUN_CIRCULATING_RATIO = 1.0; // 100% circulating for pump.fun BC tokens
   private readonly TOKEN_DECIMALS = 6;
-  private readonly BONDING_CURVE_PROGRESS_SOL = 84; // SOL needed for graduation (as per Shyft examples)
+  private readonly BONDING_CURVE_INITIAL_TOKENS = 793_000_000; // ~793M tokens initially in BC (79.3% of 1B)
   private readonly BONDING_CURVE_MIN_SOL = 25; // Minimum expected SOL in BC
   private readonly BONDING_CURVE_MAX_SOL = 100; // Maximum expected SOL in BC
 
@@ -114,20 +114,37 @@ export class PriceCalculator {
   }
 
   /**
-   * Calculate bonding curve progress
+   * Calculate bonding curve progress based on token depletion
    */
-  calculateBondingCurveProgress(virtualSolReserves: bigint, isComplete?: boolean): number {
+  calculateBondingCurveProgress(virtualTokenReserves: bigint | undefined | null, isComplete?: boolean): number {
     // If the bonding curve is marked as complete, it's 100%
     if (isComplete) {
       return 100;
     }
     
-    // Progress is based on SOL in the bonding curve
-    // Starts at ~30 SOL, completes at ~84 SOL (as per Shyft examples)
-    const solInCurve = Number(virtualSolReserves) / Number(LAMPORTS_PER_SOL);
-    const progress = (solInCurve / this.BONDING_CURVE_PROGRESS_SOL) * 100;
+    // If no token reserves data, return 0
+    if (!virtualTokenReserves || virtualTokenReserves === 0n) {
+      this.logger.debug('No token reserves for BC progress calculation', { virtualTokenReserves });
+      return 0;
+    }
     
-    return Math.min(progress, 100);
+    // Progress is based on tokens sold from the bonding curve
+    // pump.fun shows progress as: (initial tokens - remaining tokens) / initial tokens
+    const tokensRemaining = Number(virtualTokenReserves) / Math.pow(10, this.TOKEN_DECIMALS);
+    
+    // Handle case where remaining tokens exceed initial (shouldn't happen but safe guard)
+    if (tokensRemaining > this.BONDING_CURVE_INITIAL_TOKENS) {
+      this.logger.warn('Token reserves exceed initial BC tokens', {
+        tokensRemaining,
+        initial: this.BONDING_CURVE_INITIAL_TOKENS
+      });
+      return 0;
+    }
+    
+    const tokensSold = this.BONDING_CURVE_INITIAL_TOKENS - tokensRemaining;
+    const progress = (tokensSold / this.BONDING_CURVE_INITIAL_TOKENS) * 100;
+    
+    return Math.min(Math.max(progress, 0), 100); // Clamp between 0 and 100
   }
 
   /**
