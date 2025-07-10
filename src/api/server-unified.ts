@@ -80,7 +80,7 @@ app.use('/api', createHolderAnalysisRoutes(pool));
 app.use('/api/v1', createHolderAnalysisHistoricalRoutes(pool));
 
 // Register parsing metrics endpoints
-app.use('/', createParsingMetricsRoutes());
+app.use('/', createParsingMetricsRoutes(pool));
 
 // Get realtime price cache instance
 const realtimePriceCache = RealtimePriceCache.getInstance();
@@ -440,7 +440,69 @@ app.get('/api/tokens/:mintAddress', async (req, res) => {
           WHEN t.graduated_to_amm = true AND t.threshold_price_usd > 0 
           THEN ((t.latest_price_usd - t.threshold_price_usd) / t.threshold_price_usd) * 100
           ELSE 0 
-        END as gain_since_graduation
+        END as gain_since_graduation,
+        -- Get holder analysis data from latest snapshot
+        (
+          SELECT json_build_object(
+            'total_holders', hs.total_holders,
+            'unique_holders', hs.unique_holders,
+            'top_10_percentage', hs.top_10_percentage,
+            'top_25_percentage', hs.top_25_percentage,
+            'top_100_percentage', hs.top_100_percentage,
+            'gini_coefficient', hs.gini_coefficient,
+            'herfindahl_index', hs.herfindahl_index,
+            'holder_score', hs.holder_score,
+            'score_breakdown', hs.score_breakdown,
+            'snapshot_time', hs.snapshot_time,
+            'wallet_type_distribution', (
+              SELECT json_build_object(
+                'organic', COUNT(CASE WHEN COALESCE(wc.classification, 'normal') = 'normal' THEN 1 END),
+                'snipers', COUNT(CASE WHEN wc.classification = 'sniper' THEN 1 END),
+                'bots', COUNT(CASE WHEN wc.classification = 'bot' THEN 1 END),
+                'whales', COUNT(CASE WHEN wc.classification = 'whale' THEN 1 END),
+                'developers', COUNT(CASE WHEN wc.classification = 'developer' THEN 1 END),
+                'bundlers', COUNT(CASE WHEN wc.classification = 'bundler' THEN 1 END)
+              )
+              FROM token_holder_details thd2
+              LEFT JOIN wallet_classifications wc ON thd2.wallet_address = wc.wallet_address
+              WHERE thd2.mint_address = hs.mint_address
+            ),
+            'supply_distribution', (
+              SELECT json_build_object(
+                'organic_pct', COALESCE(SUM(CASE WHEN COALESCE(wc.classification, 'normal') = 'normal' THEN thd2.percentage_held ELSE 0 END), 0),
+                'snipers_pct', COALESCE(SUM(CASE WHEN wc.classification = 'sniper' THEN thd2.percentage_held ELSE 0 END), 0),
+                'bots_pct', COALESCE(SUM(CASE WHEN wc.classification = 'bot' THEN thd2.percentage_held ELSE 0 END), 0),
+                'whales_pct', COALESCE(SUM(CASE WHEN wc.classification = 'whale' THEN thd2.percentage_held ELSE 0 END), 0),
+                'developers_pct', COALESCE(SUM(CASE WHEN wc.classification = 'developer' THEN thd2.percentage_held ELSE 0 END), 0),
+                'bundlers_pct', COALESCE(SUM(CASE WHEN wc.classification = 'bundler' THEN thd2.percentage_held ELSE 0 END), 0)
+              )
+              FROM token_holder_details thd2
+              LEFT JOIN wallet_classifications wc ON thd2.wallet_address = wc.wallet_address
+              WHERE thd2.mint_address = hs.mint_address
+            )
+          )
+          FROM holder_snapshots hs
+          WHERE hs.mint_address = t.mint_address
+          ORDER BY hs.snapshot_time DESC
+          LIMIT 1
+        ) as holder_analysis,
+        -- Get top holders details
+        (
+          SELECT json_agg(
+            json_build_object(
+              'rank', thd.rank,
+              'wallet_address', thd.wallet_address,
+              'balance', thd.balance,
+              'percentage_held', thd.percentage_held,
+              'first_acquired', thd.first_acquired,
+              'classification', wc.classification
+            ) ORDER BY thd.rank
+          )
+          FROM token_holder_details thd
+          LEFT JOIN wallet_classifications wc ON thd.wallet_address = wc.wallet_address
+          WHERE thd.mint_address = t.mint_address
+          AND thd.rank <= 10
+        ) as top_holders
       FROM tokens_unified t
       WHERE t.mint_address = $1
     `;

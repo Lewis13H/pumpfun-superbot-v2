@@ -12,6 +12,7 @@ export const RAYDIUM_AUTHORITY = '5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1';
 
 // Common token addresses
 export const SOL_MINT = 'So11111111111111111111111111111111111111112';
+export const WSOL_ADDRESS = SOL_MINT; // Wrapped SOL address
 export const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
 // Trade event constants

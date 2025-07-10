@@ -155,6 +155,10 @@ async function startMonitors() {
     await container.resolve(TOKENS.MetadataEnricher);
     logger.debug('Metadata enricher initialized and running');
     
+    // Initialize PoolStateCoordinator
+    await container.resolve(TOKENS.PoolStateCoordinator);
+    logger.debug('PoolStateCoordinator initialized');
+    
     // Initialize real-time price cache with EventBus
     const priceCache = RealtimePriceCache.getInstance();
     priceCache.initialize(eventBus);
@@ -218,7 +222,8 @@ async function startMonitors() {
     
     // Start AMM trade enricher
     const { AmmTradeEnricher } = await import('./services/amm/amm-trade-enricher');
-    const ammTradeEnricher = new AmmTradeEnricher(eventBus);
+    const poolStateCoordinator = await container.resolve(TOKENS.PoolStateCoordinator);
+    const ammTradeEnricher = new AmmTradeEnricher(eventBus, poolStateCoordinator);
     stats.activeMonitors.add('AmmEnricher');
     logger.debug('AMM trade enricher started');
     

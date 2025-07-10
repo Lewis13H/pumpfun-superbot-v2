@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { logger as globalLogger } from '../../core/logger';
+import { createLogger } from '../../core/logger';
 
 interface ParseMetric {
   strategy: string;
@@ -76,7 +76,7 @@ export class ParsingMetricsService extends EventEmitter {
   private static instance: ParsingMetricsService;
   private metrics = new Map<string, ParseMetric>();
   private recentFailures: RecentFailure[] = [];
-  private logger = globalLogger.child({ component: 'ParsingMetricsService' });
+  private logger = createLogger('ParsingMetricsService');
   
   // Performance tracking
   private eventBusMessages = 0;

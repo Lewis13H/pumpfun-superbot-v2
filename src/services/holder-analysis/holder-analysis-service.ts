@@ -16,6 +16,7 @@ import { TokenHolderAnalysisModel } from '../../models/token-holder-analysis';
 import { HolderHistoryService } from './historical/holder-history-service';
 import { HolderTrendAnalyzer } from './historical/trend-analyzer';
 import { HolderAlertService } from './reports/alert-service';
+import { HolderCountSyncService } from './holder-count-sync-service';
 import { 
   TokenHolderAnalysis,
   HolderSnapshot,
@@ -35,6 +36,7 @@ export interface AnalysisOptions {
   enableTrends?: boolean;
   classifyWallets?: boolean;
   saveSnapshot?: boolean;
+  completeData?: boolean;
 }
 
 export interface AnalysisResult {
@@ -54,6 +56,7 @@ export class HolderAnalysisService extends EventEmitter {
   private historyService: HolderHistoryService;
   private trendAnalyzer: HolderTrendAnalyzer;
   private alertService: HolderAlertService;
+  private syncService: HolderCountSyncService;
 
   constructor(
     pool: Pool,
@@ -72,6 +75,7 @@ export class HolderAnalysisService extends EventEmitter {
     this.historyService = new HolderHistoryService(pool);
     this.trendAnalyzer = new HolderTrendAnalyzer(pool);
     this.alertService = new HolderAlertService(pool, eventBus || this);
+    this.syncService = HolderCountSyncService.getInstance(pool);
 
     // Forward events from sub-services
     this.dataFetcher.on('fetch_complete', (data) => this.emit('data_fetched', data));
@@ -129,7 +133,9 @@ export class HolderAnalysisService extends EventEmitter {
       const holderData = await this.dataFetcher.fetchHolderData(mintAddress, {
         maxHolders,
         enableFallback: true,
-        cacheResults: true
+        cacheResults: true,
+        completeData: options.completeData,
+        preferredSource: options.completeData ? 'helius-complete' : undefined
       });
 
       if (!holderData) {
@@ -518,6 +524,14 @@ export class HolderAnalysisService extends EventEmitter {
 
       // Also save to historical tracking service
       await this.historyService.saveSnapshot(snapshot);
+
+      // Sync holder count to tokens_unified
+      try {
+        await this.syncService.syncTokenHolderCount(analysis.mintAddress);
+        logger.debug(`Synced holder count for ${analysis.mintAddress}`);
+      } catch (error) {
+        logger.error('Error syncing holder count:', error);
+      }
 
       // Check for alerts after saving snapshot
       try {

@@ -723,11 +723,11 @@
                     </div>
                     <div class="metric-box">
                         <div class="metric-label">Top 10 Hold</div>
-                        <div class="metric-value" id="metric-top10">88.8%</div>
+                        <div class="metric-value" id="metric-top10">0.0%</div>
                     </div>
                     <div class="metric-box">
                         <div class="metric-label">Top 25 Hold</div>
-                        <div class="metric-value" id="metric-top25">88.8%</div>
+                        <div class="metric-value" id="metric-top25">0.0%</div>
                     </div>
                     <div class="metric-box">
                         <div class="metric-label">Gini Coef</div>
@@ -747,42 +747,8 @@
                             <th>Risk</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <tr>
-                            <td>Organic</td>
-                            <td>888</td>
-                            <td>88.8%</td>
-                            <td>88.8%</td>
-                            <td class="risk-low">✅ Low</td>
-                        </tr>
-                        <tr>
-                            <td>Snipers</td>
-                            <td>88</td>
-                            <td>8.8%</td>
-                            <td>8.888%</td>
-                            <td class="risk-high">⚠️ High</td>
-                        </tr>
-                        <tr>
-                            <td>Bots</td>
-                            <td>88</td>
-                            <td>8.8%</td>
-                            <td>8.8%</td>
-                            <td class="risk-medium">⚠️ Med</td>
-                        </tr>
-                        <tr>
-                            <td>Whales</td>
-                            <td>8</td>
-                            <td>0.8%</td>
-                            <td>8.888%</td>
-                            <td class="risk-medium">⚠️ Med</td>
-                        </tr>
-                        <tr>
-                            <td>Developer</td>
-                            <td>8</td>
-                            <td>0.8%</td>
-                            <td>8.8%</td>
-                            <td class="risk-low">✅ Low</td>
-                        </tr>
+                    <tbody id="holder-classifications-tbody">
+                        <!-- Populated dynamically -->
                     </tbody>
                 </table>
 
@@ -808,53 +774,171 @@
                         </tr>
                     </thead>
                     <tbody id="top-holders-tbody">
-                        <tr>
-                            <td>1</td>
-                            <td class="address">Lorem...ipsum</td>
-                            <td>8.888M</td>
-                            <td>8.888%</td>
-                            <td>Lorem</td>
-                            <td>8 days ago</td>
-                        </tr>
-                        <tr>
-                            <td>2</td>
-                            <td class="address">dolor...sit</td>
-                            <td>8.88M</td>
-                            <td>8.88%</td>
-                            <td>Lorem</td>
-                            <td>8 hours</td>
-                        </tr>
-                        <tr>
-                            <td>3</td>
-                            <td class="address">amet...cons</td>
-                            <td>8.8M</td>
-                            <td>8.8%</td>
-                            <td>Lorem</td>
-                            <td>88 mins ago</td>
-                        </tr>
-                        <tr>
-                            <td>4</td>
-                            <td class="address">ectetur...adip</td>
-                            <td>8.888M</td>
-                            <td>8.88%</td>
-                            <td>Lorem</td>
-                            <td>8 hours ago</td>
-                        </tr>
-                        <tr>
-                            <td>5</td>
-                            <td class="address">iscing...elit</td>
-                            <td>8.88M</td>
-                            <td>8.8%</td>
-                            <td>Lorem</td>
-                            <td>88 hours ago</td>
-                        </tr>
+                        <!-- Populated dynamically -->
                     </tbody>
                 </table>
             `;
             
-            // Update with live holder count if available
+            // Update with live holder data if available
             if (tokenData.holder_count) {
-                document.getElementById('metric-holders').textContent = formatNumber(tokenData.holder_count);
+                document.getElementById('metric-holders').textContent = formatNumber(tokenData.holder_count, 0);
+            }
+            
+            // Update percentage metrics if holder analysis data is available
+            if (tokenData.holder_analysis) {
+                const top10 = parseFloat(tokenData.holder_analysis.top_10_percentage) || 0;
+                const top25 = parseFloat(tokenData.holder_analysis.top_25_percentage) || 0;
+                const gini = parseFloat(tokenData.holder_analysis.gini_coefficient) || 0;
+                
+                document.getElementById('metric-top10').textContent = `${top10.toFixed(1)}%`;
+                document.getElementById('metric-top25').textContent = `${top25.toFixed(1)}%`;
+                document.getElementById('metric-gini').textContent = gini.toFixed(3);
+            }
+            
+            // Populate top holders table if data available
+            if (tokenData.top_holders && tokenData.top_holders.length > 0) {
+                const tbody = document.getElementById('top-holders-tbody');
+                tbody.innerHTML = tokenData.top_holders.slice(0, 5).map(holder => {
+                    // Format address
+                    const addr = holder.wallet_address;
+                    const shortAddr = addr.substring(0, 4) + '...' + addr.substring(addr.length - 4);
+                    
+                    // Format balance
+                    const balance = parseFloat(holder.balance) / Math.pow(10, 6); // Assuming 6 decimals
+                    let balanceText;
+                    if (balance >= 1e6) {
+                        balanceText = (balance / 1e6).toFixed(2) + 'M';
+                    } else if (balance >= 1e3) {
+                        balanceText = (balance / 1e3).toFixed(2) + 'K';
+                    } else {
+                        balanceText = balance.toFixed(2);
+                    }
+                    
+                    // Format percentage
+                    const percentage = parseFloat(holder.percentage_held) || 0;
+                    
+                    // Format type
+                    const typeMap = {
+                        'sniper': 'Sniper',
+                        'bot': 'Bot',
+                        'whale': 'Whale',
+                        'developer': 'Dev',
+                        'normal': 'Organic',
+                        'bundler': 'Bundler'
+                    };
+                    const type = typeMap[holder.classification] || 'Unknown';
+                    
+                    // Format time
+                    let timeText = 'Unknown';
+                    if (holder.first_acquired) {
+                        const time = new Date(holder.first_acquired);
+                        const now = new Date();
+                        const diffMs = now - time;
+                        const diffMins = Math.floor(diffMs / 60000);
+                        const diffHours = Math.floor(diffMs / 3600000);
+                        const diffDays = Math.floor(diffMs / 86400000);
+                        
+                        if (diffDays > 0) {
+                            timeText = diffDays + ' days ago';
+                        } else if (diffHours > 0) {
+                            timeText = diffHours + ' hours ago';
+                        } else if (diffMins > 0) {
+                            timeText = diffMins + ' mins ago';
+                        } else {
+                            timeText = 'Just now';
+                        }
+                    }
+                    
+                    return `
+                        <tr>
+                            <td>${holder.rank}</td>
+                            <td class="address" title="${addr}">${shortAddr}</td>
+                            <td>${balanceText}</td>
+                            <td>${percentage.toFixed(2)}%</td>
+                            <td>${type}</td>
+                            <td>${timeText}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                // Show placeholder data
+                const tbody = document.getElementById('top-holders-tbody');
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: #666;">
+                            No holder data available
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            // Populate holder classifications table if data available
+            if (tokenData.holder_analysis && tokenData.holder_analysis.wallet_type_distribution && tokenData.holder_analysis.supply_distribution) {
+                const tbody = document.getElementById('holder-classifications-tbody');
+                const distribution = tokenData.holder_analysis.wallet_type_distribution;
+                const supplyDist = tokenData.holder_analysis.supply_distribution;
+                const totalHolders = tokenData.holder_count || Object.values(distribution).reduce((a, b) => a + b, 0);
+                
+                const classifications = [
+                    {
+                        name: 'Organic',
+                        count: distribution.organic || 0,
+                        supplyPct: supplyDist.organic_pct || 0,
+                        risk: 'low',
+                        riskIcon: '✅ Low'
+                    },
+                    {
+                        name: 'Snipers',
+                        count: distribution.snipers || 0,
+                        supplyPct: supplyDist.snipers_pct || 0,
+                        risk: 'high',
+                        riskIcon: '⚠️ High'
+                    },
+                    {
+                        name: 'Bots',
+                        count: distribution.bots || 0,
+                        supplyPct: supplyDist.bots_pct || 0,
+                        risk: 'medium',
+                        riskIcon: '⚠️ Med'
+                    },
+                    {
+                        name: 'Whales',
+                        count: distribution.whales || 0,
+                        supplyPct: supplyDist.whales_pct || 0,
+                        risk: 'medium',
+                        riskIcon: '⚠️ Med'
+                    },
+                    {
+                        name: 'Developer',
+                        count: distribution.developers || 0,
+                        supplyPct: supplyDist.developers_pct || 0,
+                        risk: 'low',
+                        riskIcon: '✅ Low'
+                    }
+                ];
+                
+                tbody.innerHTML = classifications.map(cls => {
+                    const holdersPct = totalHolders > 0 ? (cls.count / totalHolders * 100).toFixed(1) : '0.0';
+                    return `
+                        <tr>
+                            <td>${cls.name}</td>
+                            <td>${cls.count}</td>
+                            <td>${holdersPct}%</td>
+                            <td>${cls.supplyPct.toFixed(1)}%</td>
+                            <td class="risk-${cls.risk}">${cls.riskIcon}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                // Show placeholder message
+                const tbody = document.getElementById('holder-classifications-tbody');
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: #666;">
+                            No classification data available
+                        </td>
+                    </tr>
+                `;
             }
         }
 
@@ -1002,28 +1086,54 @@
             document.getElementById('birdeye-link').href = `https://birdeye.so/token/${tokenAddress}`;
             document.getElementById('solscan-link').href = `https://solscan.io/token/${tokenAddress}`;
             
-            // Scores - LIVE holder score, PLACEHOLDER others
-            const holderScore = parseFloat(tokenData.holder_score) || 88;
+            // Scores - LIVE holder score, others set to 0
+            const holderScore = parseFloat(tokenData.holder_score) || 0;
             document.getElementById('holder-score').textContent = Math.round(holderScore);
             document.getElementById('holder-score-fill').style.width = `${(holderScore / 300) * 100}%`;
             
-            // PLACEHOLDER scores - marked with 8.888 pattern
-            const totalScore = Math.round(holderScore) + 88 + 88 + 88; // Placeholder calculation
+            // Other scores set to 0 for now
+            const bcScore = 0;
+            const socialScore = 0;
+            const technicalScore = 0;
+            
+            document.getElementById('bc-score').textContent = bcScore;
+            document.getElementById('bc-score-fill').style.width = `${(bcScore / 300) * 100}%`;
+            
+            document.getElementById('social-score').textContent = socialScore;
+            document.getElementById('social-score-fill').style.width = `${(socialScore / 200) * 100}%`;
+            
+            document.getElementById('technical-score').textContent = technicalScore;
+            document.getElementById('technical-score-fill').style.width = `${(technicalScore / 200) * 100}%`;
+            
+            // Total score is sum of all scores
+            const totalScore = Math.round(holderScore) + bcScore + socialScore + technicalScore;
             document.getElementById('total-score').textContent = totalScore;
             document.getElementById('total-score-fill').style.width = `${(totalScore / 1000) * 100}%`;
-            
-            document.getElementById('bc-score').textContent = 88;
-            document.getElementById('bc-score-fill').style.width = `${(88 / 300) * 100}%`;
-            
-            document.getElementById('social-score').textContent = 88;
-            document.getElementById('social-score-fill').style.width = `${(88 / 200) * 100}%`;
-            
-            document.getElementById('technical-score').textContent = 88;
-            document.getElementById('technical-score-fill').style.width = `${(88 / 200) * 100}%`;
             
             // Update token icon if image available
             if (tokenData.image_uri) {
                 document.getElementById('token-icon').innerHTML = `<img src="${tokenData.image_uri}" alt="${tokenData.symbol}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">`;
+            }
+            
+            // Update holder metrics in renderHoldersTab if available
+            if (tokenData.holder_analysis) {
+                // Update metrics in the holders tab if it's active
+                const top10El = document.getElementById('metric-top10');
+                const top25El = document.getElementById('metric-top25');
+                const giniEl = document.getElementById('metric-gini');
+                
+                if (top10El) {
+                    const top10 = parseFloat(tokenData.holder_analysis.top_10_percentage) || 0;
+                    top10El.textContent = `${top10.toFixed(1)}%`;
+                }
+                if (top25El) {
+                    const top25 = parseFloat(tokenData.holder_analysis.top_25_percentage) || 0;
+                    top25El.textContent = `${top25.toFixed(1)}%`;
+                }
+                if (giniEl) {
+                    const gini = parseFloat(tokenData.holder_analysis.gini_coefficient) || 0;
+                    giniEl.textContent = gini.toFixed(3);
+                }
             }
         }
 

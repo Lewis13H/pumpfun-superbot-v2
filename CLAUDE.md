@@ -30,13 +30,14 @@ npm run typecheck   # TypeScript validation
 - **Core** (`services/core/`): Smart streaming, connection pool, subscriptions
 - **Pricing** (`services/pricing/`): Price calculations, SOL tracking
 - **Metadata** (`services/metadata/`): Token enrichment
-- **AMM** (`services/amm/`): Pool state, analytics, fees
+- **AMM** (`services/amm/`): Pool state, analytics, fees, PoolStateCoordinator
 - **Token Management**: Graduation fixing, stale detection
-- **Monitoring**: Fault tolerance, performance, alerts
+- **Monitoring**: Fault tolerance, performance, alerts, parsing metrics
 - **Analysis**: MEV detection, slippage analysis
 - **Recovery**: Circuit breakers, state recovery
 - **Pipeline**: Event processing, normalization, batching
 - **Holder Analysis**: Complete holder distribution analysis system
+- **Parsing**: Unified strategies, metrics tracking, failure analysis
 
 ### Key Features
 - BC & AMM monitoring with >95% parse rate
@@ -62,6 +63,12 @@ BC_SAVE_THRESHOLD=8888
 AMM_SAVE_THRESHOLD=1000
 POOL_MAX_CONNECTIONS=3
 FAULT_TOLERANCE_ENABLED=true
+USE_CONSOLIDATED_PARSERS=true
+HOLDER_ANALYSIS_MARKET_CAP_THRESHOLD=18888
+HOLDER_ANALYSIS_SOL_THRESHOLD=125
+HOLDER_ANALYSIS_MAX_CONCURRENT=3
+HOLDER_ANALYSIS_INTERVAL_HOURS=6
+HOLDER_ANALYSIS_AUTO_ENABLED=true
 ```
 
 ## Database Schema
@@ -78,7 +85,12 @@ Main tables:
 - **Main Dashboard**: Real-time token list with filters
 - **Token Detail**: Comprehensive token info with charts
 - **Holder Analysis**: Distribution metrics and scoring
-- **Streaming Metrics**: Performance monitoring
+- **Streaming Metrics**: Enhanced performance monitoring with:
+  - Parse rate tracking by venue (BC/AMM/Raydium)
+  - Strategy performance metrics
+  - Data quality indicators
+  - Real-time failure analysis
+  - System resource monitoring
 
 ## Smart Streaming Architecture
 
@@ -97,6 +109,14 @@ Main tables:
 ## Recent Updates (July 2025)
 
 ### Latest Changes
+- ✅ AMM Parsing Implementation (Phases 1-4):
+  - Parse Success Metrics service with detailed tracking
+  - Consolidated parsing strategies (6→2 for AMM)
+  - PoolStateCoordinator for account monitoring integration
+  - Enhanced streaming metrics dashboard
+  - Parse rate analysis tool
+  - Cross-venue correlation support
+  - WebSocket endpoints for real-time metrics
 - ✅ Holder Analysis Implementation (Sessions 1-9):
   - Database schema with 5 new tables
   - Helius/Shyft API integration
@@ -138,6 +158,10 @@ npx tsx src/scripts/test-session-[1-10].ts
 # Holder analysis
 npx tsx src/scripts/test-holder-analysis-session[1-9].ts
 npx tsx src/scripts/analyze-tokens-with-rate-limits.ts
+
+# AMM parsing analysis
+npx tsx src/scripts/analyze-parse-rates.ts
+npx tsx src/scripts/test-pool-state-coordinator.ts
 ```
 
 ## Code Structure

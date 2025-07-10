@@ -157,6 +157,7 @@ export const TOKENS = {
   AmmFeeService: 'AmmFeeService' as ServiceToken<any>,
   LpPositionCalculator: 'LpPositionCalculator' as ServiceToken<any>,
   AmmPoolAnalytics: 'AmmPoolAnalytics' as ServiceToken<any>,
+  PoolStateCoordinator: 'PoolStateCoordinator' as ServiceToken<any>,
   
   // Token Lifecycle
   TokenLifecycleService: 'TokenLifecycleService' as ServiceToken<any>,

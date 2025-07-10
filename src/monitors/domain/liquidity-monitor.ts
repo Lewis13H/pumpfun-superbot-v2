@@ -9,6 +9,8 @@ import { UnifiedEventParser } from '../../utils/parsers/unified-event-parser';
 import { AmmPoolStateService } from '../../services/amm/amm-pool-state-service';
 import { AmmFeeService } from '../../services/amm/amm-fee-service';
 import { LpPositionCalculator } from '../../services/amm/lp-position-calculator';
+import { PoolStateCoordinator } from '../../services/amm/pool-state-coordinator';
+import { TOKENS } from '../../core/container';
 import chalk from 'chalk';
 
 // Program IDs
@@ -43,6 +45,7 @@ export interface PoolMetrics {
 export class LiquidityMonitor extends BaseMonitor {
   private eventParser: UnifiedEventParser;
   private poolStateService: AmmPoolStateService;
+  private poolStateCoordinator!: PoolStateCoordinator;
   private feeService: AmmFeeService;
   private lpCalculator: LpPositionCalculator;
   private metrics: LiquidityMetrics = {
@@ -71,6 +74,7 @@ export class LiquidityMonitor extends BaseMonitor {
     
     this.eventParser = new UnifiedEventParser({ useIDLParsing: true });
     this.poolStateService = AmmPoolStateService.getInstance();
+    // poolStateCoordinator will be initialized in initializeServices()
     this.feeService = AmmFeeService.getInstance();
     this.lpCalculator = LpPositionCalculator.getInstance();
   }
@@ -80,6 +84,9 @@ export class LiquidityMonitor extends BaseMonitor {
    */
   protected async initializeServices(): Promise<void> {
     await super.initializeServices();
+    
+    // Resolve PoolStateCoordinator from container
+    this.poolStateCoordinator = await this.container.resolve(TOKENS.PoolStateCoordinator);
     
     // Subscribe to events
     this.setupEventListeners();
@@ -267,6 +274,19 @@ export class LiquidityMonitor extends BaseMonitor {
             pool: poolData.poolAddress,
             tokenMint: poolData.tokenMint
           });
+          
+          // Update pool state in coordinator
+          this.poolStateCoordinator.updatePoolState(poolData.poolAddress, {
+            tokenMint: poolData.tokenMint,
+            virtualSolReserves: BigInt(poolData.virtualReserves?.sol || 0) * BigInt(1e9),
+            virtualTokenReserves: BigInt(poolData.virtualReserves?.token || 0),
+            realSolReserves: BigInt(poolData.reserves.sol * 1e9),
+            realTokenReserves: BigInt(poolData.reserves.token),
+            isInitialized: true,
+            slotNumber: context.slot ? Number(context.slot) : 0
+          });
+          
+          // Also maintain local metrics for display
           const poolMetrics: PoolMetrics = {
             poolAddress: poolData.poolAddress,
             tokenMint: poolData.tokenMint,
@@ -351,6 +371,15 @@ export class LiquidityMonitor extends BaseMonitor {
               baseAmount: (event as any).baseAmount?.toString(),
               quoteAmount: (event as any).quoteAmount?.toString()
             });
+            
+            // Register new pool if initial liquidity
+            if ((event as any).isInitialLiquidity) {
+              this.poolStateCoordinator.registerNewPool(
+                (event as any).poolAddress,
+                (event as any).mintAddress
+              );
+            }
+            
             this.eventBus.emit(EVENTS.LIQUIDITY_ADDED, event);
             this.eventBus.emit(EVENTS.LIQUIDITY_PROCESSED, {
               ...event,

@@ -22,7 +22,7 @@ export class UnifiedAmmTradeStrategy implements ParseStrategy {
   constructor() {
     this.ammProgramId = new PublicKey(AMM_PROGRAM);
     this.innerIxParser = new InnerInstructionParser();
-    this.eventParserService = new EventParserService();
+    this.eventParserService = EventParserService.getInstance();
   }
   
   canParse(context: ParseContext): boolean {
@@ -34,7 +34,7 @@ export class UnifiedAmmTradeStrategy implements ParseStrategy {
     const hasLogs = context.logs && context.logs.length > 0;
     const hasInnerIx = context.innerInstructions && context.innerInstructions.length > 0;
     
-    return hasLogs || hasInnerIx;
+    return (hasLogs || hasInnerIx) ?? false;
   }
   
   parse(context: ParseContext): AMMTradeEvent | null {
@@ -52,7 +52,7 @@ export class UnifiedAmmTradeStrategy implements ParseStrategy {
       }
       
       // Secondary method: Parse from inner instructions
-      if (context.innerInstructions?.length > 0) {
+      if (context.innerInstructions && context.innerInstructions.length > 0) {
         const event = this.parseFromInnerInstructions(context);
         if (event) {
           logger.debug('Successfully parsed AMM trade from inner instructions', {
@@ -109,13 +109,10 @@ export class UnifiedAmmTradeStrategy implements ParseStrategy {
     
     try {
       // Use the event parser service to extract events
-      const events = this.eventParserService.parseLogsForProgram(
-        context.logs,
-        AMM_PROGRAM
-      );
+      const events = this.eventParserService.parseLogsForEvents(context.logs);
       
       // Look for swap event
-      const swapEvent = events.find(e => e.name === 'SwapEvent');
+      const swapEvent = events.find((e: any) => e.name === 'SwapEvent');
       if (!swapEvent) return null;
       
       // Extract mint address - prefer token mint over WSOL
@@ -145,7 +142,7 @@ export class UnifiedAmmTradeStrategy implements ParseStrategy {
         slot: context.slot,
         blockTime: context.blockTime,
         programId: AMM_PROGRAM,
-        trader: swapEvent.data.user || context.userAddress || 'unknown',
+        userAddress: swapEvent.data.user || context.userAddress || 'unknown',
         mintAddress,
         solAmount: actualAmounts.solAmount || parseAmount(swapEvent.data.inputAmount),
         tokenAmount: actualAmounts.tokenAmount || parseAmount(swapEvent.data.outputAmount),
@@ -153,8 +150,11 @@ export class UnifiedAmmTradeStrategy implements ParseStrategy {
         poolAddress: swapEvent.data.pool || this.extractPoolAddress(context) || 'unknown',
         virtualSolReserves: parseAmount(swapEvent.data.poolSolReserves),
         virtualTokenReserves: parseAmount(swapEvent.data.poolTokenReserves),
-        platformFee: parseAmount(swapEvent.data.platformFee),
-        referrerFee: parseAmount(swapEvent.data.referrerFee)
+        // Required AMM fields
+        inputMint: tradeType === TradeType.BUY ? WSOL_ADDRESS : mintAddress,
+        inAmount: tradeType === TradeType.BUY ? (actualAmounts.solAmount || parseAmount(swapEvent.data.inputAmount)) : (actualAmounts.tokenAmount || parseAmount(swapEvent.data.outputAmount)),
+        outputMint: tradeType === TradeType.BUY ? mintAddress : WSOL_ADDRESS,
+        outAmount: tradeType === TradeType.BUY ? (actualAmounts.tokenAmount || parseAmount(swapEvent.data.outputAmount)) : (actualAmounts.solAmount || parseAmount(swapEvent.data.inputAmount))
       };
     } catch (error) {
       logger.debug('Failed to parse event logs', { error });
@@ -216,14 +216,19 @@ export class UnifiedAmmTradeStrategy implements ParseStrategy {
         slot: context.slot,
         blockTime: context.blockTime,
         programId: AMM_PROGRAM,
-        trader: userAddress || 'unknown',
+        userAddress: userAddress || 'unknown',
         mintAddress: tokenMint,
         solAmount,
         tokenAmount,
         tradeType,
         poolAddress,
         virtualSolReserves: 0n, // Will be enriched later
-        virtualTokenReserves: 0n // Will be enriched later
+        virtualTokenReserves: 0n, // Will be enriched later
+        // Required AMM fields
+        inputMint: tradeType === TradeType.BUY ? WSOL_ADDRESS : tokenMint,
+        inAmount: tradeType === TradeType.BUY ? solAmount : tokenAmount,
+        outputMint: tradeType === TradeType.BUY ? tokenMint : WSOL_ADDRESS,
+        outAmount: tradeType === TradeType.BUY ? tokenAmount : solAmount
       };
     } catch (error) {
       logger.debug('Failed to parse from inner instructions', { error });
@@ -280,14 +285,19 @@ export class UnifiedAmmTradeStrategy implements ParseStrategy {
         slot: context.slot,
         blockTime: context.blockTime,
         programId: AMM_PROGRAM,
-        trader: extracted.user || context.userAddress || 'unknown',
+        userAddress: extracted.user || context.userAddress || 'unknown',
         mintAddress,
         solAmount: BigInt(extracted.inputAmount || 0),
         tokenAmount: BigInt(extracted.outputAmount || 0),
         tradeType,
         poolAddress: this.extractPoolAddress(context) || 'unknown',
         virtualSolReserves: BigInt(extracted.poolSolReserves || 0),
-        virtualTokenReserves: BigInt(extracted.poolTokenReserves || 0)
+        virtualTokenReserves: BigInt(extracted.poolTokenReserves || 0),
+        // Required AMM fields
+        inputMint: extracted.inputMint,
+        inAmount: BigInt(extracted.inputAmount || 0),
+        outputMint: extracted.outputMint,
+        outAmount: BigInt(extracted.outputAmount || 0)
       };
     } catch (error) {
       logger.debug('Failed to parse from log patterns', { error });
@@ -319,14 +329,19 @@ export class UnifiedAmmTradeStrategy implements ParseStrategy {
         slot: context.slot,
         blockTime: context.blockTime,
         programId: AMM_PROGRAM,
-        trader: context.userAddress || context.accounts[0] || 'unknown',
+        userAddress: context.userAddress || context.accounts[0] || 'unknown',
         mintAddress: 'unknown', // Would need to extract from accounts
         solAmount: 0n,
         tokenAmount: 0n,
         tradeType: TradeType.BUY, // Would need to determine from data
         poolAddress: this.extractPoolAddress(context) || 'unknown',
         virtualSolReserves: 0n,
-        virtualTokenReserves: 0n
+        virtualTokenReserves: 0n,
+        // Required AMM fields - placeholders for now
+        inputMint: WSOL_ADDRESS,
+        inAmount: 0n,
+        outputMint: 'unknown',
+        outAmount: 0n
       };
     } catch (error) {
       logger.debug('Failed to parse from instruction data', { error });

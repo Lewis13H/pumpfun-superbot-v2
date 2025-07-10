@@ -15,7 +15,7 @@ export function createParsingMetricsRoutes(pool?: Pool): Router {
   const dbPool = pool || new Pool({
     connectionString: process.env.DATABASE_URL
   });
-
+  
   // Overview metrics endpoint
   router.get('/api/parsing-metrics/overview', async (req, res) => {
     try {
@@ -32,9 +32,20 @@ export function createParsingMetricsRoutes(pool?: Pool): Router {
       `);
       const tps = parseFloat((tpsResult.rows[0].count / 60).toFixed(2));
 
-      // Get failed parse count for last 24h (estimate based on parsing metrics)
-      // Since we don't have raw_transactions table, use metrics service data
-      const failedCount = overview.totalTransactions - overview.successfullyParsed;
+      // Get failed parse count for last 24h
+      const failedResult = await dbPool.query(`
+        SELECT COUNT(*) as count
+        FROM raw_transactions rt
+        WHERE created_at > NOW() - INTERVAL '24 hours'
+        AND NOT EXISTS (
+          SELECT 1 FROM trades_unified tu 
+          WHERE tu.signature = rt.signature
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM liquidity_events le 
+          WHERE le.signature = rt.signature
+        )
+      `);
       
       res.json({
         success: true,
@@ -45,7 +56,7 @@ export function createParsingMetricsRoutes(pool?: Pool): Router {
             successfullyParsed: overview.successfullyParsed,
             avgParseTime: Math.round(overview.avgParseTime),
             tps: tps,
-            failedCount: failedCount
+            failedCount: failedResult.rows[0].count
           },
           byProgram: {
             'pump.fun': {
@@ -90,8 +101,9 @@ export function createParsingMetricsRoutes(pool?: Pool): Router {
           name: s.strategy,
           successRate: s.successRate,
           attempts: s.attempts,
+          successes: s.successes,
           avgParseTime: Math.round(s.avgParseTime),
-          topErrors: s.topErrors
+          topErrors: s.getTopErrors ? s.getTopErrors(5) : []
         }))
       });
     } catch (error) {
@@ -112,31 +124,28 @@ export function createParsingMetricsRoutes(pool?: Pool): Router {
           COUNT(*) as total,
           COUNT(CASE WHEN virtual_sol_reserves > 0 THEN 1 END) as with_reserves
         FROM trades_unified
-        WHERE program = $1
+        WHERE venue = 'pump_amm'
         AND created_at > NOW() - INTERVAL '24 hours'
-      `, [PUMP_AMM_PROGRAM]);
+      `);
 
       const reservePercentage = reservesResult.rows[0].total > 0
         ? (reservesResult.rows[0].with_reserves / reservesResult.rows[0].total * 100)
         : 0;
 
-      // Reserve data sources - since we don't have enrichment_source column,
-      // we'll categorize by whether reserves are present
+      // Reserve data sources
       const sourcesResult = await dbPool.query(`
         SELECT 
-          CASE 
-            WHEN virtual_sol_reserves > 0 AND virtual_token_reserves > 0 THEN 'with_reserves'
-            ELSE 'without_reserves'
-          END as source_type,
+          enrichment_source,
           COUNT(*) as count
         FROM trades_unified
-        WHERE program = $1
+        WHERE venue = 'pump_amm'
         AND created_at > NOW() - INTERVAL '24 hours'
-        GROUP BY source_type
-      `, [PUMP_AMM_PROGRAM]);
+        AND enrichment_source IS NOT NULL
+        GROUP BY enrichment_source
+      `);
 
       const sources = sourcesResult.rows.reduce((acc, row) => {
-        acc[row.source_type] = parseInt(row.count);
+        acc[row.enrichment_source] = parseInt(row.count);
         return acc;
       }, {});
 
@@ -144,37 +153,35 @@ export function createParsingMetricsRoutes(pool?: Pool): Router {
       const correlationResult = await dbPool.query(`
         SELECT 
           t1.mint_address,
-          COUNT(DISTINCT t1.program) as program_count,
+          COUNT(DISTINCT t1.venue) as venue_count,
           COUNT(*) as trade_count
         FROM trades_unified t1
         WHERE created_at > NOW() - INTERVAL '24 hours'
         GROUP BY t1.mint_address
-        HAVING COUNT(DISTINCT t1.program) > 1
+        HAVING COUNT(DISTINCT t1.venue) > 1
       `);
 
       const crossVenueTokens = correlationResult.rows.length;
 
-      // Market cap accuracy (compare BC vs AMM market caps)
+      // Market cap accuracy (compare BC progress vs AMM market cap)
       const accuracyResult = await dbPool.query(`
         SELECT 
-          AVG(ABS(bc.market_cap_usd - amm.market_cap_usd) / NULLIF(bc.market_cap_usd, 0)) as avg_deviation
+          AVG(ABS(bc.market_cap_sol - amm.market_cap_sol) / NULLIF(bc.market_cap_sol, 0)) as avg_deviation
         FROM (
-          SELECT mint_address, AVG(market_cap_usd) as market_cap_usd
+          SELECT mint_address, AVG(market_cap_sol) as market_cap_sol
           FROM trades_unified
-          WHERE program = $1
+          WHERE venue = 'pump_bc'
           AND created_at > NOW() - INTERVAL '1 hour'
-          AND market_cap_usd IS NOT NULL
           GROUP BY mint_address
         ) bc
         JOIN (
-          SELECT mint_address, AVG(market_cap_usd) as market_cap_usd
+          SELECT mint_address, AVG(market_cap_sol) as market_cap_sol
           FROM trades_unified
-          WHERE program = $2
+          WHERE venue = 'pump_amm'
           AND created_at > NOW() - INTERVAL '1 hour'
-          AND market_cap_usd IS NOT NULL
           GROUP BY mint_address
         ) amm ON bc.mint_address = amm.mint_address
-      `, [PUMP_PROGRAM, PUMP_AMM_PROGRAM]);
+      `);
 
       const marketCapAccuracy = accuracyResult.rows[0]?.avg_deviation
         ? (1 - parseFloat(accuracyResult.rows[0].avg_deviation)) * 100
@@ -205,10 +212,10 @@ export function createParsingMetricsRoutes(pool?: Pool): Router {
   router.get('/api/parsing-metrics/system', async (req, res) => {
     try {
       // Get queue depth from parsing metrics
-      const queueStats = { depth: 0 }; // Queue stats not implemented yet
+      const queueStats = metricsService.getQueueStats ? metricsService.getQueueStats() : { depth: 0 };
 
       // Get EventBus message rate
-      const eventBusRate = 0; // EventBus rate not implemented yet
+      const eventBusRate = metricsService.getEventBusRate ? metricsService.getEventBusRate() : 0;
 
       // Get DB write rate
       const dbWriteResult = await dbPool.query(`
@@ -319,19 +326,14 @@ export function createParsingMetricsRoutes(pool?: Pool): Router {
       const result = await dbPool.query(`
         SELECT 
           DATE_TRUNC('hour', created_at) as hour,
-          CASE 
-            WHEN program = $1 THEN 'pump_bc'
-            WHEN program = $2 THEN 'pump_amm'
-            WHEN program = $3 THEN 'raydium'
-            ELSE 'other'
-          END as venue,
+          venue,
           COUNT(*) as trades,
           AVG(CASE WHEN virtual_sol_reserves > 0 THEN 1 ELSE 0 END) * 100 as reserves_percentage
         FROM trades_unified
         WHERE created_at > NOW() - INTERVAL '${hours} hours'
-        GROUP BY hour, program
+        GROUP BY hour, venue
         ORDER BY hour DESC
-      `, [PUMP_PROGRAM, PUMP_AMM_PROGRAM, RAYDIUM_PROGRAM_ID]);
+      `);
 
       const history = result.rows.map(row => ({
         timestamp: row.hour,
@@ -358,5 +360,3 @@ export function createParsingMetricsRoutes(pool?: Pool): Router {
   
   return router;
 }
-
-export default createParsingMetricsRoutes;

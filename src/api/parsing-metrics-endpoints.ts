@@ -1,41 +1,53 @@
-import { Router } from 'express';
+/**
+ * Parsing Metrics API Endpoints
+ * 
+ * Provides comprehensive parsing metrics for the streaming metrics dashboard
+ * Part of Phase 4 of AMM Parsing Implementation
+ */
+
+import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
-import { ParsingMetricsService } from '../../services/monitoring/parsing-metrics-service';
-import { PUMP_PROGRAM, PUMP_AMM_PROGRAM } from '../../utils/config/constants';
-import { createLogger } from '../../core/logger';
+import { ParsingMetricsService } from '../services/monitoring/parsing-metrics-service';
+import { PUMP_PROGRAM, PUMP_AMM_PROGRAM } from '../utils/config/constants';
+import { createLogger } from '../core/logger';
 
 const logger = createLogger('ParsingMetricsAPI');
 const RAYDIUM_PROGRAM_ID = '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8';
 
-export function createParsingMetricsRoutes(pool?: Pool): Router {
+export function createParsingMetricsRouter(pool: Pool): Router {
   const router = Router();
   const metricsService = ParsingMetricsService.getInstance();
-  
-  // Get pool from environment or parameter
-  const dbPool = pool || new Pool({
-    connectionString: process.env.DATABASE_URL
-  });
 
-  // Overview metrics endpoint
-  router.get('/api/parsing-metrics/overview', async (req, res) => {
+  /**
+   * Get overview metrics
+   */
+  router.get('/api/parsing-metrics/overview', async (req: Request, res: Response) => {
     try {
       const overview = metricsService.getOverviewMetrics();
-      const pumpBCMetrics = metricsService.getProgramMetrics(PUMP_PROGRAM);
-      const pumpAMMMetrics = metricsService.getProgramMetrics(PUMP_AMM_PROGRAM);
-      const raydiumMetrics = metricsService.getProgramMetrics(RAYDIUM_PROGRAM_ID);
       
       // Get TPS from database
-      const tpsResult = await dbPool.query(`
+      const tpsResult = await pool.query(`
         SELECT COUNT(*) as count
         FROM trades_unified
         WHERE created_at > NOW() - INTERVAL '1 minute'
       `);
       const tps = parseFloat((tpsResult.rows[0].count / 60).toFixed(2));
 
-      // Get failed parse count for last 24h (estimate based on parsing metrics)
-      // Since we don't have raw_transactions table, use metrics service data
-      const failedCount = overview.totalTransactions - overview.successfullyParsed;
-      
+      // Get failed parse count for last 24h
+      const failedResult = await pool.query(`
+        SELECT COUNT(*) as count
+        FROM raw_transactions rt
+        WHERE created_at > NOW() - INTERVAL '24 hours'
+        AND NOT EXISTS (
+          SELECT 1 FROM trades_unified tu 
+          WHERE tu.signature = rt.signature
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM liquidity_events le 
+          WHERE le.signature = rt.signature
+        )
+      `);
+
       res.json({
         success: true,
         data: {
@@ -43,44 +55,28 @@ export function createParsingMetricsRoutes(pool?: Pool): Router {
             parseRate: overview.overallParseRate,
             totalTransactions: overview.totalTransactions,
             successfullyParsed: overview.successfullyParsed,
-            avgParseTime: Math.round(overview.avgParseTime),
+            avgParseTime: overview.avgParseTime,
             tps: tps,
-            failedCount: failedCount
+            failedCount: failedResult.rows[0].count
           },
           byProgram: {
-            'pump.fun': {
-              parseRate: pumpBCMetrics.parseRate,
-              totalTransactions: pumpBCMetrics.totalTransactions,
-              successfullyParsed: pumpBCMetrics.successfullyParsed,
-              avgParseTime: Math.round(pumpBCMetrics.avgParseTime)
-            },
-            'pump.swap': {
-              parseRate: pumpAMMMetrics.parseRate,
-              totalTransactions: pumpAMMMetrics.totalTransactions,
-              successfullyParsed: pumpAMMMetrics.successfullyParsed,
-              avgParseTime: Math.round(pumpAMMMetrics.avgParseTime)
-            },
-            'raydium': {
-              parseRate: raydiumMetrics.parseRate,
-              totalTransactions: raydiumMetrics.totalTransactions,
-              successfullyParsed: raydiumMetrics.successfullyParsed,
-              avgParseTime: Math.round(raydiumMetrics.avgParseTime)
-            }
+            'pump.fun': metricsService.getProgramMetrics(PUMP_PROGRAM),
+            'pump.swap': metricsService.getProgramMetrics(PUMP_AMM_PROGRAM),
+            'raydium': metricsService.getProgramMetrics(RAYDIUM_PROGRAM_ID)
           },
           recentFailures: metricsService.getRecentFailures(10)
         }
       });
     } catch (error) {
-      console.error('Error fetching overview metrics:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch overview metrics'
-      });
+      logger.error('Failed to get overview metrics:', error);
+      res.status(500).json({ success: false, error: 'Failed to get metrics' });
     }
   });
-  
-  // Strategy metrics endpoint
-  router.get('/api/parsing-metrics/strategies', async (req, res) => {
+
+  /**
+   * Get strategy metrics
+   */
+  router.get('/api/parsing-metrics/strategies', async (req: Request, res: Response) => {
     try {
       const strategies = metricsService.getStrategyMetrics();
       
@@ -90,119 +86,112 @@ export function createParsingMetricsRoutes(pool?: Pool): Router {
           name: s.strategy,
           successRate: s.successRate,
           attempts: s.attempts,
-          avgParseTime: Math.round(s.avgParseTime),
+          avgParseTime: s.avgParseTime,
           topErrors: s.topErrors
         }))
       });
     } catch (error) {
-      console.error('Error fetching strategy metrics:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch strategy metrics'
-      });
+      logger.error('Failed to get strategy metrics:', error);
+      res.status(500).json({ success: false, error: 'Failed to get metrics' });
     }
   });
-  
-  // Data quality metrics endpoint
-  router.get('/api/parsing-metrics/data-quality', async (req, res) => {
+
+  /**
+   * Get data quality metrics
+   */
+  router.get('/api/parsing-metrics/data-quality', async (req: Request, res: Response) => {
     try {
       // AMM trades with reserves
-      const reservesResult = await dbPool.query(`
+      const reservesResult = await pool.query(`
         SELECT 
           COUNT(*) as total,
           COUNT(CASE WHEN virtual_sol_reserves > 0 THEN 1 END) as with_reserves
         FROM trades_unified
-        WHERE program = $1
+        WHERE venue = 'pump_amm'
         AND created_at > NOW() - INTERVAL '24 hours'
-      `, [PUMP_AMM_PROGRAM]);
+      `);
 
       const reservePercentage = reservesResult.rows[0].total > 0
         ? (reservesResult.rows[0].with_reserves / reservesResult.rows[0].total * 100)
         : 0;
 
-      // Reserve data sources - since we don't have enrichment_source column,
-      // we'll categorize by whether reserves are present
-      const sourcesResult = await dbPool.query(`
+      // Reserve data sources
+      const sourcesResult = await pool.query(`
         SELECT 
-          CASE 
-            WHEN virtual_sol_reserves > 0 AND virtual_token_reserves > 0 THEN 'with_reserves'
-            ELSE 'without_reserves'
-          END as source_type,
+          enrichment_source,
           COUNT(*) as count
         FROM trades_unified
-        WHERE program = $1
+        WHERE venue = 'pump_amm'
         AND created_at > NOW() - INTERVAL '24 hours'
-        GROUP BY source_type
-      `, [PUMP_AMM_PROGRAM]);
+        AND enrichment_source IS NOT NULL
+        GROUP BY enrichment_source
+      `);
 
       const sources = sourcesResult.rows.reduce((acc, row) => {
-        acc[row.source_type] = parseInt(row.count);
+        acc[row.enrichment_source] = parseInt(row.count);
         return acc;
       }, {});
 
       // Cross-venue correlation
-      const correlationResult = await dbPool.query(`
+      const correlationResult = await pool.query(`
         SELECT 
           t1.mint_address,
-          COUNT(DISTINCT t1.program) as program_count,
+          COUNT(DISTINCT t1.venue) as venue_count,
           COUNT(*) as trade_count
         FROM trades_unified t1
         WHERE created_at > NOW() - INTERVAL '24 hours'
         GROUP BY t1.mint_address
-        HAVING COUNT(DISTINCT t1.program) > 1
+        HAVING COUNT(DISTINCT t1.venue) > 1
       `);
 
       const crossVenueTokens = correlationResult.rows.length;
 
-      // Market cap accuracy (compare BC vs AMM market caps)
-      const accuracyResult = await dbPool.query(`
+      // Market cap accuracy (compare BC progress vs AMM market cap)
+      const accuracyResult = await pool.query(`
         SELECT 
-          AVG(ABS(bc.market_cap_usd - amm.market_cap_usd) / NULLIF(bc.market_cap_usd, 0)) as avg_deviation
+          AVG(ABS(bc.market_cap_sol - amm.market_cap_sol) / NULLIF(bc.market_cap_sol, 0)) as avg_deviation
         FROM (
-          SELECT mint_address, AVG(market_cap_usd) as market_cap_usd
+          SELECT mint_address, AVG(market_cap_sol) as market_cap_sol
           FROM trades_unified
-          WHERE program = $1
+          WHERE venue = 'pump_bc'
           AND created_at > NOW() - INTERVAL '1 hour'
-          AND market_cap_usd IS NOT NULL
           GROUP BY mint_address
         ) bc
         JOIN (
-          SELECT mint_address, AVG(market_cap_usd) as market_cap_usd
+          SELECT mint_address, AVG(market_cap_sol) as market_cap_sol
           FROM trades_unified
-          WHERE program = $2
+          WHERE venue = 'pump_amm'
           AND created_at > NOW() - INTERVAL '1 hour'
-          AND market_cap_usd IS NOT NULL
           GROUP BY mint_address
         ) amm ON bc.mint_address = amm.mint_address
-      `, [PUMP_PROGRAM, PUMP_AMM_PROGRAM]);
+      `);
 
-      const marketCapAccuracy = accuracyResult.rows[0]?.avg_deviation
+      const marketCapAccuracy = accuracyResult.rows[0].avg_deviation
         ? (1 - parseFloat(accuracyResult.rows[0].avg_deviation)) * 100
         : 100;
 
       res.json({
         success: true,
         data: {
-          ammTradesWithReserves: reservePercentage.toFixed(1) + '%',
+          ammTradesWithReserves: reservePercentage.toFixed(1),
           reserveDataSources: sources,
           crossVenueCorrelation: {
             tokensTrading: crossVenueTokens,
             correlationRate: crossVenueTokens > 0 ? 'Active' : 'None'
           },
-          marketCapAccuracy: marketCapAccuracy.toFixed(1) + '%'
+          marketCapAccuracy: marketCapAccuracy.toFixed(1)
         }
       });
     } catch (error) {
-      console.error('Error fetching data quality metrics:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch data quality metrics'
-      });
+      logger.error('Failed to get data quality metrics:', error);
+      res.status(500).json({ success: false, error: 'Failed to get metrics' });
     }
   });
-  
-  // System metrics endpoint
-  router.get('/api/parsing-metrics/system', async (req, res) => {
+
+  /**
+   * Get system metrics
+   */
+  router.get('/api/parsing-metrics/system', async (req: Request, res: Response) => {
     try {
       // Get queue depth from parsing metrics
       const queueStats = { depth: 0 }; // Queue stats not implemented yet
@@ -211,7 +200,7 @@ export function createParsingMetricsRoutes(pool?: Pool): Router {
       const eventBusRate = 0; // EventBus rate not implemented yet
 
       // Get DB write rate
-      const dbWriteResult = await dbPool.query(`
+      const dbWriteResult = await pool.query(`
         SELECT COUNT(*) as writes
         FROM trades_unified
         WHERE created_at > NOW() - INTERVAL '1 minute'
@@ -230,16 +219,15 @@ export function createParsingMetricsRoutes(pool?: Pool): Router {
         }
       });
     } catch (error) {
-      console.error('Error fetching system metrics:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch system metrics'
-      });
+      logger.error('Failed to get system metrics:', error);
+      res.status(500).json({ success: false, error: 'Failed to get metrics' });
     }
   });
-  
-  // Alerts endpoint
-  router.get('/api/parsing-metrics/alerts', async (req, res) => {
+
+  /**
+   * Get alerts
+   */
+  router.get('/api/parsing-metrics/alerts', async (req: Request, res: Response) => {
     try {
       const alerts = [];
 
@@ -297,41 +285,35 @@ export function createParsingMetricsRoutes(pool?: Pool): Router {
           timestamp: new Date()
         });
       }
-      
+
       res.json({
         success: true,
         data: alerts
       });
     } catch (error) {
-      console.error('Error fetching alerts:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch alerts'
-      });
+      logger.error('Failed to get alerts:', error);
+      res.status(500).json({ success: false, error: 'Failed to get alerts' });
     }
   });
 
-  // Historical metrics for charts
-  router.get('/api/parsing-metrics/history', async (req, res) => {
+  /**
+   * Get historical metrics for charts
+   */
+  router.get('/api/parsing-metrics/history', async (req: Request, res: Response) => {
     try {
       const hours = parseInt(req.query.hours as string) || 24;
       
-      const result = await dbPool.query(`
+      const result = await pool.query(`
         SELECT 
           DATE_TRUNC('hour', created_at) as hour,
-          CASE 
-            WHEN program = $1 THEN 'pump_bc'
-            WHEN program = $2 THEN 'pump_amm'
-            WHEN program = $3 THEN 'raydium'
-            ELSE 'other'
-          END as venue,
+          venue,
           COUNT(*) as trades,
           AVG(CASE WHEN virtual_sol_reserves > 0 THEN 1 ELSE 0 END) * 100 as reserves_percentage
         FROM trades_unified
         WHERE created_at > NOW() - INTERVAL '${hours} hours'
-        GROUP BY hour, program
+        GROUP BY hour, venue
         ORDER BY hour DESC
-      `, [PUMP_PROGRAM, PUMP_AMM_PROGRAM, RAYDIUM_PROGRAM_ID]);
+      `);
 
       const history = result.rows.map(row => ({
         timestamp: row.hour,
@@ -345,18 +327,12 @@ export function createParsingMetricsRoutes(pool?: Pool): Router {
         data: history
       });
     } catch (error) {
-      console.error('Error fetching historical metrics:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to get metrics'
-      });
+      logger.error('Failed to get historical metrics:', error);
+      res.status(500).json({ success: false, error: 'Failed to get metrics' });
     }
   });
-  
-  // Real-time failures WebSocket endpoint would be handled separately
-  // For now, we'll use polling with the recent failures endpoint
-  
+
   return router;
 }
 
-export default createParsingMetricsRoutes;
+export default createParsingMetricsRouter;

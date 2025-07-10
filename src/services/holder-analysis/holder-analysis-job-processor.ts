@@ -146,7 +146,8 @@ export class HolderAnalysisJobProcessor extends EventEmitter {
       maxHolders: options?.maxHolders || 1000,
       enableTrends: options?.enableTrends !== false,
       classifyWallets: options?.classifyWallets === true, // Changed: now false by default
-      saveSnapshot: options?.saveSnapshot !== false
+      saveSnapshot: options?.saveSnapshot !== false,
+      completeData: true // Enable complete holder fetching
     });
 
     if (!result.success) {
@@ -187,7 +188,8 @@ export class HolderAnalysisJobProcessor extends EventEmitter {
           maxHolders: options?.maxHolders || 500, // Lower for batch
           enableTrends: options?.enableTrends || false, // Disable by default for batch
           classifyWallets: options?.classifyWallets === true, // Changed: now false by default
-          saveSnapshot: options?.saveSnapshot !== false
+          saveSnapshot: options?.saveSnapshot !== false,
+          completeData: true // Enable complete holder fetching
         });
 
         if (result.success) {
@@ -245,7 +247,8 @@ export class HolderAnalysisJobProcessor extends EventEmitter {
       maxHolders: options?.maxHolders || 1000,
       enableTrends: true, // Always enable trends for recurring
       classifyWallets: options?.classifyWallets !== false,
-      saveSnapshot: true // Always save snapshots for history
+      saveSnapshot: true, // Always save snapshots for history
+      completeData: true // Enable complete holder fetching
     });
 
     if (!result.success) {

@@ -6,6 +6,7 @@
 import { EventBus, EVENTS } from '../../core/event-bus';
 import { Logger } from '../../core/logger';
 import { AmmPoolStateService } from './amm-pool-state-service';
+import { PoolStateCoordinator } from './pool-state-coordinator';
 import { TradeEvent, EventType, TradeType } from '../../utils/parsers/types';
 import { VirtualReserveCalculator } from './virtual-reserve-calculator';
 import { SolPriceService } from '../pricing/sol-price-service';
@@ -13,14 +14,16 @@ import { SolPriceService } from '../pricing/sol-price-service';
 export class AmmTradeEnricher {
   private logger: Logger;
   private ammPoolStateService: AmmPoolStateService;
+  private poolStateCoordinator: PoolStateCoordinator;
   private eventBus: EventBus;
   private virtualReserveCalculator: VirtualReserveCalculator;
   private solPriceService: SolPriceService;
 
-  constructor(eventBus: EventBus) {
+  constructor(eventBus: EventBus, poolStateCoordinator?: PoolStateCoordinator) {
     this.logger = new Logger({ context: 'AmmTradeEnricher' });
     this.eventBus = eventBus;
     this.ammPoolStateService = AmmPoolStateService.getInstance();
+    this.poolStateCoordinator = poolStateCoordinator || PoolStateCoordinator.getInstance(eventBus);
     this.virtualReserveCalculator = new VirtualReserveCalculator();
     this.solPriceService = SolPriceService.getInstance();
     
@@ -55,6 +58,30 @@ export class AmmTradeEnricher {
         if (this.virtualReserveCalculator.validateReserves(reserves)) {
           return;
         }
+      }
+      
+      // First, try to get pool state from coordinator
+      const poolState = this.poolStateCoordinator.getPoolStateForMint(event.mintAddress);
+      if (poolState && poolState.virtualSolReserves > 0n && poolState.virtualTokenReserves > 0n) {
+        event.virtualSolReserves = poolState.virtualSolReserves;
+        event.virtualTokenReserves = poolState.virtualTokenReserves;
+        
+        this.logger.info('Enriched AMM trade from pool state coordinator', {
+          mintAddress: event.mintAddress,
+          solReserves: (Number(poolState.virtualSolReserves) / 1e9).toFixed(2),
+          tokenReserves: poolState.virtualTokenReserves.toString(),
+          source: 'pool_state_coordinator'
+        });
+        
+        // Also emit enrichment event
+        this.eventBus.emit('AMM_TRADE_ENRICHED', {
+          mintAddress: event.mintAddress,
+          signature: event.signature,
+          hasReserves: true,
+          source: 'pool_state_coordinator'
+        });
+        
+        return;
       }
 
       // Update virtual reserves based on the trade

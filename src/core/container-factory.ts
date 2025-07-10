@@ -221,6 +221,13 @@ export async function createContainer(): Promise<Container> {
     return AmmPoolStateService.getInstance();
   });
   
+  // Register pool state coordinator
+  container.registerSingleton(TOKENS.PoolStateCoordinator, async () => {
+    const { PoolStateCoordinator } = await import('../services/amm/pool-state-coordinator');
+    const eventBus = await container.resolve(TOKENS.EventBus);
+    return PoolStateCoordinator.getInstance(eventBus);
+  });
+  
   // Register metadata enricher
   container.registerSingleton(TOKENS.MetadataEnricher, async () => {
     const { EnhancedAutoEnricher } = await import('../services/metadata/enhanced-auto-enricher');
