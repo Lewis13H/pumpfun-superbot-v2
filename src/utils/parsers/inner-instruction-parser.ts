@@ -106,7 +106,7 @@ export class InnerInstructionParser {
     
     // Get accounts
     const accounts = this.getInstructionAccounts(ix, context);
-    if (accounts.length < 3) return null;
+    if (accounts.length < 2) return null; // Transfer only needs source and destination
     
     return {
       source: accounts[0],
