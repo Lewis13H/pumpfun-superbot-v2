@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streaming & Parsing Metrics - Pump Monitor</title>
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #252525;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --accent-green: #00ff88;
+            --accent-red: #ff4444;
+            --accent-yellow: #ffaa00;
+            --accent-blue: #00aaff;
+            --border-color: #333;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border-radius: 20px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .metric-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.1);
+        }
+
+        .metric-title {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .metric-change {
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .positive { color: var(--accent-green); }
+        .negative { color: var(--accent-red); }
+        .neutral { color: var(--text-secondary); }
+
+        .section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent-green);
+            transition: width 0.3s ease;
+        }
+
+        .error-tag {
+            display: inline-block;
+            padding: 4px 8px;
+            background: rgba(255, 68, 68, 0.1);
+            color: var(--accent-red);
+            border-radius: 4px;
+            font-size: 12px;
+            margin-right: 8px;
+        }
+
+        .chart-container {
+            height: 300px;
+            margin-top: 20px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 20px;
+            position: relative;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 20px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 0;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            color: var(--text-secondary);
+        }
+
+        .tab.active {
+            color: var(--text-primary);
+            border-bottom-color: var(--accent-green);
+        }
+
+        .failure-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .failure-signature {
+            font-family: monospace;
+            font-size: 12px;
+            color: var(--accent-blue);
+            text-decoration: none;
+        }
+
+        .failure-signature:hover {
+            text-decoration: underline;
+        }
+
+        .refresh-button {
+            padding: 8px 16px;
+            background: var(--accent-green);
+            color: var(--bg-primary);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: opacity 0.2s;
+        }
+
+        .refresh-button:hover {
+            opacity: 0.8;
+        }
+
+        .refresh-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .alert-box {
+            padding: 16px;
+            background: rgba(255, 170, 0, 0.1);
+            border: 1px solid rgba(255, 170, 0, 0.3);
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alert-icon {
+            font-size: 20px;
+        }
+
+        .venue-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .venue-card {
+            background: var(--bg-tertiary);
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .venue-name {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .venue-rate {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .mini-chart {
+            height: 60px;
+            margin-top: 12px;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>📊 Streaming & Parsing Metrics</h1>
+            <div style="display: flex; gap: 16px; align-items: center;">
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span>Live Monitoring</span>
+                </div>
+                <button class="refresh-button" onclick="refreshMetrics()">
+                    Refresh Now
+                </button>
+            </div>
+        </div>
+
+        <!-- Alerts -->
+        <div id="alerts-container">
+            <!-- Alert Example (hidden by default) -->
+            <div class="alert-box" style="display: none;">
+                <span class="alert-icon">⚠️</span>
+                <span>AMM parse rate dropped below 90% threshold (currently 87.3%)</span>
+            </div>
+        </div>
+
+        <!-- Overall Metrics -->
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-title">Overall Parse Rate</div>
+                <div class="metric-value">94.6%</div>
+                <div class="metric-change positive">
+                    <span>↑ 2.3%</span>
+                    <span>vs last hour</span>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Transactions/Second</div>
+                <div class="metric-value">38.2</div>
+                <div class="metric-change neutral">
+                    <span>→ 0.1</span>
+                    <span>vs last hour</span>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Parse Latency</div>
+                <div class="metric-value">12ms</div>
+                <div class="metric-change positive">
+                    <span>↓ 3ms</span>
+                    <span>vs last hour</span>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Failed Parses (24h)</div>
+                <div class="metric-value">2,468</div>
+                <div class="metric-change negative">
+                    <span>↑ 145</span>
+                    <span>vs yesterday</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Parse Success by Venue -->
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">Parse Success by Venue</h2>
+                <span style="color: var(--text-secondary);">Last 5 minutes</span>
+            </div>
+            <div class="venue-stats">
+                <div class="venue-card">
+                    <div class="venue-name">Pump.fun BC</div>
+                    <div class="venue-rate positive">98.2%</div>
+                    <div class="mini-chart">📈</div>
+                </div>
+                <div class="venue-card">
+                    <div class="venue-name">Pump.swap AMM</div>
+                    <div class="venue-rate" style="color: var(--accent-yellow);">87.3%</div>
+                    <div class="mini-chart">📊</div>
+                </div>
+                <div class="venue-card">
+                    <div class="venue-name">Raydium</div>
+                    <div class="venue-rate positive">92.1%</div>
+                    <div class="mini-chart">📈</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Strategy Performance -->
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">Parser Strategy Performance</h2>
+                <span style="color: var(--text-secondary);">Sorted by success rate</span>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Strategy</th>
+                            <th>Success Rate</th>
+                            <th>Attempts (24h)</th>
+                            <th>Avg Parse Time</th>
+                            <th>Top Errors</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>BCTradeStrategy</td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span class="positive">98.5%</span>
+                                    <div class="progress-bar" style="width: 100px;">
+                                        <div class="progress-fill" style="width: 98.5%;"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>34,567</td>
+                            <td>8ms</td>
+                            <td>
+                                <span class="error-tag">Invalid mint (23)</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>UnifiedAmmTradeStrategy</td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span class="positive">92.1%</span>
+                                    <div class="progress-bar" style="width: 100px;">
+                                        <div class="progress-fill" style="width: 92.1%;"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>8,234</td>
+                            <td>15ms</td>
+                            <td>
+                                <span class="error-tag">No swap event (67)</span>
+                                <span class="error-tag">Missing inner ix (45)</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>AmmTradeHeuristicStrategy</td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span style="color: var(--accent-yellow);">71.3%</span>
+                                    <div class="progress-bar" style="width: 100px;">
+                                        <div class="progress-fill" style="width: 71.3%; background: var(--accent-yellow);"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>2,877</td>
+                            <td>22ms</td>
+                            <td>
+                                <span class="error-tag">Pattern not found (234)</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>RaydiumSwapStrategy</td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span class="positive">91.8%</span>
+                                    <div class="progress-bar" style="width: 100px;">
+                                        <div class="progress-fill" style="width: 91.8%;"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>1,234</td>
+                            <td>18ms</td>
+                            <td>
+                                <span class="error-tag">No ray_log (12)</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Data Quality Metrics -->
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">Data Quality Metrics</h2>
+            </div>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-title">AMM Trades with Reserves</div>
+                    <div class="metric-value">87.6%</div>
+                    <div class="metric-change positive">
+                        <span>↑ 45.2%</span>
+                        <span>since virtual calculator</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Reserve Data Sources</div>
+                    <div style="margin-top: 12px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span>Virtual Calculator</span>
+                            <span>62%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span>Pool State</span>
+                            <span>25%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Inner Instructions</span>
+                            <span>13%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Cross-Venue Correlation</div>
+                    <div class="metric-value">94.2%</div>
+                    <div style="font-size: 14px; color: var(--text-secondary); margin-top: 8px;">
+                        Graduations matched to pools
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Real-time Failures -->
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">Recent Parse Failures</h2>
+                <span style="color: var(--text-secondary);">Last 10 failures</span>
+            </div>
+            <div id="failures-list">
+                <div class="failure-item">
+                    <div>
+                        <a href="https://solscan.io/tx/5xKv..." class="failure-signature" target="_blank">
+                            5xKv3n2Y...8mNp
+                        </a>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+                            pump.swap • No swap event found • 2 min ago
+                        </div>
+                    </div>
+                    <span class="error-tag">UnifiedAmmTradeStrategy</span>
+                </div>
+                <div class="failure-item">
+                    <div>
+                        <a href="https://solscan.io/tx/2bHj..." class="failure-signature" target="_blank">
+                            2bHj9kL4...3xRt
+                        </a>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+                            pump.swap • Missing inner instructions • 3 min ago
+                        </div>
+                    </div>
+                    <span class="error-tag">UnifiedAmmTradeStrategy</span>
+                </div>
+                <div class="failure-item">
+                    <div>
+                        <a href="https://solscan.io/tx/7mNx..." class="failure-signature" target="_blank">
+                            7mNx4pQ8...9kLm
+                        </a>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+                            Raydium • Invalid discriminator • 5 min ago
+                        </div>
+                    </div>
+                    <span class="error-tag">RaydiumSwapStrategy</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Charts -->
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">Performance Trends</h2>
+            </div>
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('parse-rate')">Parse Rate</div>
+                <div class="tab" onclick="switchTab('latency')">Latency</div>
+                <div class="tab" onclick="switchTab('volume')">Volume</div>
+                <div class="tab" onclick="switchTab('errors')">Error Rate</div>
+            </div>
+            <div class="chart-container">
+                <div style="text-align: center; color: var(--text-secondary); margin-top: 100px;">
+                    📊 Parse Rate Chart (24h)
+                    <div style="margin-top: 20px; font-size: 14px;">
+                        [Chart would show parse rate over time with venue breakdown]
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Performance -->
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">System Performance</h2>
+            </div>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-title">Parse Queue Depth</div>
+                    <div class="metric-value">234</div>
+                    <div class="progress-bar" style="margin-top: 12px;">
+                        <div class="progress-fill" style="width: 23.4%;"></div>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+                        23.4% of capacity
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Memory Usage</div>
+                    <div class="metric-value">1.2GB</div>
+                    <div class="progress-bar" style="margin-top: 12px;">
+                        <div class="progress-fill" style="width: 60%;"></div>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+                        60% of allocated
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Event Bus Messages/sec</div>
+                    <div class="metric-value">142</div>
+                    <div class="metric-change positive">
+                        <span>↑ 12</span>
+                        <span>vs avg</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">DB Write Throughput</div>
+                    <div class="metric-value">89/s</div>
+                    <div class="metric-change neutral">
+                        <span>→ Normal</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auto-refresh every 10 seconds
+        let refreshInterval;
+        
+        function startAutoRefresh() {
+            refreshInterval = setInterval(() => {
+                refreshMetrics();
+            }, 10000);
+        }
+
+        function refreshMetrics() {
+            const button = document.querySelector('.refresh-button');
+            button.disabled = true;
+            button.textContent = 'Refreshing...';
+            
+            // Simulate API call
+            setTimeout(() => {
+                updateMetrics();
+                button.disabled = false;
+                button.textContent = 'Refresh Now';
+            }, 500);
+        }
+
+        function updateMetrics() {
+            // Update timestamp
+            document.querySelectorAll('[data-timestamp]').forEach(el => {
+                el.textContent = 'Last updated: just now';
+            });
+            
+            // Simulate some metric changes
+            const parseRate = (94 + Math.random() * 2).toFixed(1);
+            document.querySelector('.metric-value').textContent = parseRate + '%';
+            
+            // Add slight animations
+            document.querySelectorAll('.metric-card').forEach(card => {
+                card.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    card.style.transform = 'scale(1)';
+                }, 100);
+            });
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update chart placeholder
+            const chartContainer = document.querySelector('.chart-container');
+            const chartTitles = {
+                'parse-rate': '📊 Parse Rate Chart (24h)',
+                'latency': '📈 Latency Trend (24h)', 
+                'volume': '📊 Transaction Volume (24h)',
+                'errors': '📉 Error Rate (24h)'
+            };
+            
+            chartContainer.innerHTML = `
+                <div style="text-align: center; color: var(--text-secondary); margin-top: 100px;">
+                    ${chartTitles[tab]}
+                    <div style="margin-top: 20px; font-size: 14px;">
+                        [Chart would show ${tab.replace('-', ' ')} over time]
+                    </div>
+                </div>
+            `;
+        }
+
+        // Start auto-refresh on load
+        startAutoRefresh();
+        
+        // Link back to main dashboard
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                window.location.href = '/';
+            }
+        });
+    </script>
+</body>
+</html>

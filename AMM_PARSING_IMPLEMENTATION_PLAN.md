@@ -130,24 +130,83 @@ export class UnifiedEventParser {
 }
 ```
 
-#### 1.3 Add Metrics Dashboard Endpoint
+#### 1.3 Add Comprehensive Metrics API Endpoints
 ```typescript
 // src/api/metrics-endpoint.ts
-router.get('/api/parsing-metrics', async (req, res) => {
-  const metrics = ParsingMetricsService.getInstance().getMetrics();
+router.get('/api/parsing-metrics/overview', async (req, res) => {
+  const metrics = ParsingMetricsService.getInstance();
+  const overview = metrics.getOverviewMetrics();
   
   res.json({
     success: true,
     data: {
-      overallSuccessRate: metrics.totalSuccesses / metrics.totalAttempts,
-      totalTransactions: metrics.totalAttempts,
-      strategies: metrics.byStrategy.map(s => ({
-        name: s.strategy,
-        successRate: `${(s.successRate * 100).toFixed(1)}%`,
-        attempts: s.attempts,
-        topErrors: s.topErrors
-      }))
+      overall: {
+        parseRate: overview.overallParseRate,
+        totalTransactions: overview.totalTransactions,
+        successfullyParsed: overview.successfullyParsed,
+        avgParseTime: overview.avgParseTime
+      },
+      byProgram: {
+        'pump.fun': metrics.getProgramMetrics(PUMP_PROGRAM_ID),
+        'pump.swap': metrics.getProgramMetrics(AMM_PROGRAM_ID),
+        'raydium': metrics.getProgramMetrics(RAYDIUM_PROGRAM_ID)
+      },
+      recentFailures: metrics.getRecentFailures(10)
     }
+  });
+});
+
+router.get('/api/parsing-metrics/strategies', async (req, res) => {
+  const metrics = ParsingMetricsService.getInstance();
+  const strategies = metrics.getStrategyMetrics();
+  
+  res.json({
+    success: true,
+    data: strategies.map(s => ({
+      name: s.strategy,
+      successRate: s.successRate,
+      attempts: s.attempts,
+      avgParseTime: s.avgParseTime,
+      topErrors: s.getTopErrors(5)
+    }))
+  });
+});
+
+router.get('/api/parsing-metrics/data-quality', async (req, res) => {
+  const metrics = ParsingMetricsService.getInstance();
+  
+  res.json({
+    success: true,
+    data: {
+      ammTradesWithReserves: metrics.getReserveDataQuality(),
+      reserveDataSources: metrics.getReserveDataSources(),
+      crossVenueCorrelation: metrics.getCrossVenueMetrics(),
+      marketCapAccuracy: metrics.getMarketCapAccuracy()
+    }
+  });
+});
+
+router.get('/api/parsing-metrics/system', async (req, res) => {
+  const metrics = ParsingMetricsService.getInstance();
+  
+  res.json({
+    success: true,
+    data: {
+      parseQueueDepth: metrics.getQueueDepth(),
+      memoryUsage: process.memoryUsage(),
+      eventBusMessagesPerSec: metrics.getEventBusRate(),
+      dbWriteThroughput: metrics.getDbWriteRate()
+    }
+  });
+});
+
+router.get('/api/parsing-metrics/alerts', async (req, res) => {
+  const metrics = ParsingMetricsService.getInstance();
+  const alerts = metrics.checkAlertThresholds();
+  
+  res.json({
+    success: true,
+    data: alerts
   });
 });
 ```
@@ -402,46 +461,166 @@ async function analyzeParsRates() {
 }
 ```
 
-#### 4.2 Real-time Parse Failure Dashboard
+#### 4.2 Enhanced Streaming Metrics Dashboard
 ```typescript
-// src/dashboard/components/ParseMetrics.tsx
-export function ParseMetrics() {
-  const [metrics, setMetrics] = useState<ParseMetricsSummary | null>(null);
-  
-  useEffect(() => {
-    const fetchMetrics = async () => {
-      const response = await fetch('/api/parsing-metrics');
-      const data = await response.json();
-      setMetrics(data.data);
-    };
+// src/dashboard/streaming-metrics.ts
+export class StreamingMetricsPage {
+  private refreshInterval: number = 10000; // 10 seconds
+  private metricsCache = {
+    overview: null,
+    strategies: null,
+    dataQuality: null,
+    system: null,
+    alerts: []
+  };
+
+  async initializePage() {
+    // Set up auto-refresh
+    this.startAutoRefresh();
     
-    fetchMetrics();
-    const interval = setInterval(fetchMetrics, 10000);
-    return () => clearInterval(interval);
-  }, []);
-  
-  return (
-    <div className="parse-metrics">
-      <h3>AMM Parse Performance</h3>
-      <div className="metric-grid">
-        <div className="metric">
-          <label>Overall Success Rate</label>
-          <value>{(metrics?.overallSuccessRate * 100).toFixed(1)}%</value>
-        </div>
-        {metrics?.strategies.map(strategy => (
-          <div key={strategy.name} className="strategy-metric">
-            <label>{strategy.name}</label>
-            <value>{strategy.successRate}</value>
-            <small>{strategy.attempts} attempts</small>
+    // Load all metrics
+    await this.refreshAllMetrics();
+    
+    // Set up real-time updates via WebSocket
+    this.connectToMetricsStream();
+  }
+
+  private async refreshAllMetrics() {
+    await Promise.all([
+      this.updateOverviewMetrics(),
+      this.updateStrategyMetrics(),
+      this.updateDataQualityMetrics(),
+      this.updateSystemMetrics(),
+      this.checkAlerts()
+    ]);
+  }
+
+  private async updateOverviewMetrics() {
+    const response = await fetch('/api/parsing-metrics/overview');
+    const data = await response.json();
+    
+    // Update UI
+    this.updateElement('overall-parse-rate', `${data.data.overall.parseRate.toFixed(1)}%`);
+    this.updateElement('transactions-per-second', data.data.overall.tps);
+    this.updateElement('parse-latency', `${data.data.overall.avgParseTime}ms`);
+    this.updateElement('failed-parses-24h', data.data.overall.failedCount);
+    
+    // Update venue-specific metrics
+    Object.entries(data.data.byProgram).forEach(([venue, metrics]) => {
+      this.updateVenueCard(venue, metrics);
+    });
+    
+    // Update recent failures list
+    this.renderRecentFailures(data.data.recentFailures);
+  }
+
+  private async updateStrategyMetrics() {
+    const response = await fetch('/api/parsing-metrics/strategies');
+    const data = await response.json();
+    
+    // Sort by success rate
+    const strategies = data.data.sort((a, b) => b.successRate - a.successRate);
+    
+    // Render strategy performance table
+    this.renderStrategyTable(strategies);
+  }
+
+  private renderStrategyTable(strategies: StrategyMetric[]) {
+    const tableBody = document.querySelector('#strategy-table-body');
+    tableBody.innerHTML = strategies.map(s => `
+      <tr>
+        <td>${s.name}</td>
+        <td>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span class="${this.getSuccessRateClass(s.successRate)}">
+              ${(s.successRate * 100).toFixed(1)}%
+            </span>
+            <div class="progress-bar" style="width: 100px;">
+              <div class="progress-fill" style="width: ${s.successRate * 100}%;"></div>
+            </div>
           </div>
-        ))}
-      </div>
-    </div>
-  );
+        </td>
+        <td>${s.attempts.toLocaleString()}</td>
+        <td>${s.avgParseTime}ms</td>
+        <td>${this.renderTopErrors(s.topErrors)}</td>
+      </tr>
+    `).join('');
+  }
+
+  private connectToMetricsStream() {
+    // WebSocket connection for real-time updates
+    const ws = new WebSocket('ws://localhost:3001/metrics-stream');
+    
+    ws.onmessage = (event) => {
+      const update = JSON.parse(event.data);
+      this.handleRealtimeUpdate(update);
+    };
+  }
+
+  private handleRealtimeUpdate(update: MetricsUpdate) {
+    switch (update.type) {
+      case 'PARSE_FAILURE':
+        this.addFailureToList(update.data);
+        this.flashElement(`strategy-${update.data.strategy}`, 'error');
+        break;
+      case 'PARSE_SUCCESS':
+        this.incrementSuccessCounter(update.data.strategy);
+        break;
+      case 'ALERT':
+        this.showAlert(update.data);
+        break;
+    }
+  }
 }
 ```
 
-#### 4.3 Cross-venue Correlation
+#### 4.3 Streaming Metrics HTML Implementation
+The enhanced streaming metrics page (streaming-metrics-enhanced.html) includes:
+
+1. **Overall Metrics Dashboard**
+   - Real-time parse rate with trend indicators
+   - TPS, latency, and failure counts
+   - Visual alerts for threshold breaches
+
+2. **Parse Success by Venue**
+   - Separate cards for pump.fun BC, pump.swap AMM, and Raydium
+   - Mini sparkline charts showing trends
+   - Color-coded status (green >90%, yellow 80-90%, red <80%)
+
+3. **Strategy Performance Table**
+   - All parsing strategies ranked by success rate
+   - Visual progress bars for quick scanning
+   - Top error messages for each strategy
+   - Parse time performance
+
+4. **Data Quality Metrics**
+   - AMM trades with reserves percentage
+   - Reserve data source breakdown
+   - Cross-venue correlation success
+   - Market cap accuracy tracking
+
+5. **Real-time Failure Stream**
+   - Last 10 failed transactions with links
+   - Error reason and strategy that failed
+   - Time since failure
+
+6. **System Performance**
+   - Parse queue depth with capacity indicator
+   - Memory usage visualization
+   - Event bus message rate
+   - Database write throughput
+
+7. **Performance Trend Charts**
+   - Tabbed interface: Parse Rate, Latency, Volume, Error Rate
+   - 24-hour historical data
+   - Venue breakdown overlays
+
+8. **Alert System**
+   - Configurable thresholds
+   - Visual alerts at top of page
+   - Auto-dismiss after resolution
+
+#### 4.4 Cross-venue Correlation
 ```typescript
 // src/services/correlation/graduation-pool-matcher.ts
 export class GraduationPoolMatcher {
@@ -477,18 +656,24 @@ export class GraduationPoolMatcher {
 
 ### Week 1
 - [ ] Parse metrics service deployed and collecting data
-- [ ] Dashboard showing parse success rates by strategy
+- [ ] Enhanced streaming metrics dashboard live at http://localhost:3001/streaming-metrics.html
+- [ ] All metric categories visible: Overview, Strategies, Data Quality, System
 - [ ] Identified top parsing failure reasons
+- [ ] Alert system operational with configurable thresholds
 
 ### Week 2  
 - [ ] Unified parser achieving >80% success rate
 - [ ] AMM trade detection increased 10x (from ~3 to ~30+ per day)
 - [ ] All AMM trades have virtual reserves populated
+- [ ] Real-time failure stream showing problematic transactions
+- [ ] Strategy consolidation complete (6→2)
 
 ### Week 3
 - [ ] Overall AMM parse rate >90%
-- [ ] Parse failure dashboard integrated
+- [ ] Full metrics dashboard with historical charts
 - [ ] Cross-venue correlation working for graduations
+- [ ] Performance metrics (TPS, latency, queue depth) stable
+- [ ] Data quality metrics showing improvement trends
 
 ## Testing
 
@@ -513,12 +698,38 @@ npx tsx src/scripts/test-amm-parsing-integration.ts
 2. **Gradual Rollout**: Test on 10% traffic first
 3. **Monitoring**: Alert if parse rate drops below baseline
 
+## Enhanced Metrics Dashboard
+
+The comprehensive streaming metrics dashboard provides real-time visibility into:
+
+### Key Metrics Tracked
+1. **Parse Success Rates** - Overall and by venue (BC, AMM, Raydium)
+2. **Strategy Performance** - Success rate, attempts, errors for each parser
+3. **Data Quality** - Reserves population, source breakdown, accuracy
+4. **System Health** - Queue depth, memory, throughput
+5. **Failure Analysis** - Real-time stream with links to failed transactions
+
+### Dashboard Features
+- Auto-refresh every 10 seconds
+- Real-time WebSocket updates for failures
+- Visual alerts for threshold breaches
+- Historical trend charts (24h)
+- Exportable metrics for analysis
+
+### Alert Thresholds
+- Parse rate < 90%: Yellow alert
+- Parse rate < 80%: Red alert
+- Strategy < 50% success: Immediate investigation
+- Queue depth > 80%: Scale warning
+- Memory > 80%: Resource alert
+
 ## Conclusion
 
 This plan focuses on practical improvements:
-- **Metrics** to identify what's broken
+- **Comprehensive metrics** to identify what's broken in real-time
 - **Consolidation** from 6 strategies to 2 reliable ones  
 - **Integration** of existing account monitoring
-- **Analysis tools** to debug issues
+- **Enhanced dashboard** for complete visibility
+- **Analysis tools** to debug issues immediately
 
-No over-engineering, just fixes for real problems.
+No over-engineering, just fixes for real problems with full observability.

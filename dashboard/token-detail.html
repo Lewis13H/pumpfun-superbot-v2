@@ -13,16 +13,385 @@
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background-color: #0a0a0a;
             color: #e0e0e0;
-            line-height: 1.6;
+            font-size: 13px;
+            line-height: 1.4;
         }
         
         .container {
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
+            padding: 15px;
+        }
+        
+        /* Token Header */
+        .token-header {
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            border: 1px solid #2a2a2a;
+        }
+        
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .token-title {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .token-icon {
+            width: 40px;
+            height: 40px;
+            background: #333;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        
+        .token-name {
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .token-symbol {
+            color: #888;
+            font-size: 14px;
+        }
+        
+        .price-display {
+            text-align: right;
+        }
+        
+        .price {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .price-change {
+            font-size: 13px;
+            margin-top: 2px;
+        }
+        
+        .header-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 12px;
+            color: #aaa;
+        }
+        
+        .header-stats span {
+            color: #fff;
+            font-weight: 600;
+        }
+        
+        /* Score Cards Container */
+        .score-cards-container {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        /* Score Badge */
+        .score-badge {
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 12px 15px;
+            border: 1px solid #2a2a2a;
+        }
+        
+        .score-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .score-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #aaa;
+        }
+        
+        .score-value {
+            font-size: 16px;
+            font-weight: 700;
+            display: block;
+            margin-top: 4px;
+        }
+        
+        .score-status {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .score-bar {
+            width: 100%;
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        
+        .score-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+        }
+        
+        /* Different score colors */
+        .score-total .score-fill {
+            background: linear-gradient(90deg, #2196F3, #03A9F4);
+        }
+        
+        .score-bc .score-fill {
+            background: linear-gradient(90deg, #FF9800, #FFC107);
+        }
+        
+        .score-social .score-fill {
+            background: linear-gradient(90deg, #9C27B0, #E91E63);
+        }
+        
+        .score-technical .score-fill {
+            background: linear-gradient(90deg, #607D8B, #78909C);
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 15px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 4px;
+            border: 1px solid #2a2a2a;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 8px 16px;
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        .tab:hover {
+            background: #222;
+        }
+        
+        .tab.active {
+            background: #2a2a2a;
+            color: #4CAF50;
+        }
+        
+        /* Content Area */
+        .content-area {
+            background: #1a1a1a;
+            border-radius: 8px;
             padding: 20px;
+            border: 1px solid #2a2a2a;
+        }
+        
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #fff;
+        }
+        
+        /* Grid Layouts */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+        
+        /* Score Breakdown */
+        .score-breakdown {
+            background: #222;
+            border-radius: 6px;
+            padding: 15px;
+            font-size: 12px;
+        }
+        
+        .score-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .score-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        
+        .score-label {
+            color: #aaa;
+        }
+        
+        .score-points {
+            font-weight: 600;
+        }
+        
+        .negative {
+            color: #f44336;
+        }
+        
+        .positive {
+            color: #4CAF50;
+        }
+        
+        /* Distribution Chart */
+        .distribution-chart {
+            background: #222;
+            border-radius: 6px;
+            padding: 15px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .chart-placeholder {
+            width: 150px;
+            height: 150px;
+            background: #333;
+            border-radius: 50%;
+            margin-bottom: 15px;
+        }
+        
+        .chart-legend {
+            font-size: 11px;
+            width: 100%;
+        }
+        
+        .legend-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        
+        /* Metric Box */
+        .metric-box {
+            background: #222;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+        }
+        
+        .metric-label {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        
+        .metric-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+        }
+        
+        /* Table Styles */
+        .data-table {
+            width: 100%;
+            font-size: 12px;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        
+        .data-table th {
+            background: #222;
+            padding: 8px 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #aaa;
+            font-size: 11px;
+            text-transform: uppercase;
+            border-bottom: 1px solid #333;
+        }
+        
+        .data-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #2a2a2a;
+        }
+        
+        .data-table tr:hover {
+            background: #222;
+        }
+        
+        /* Risk Badges */
+        .risk-low {
+            color: #4CAF50;
+        }
+        
+        .risk-medium {
+            color: #ff9800;
+        }
+        
+        .risk-high {
+            color: #f44336;
+        }
+        
+        /* Address */
+        .address {
+            font-family: monospace;
+            color: #66b3ff;
+            cursor: pointer;
+        }
+        
+        .address:hover {
+            text-decoration: underline;
+        }
+        
+        /* External Links */
+        .external-links {
+            display: flex;
+            gap: 12px;
+            margin-top: 10px;
+            font-size: 11px;
+        }
+        
+        .external-link {
+            color: #66b3ff;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .external-link:hover {
+            color: #4CAF50;
         }
         
         /* Loading State */
@@ -40,393 +409,24 @@
             font-size: 18px;
         }
         
-        .nav-links {
-            display: flex;
-            gap: 30px;
-            align-items: center;
-        }
-        
-        .nav-links a {
-            color: #888;
-            text-decoration: none;
-            transition: color 0.3s;
-        }
-        
-        .nav-links a:hover {
-            color: #fff;
-        }
-        
-        .status-indicators {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-        
-        .sol-price {
-            color: #4CAF50;
-            font-weight: 600;
-        }
-        
-        .connection-status {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 12px;
-            color: #666;
-        }
-        
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            background-color: #4CAF50;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-        
-        /* Token Header */
-        .token-header {
-            display: grid;
-            grid-template-columns: auto 1fr auto;
-            gap: 30px;
-            margin-bottom: 40px;
-            align-items: start;
-        }
-        
-        .token-identity {
-            display: flex;
-            gap: 20px;
-            align-items: center;
-        }
-        
-        .token-image {
-            width: 80px;
-            height: 80px;
-            border-radius: 12px;
-            background-color: #1a1a1a;
-            object-fit: cover;
-        }
-        
-        .token-info h1 {
-            font-size: 28px;
-            margin-bottom: 5px;
-        }
-        
-        .token-info .symbol {
-            color: #888;
-            font-size: 18px;
-        }
-        
-        .token-info .description {
-            margin-top: 10px;
-            color: #aaa;
-            font-size: 14px;
-            max-width: 500px;
-        }
-        
-        .token-stats {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 20px;
-        }
-        
-        .stat-box {
-            background-color: #1a1a1a;
-            padding: 15px;
-            border-radius: 8px;
-        }
-        
-        .stat-label {
-            color: #888;
-            font-size: 12px;
-            text-transform: uppercase;
-        }
-        
-        .stat-value {
-            font-size: 20px;
-            font-weight: 600;
-            margin-top: 5px;
-        }
-        
-        .stat-change {
-            font-size: 14px;
-            margin-top: 3px;
-        }
-        
-        .positive {
-            color: #4CAF50;
-        }
-        
-        .negative {
-            color: #f44336;
-        }
-        
-        /* Action Buttons */
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .btn-secondary {
-            background-color: #2a2a2a;
-            color: #e0e0e0;
-        }
-        
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        }
-        
-        
-        /* Pool Info Panel */
-        .info-panel {
-            background-color: #1a1a1a;
-            border-radius: 12px;
-            padding: 20px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-        
-        .info-panel h3 {
-            font-size: 18px;
-            margin-bottom: 15px;
-            color: #fff;
-        }
-        
-        /* Info Cards */
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 40px;
-        }
-        
-        .info-card {
-            background-color: #1a1a1a;
-            border-radius: 12px;
-            padding: 20px;
-        }
-        
-        .info-card h3 {
-            font-size: 16px;
-            margin-bottom: 15px;
-            color: #fff;
-        }
-        
-        .info-item {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-            font-size: 14px;
-        }
-        
-        .info-label {
-            color: #888;
-        }
-        
-        .info-value {
-            color: #e0e0e0;
-            font-weight: 500;
-        }
-        
-        /* Progress Bar */
-        .progress-container {
-            margin-top: 15px;
-        }
-        
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background-color: #2a2a2a;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #4CAF50, #8BC34A);
-            transition: width 0.3s;
-        }
-        
-        .progress-text {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 5px;
-            font-size: 12px;
-            color: #888;
-        }
-        
-        /* Transactions Table */
-        .transactions-section {
-            background-color: #1a1a1a;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 40px;
-        }
-        
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        
-        .table-container {
-            overflow-x: auto;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        th {
-            text-align: left;
-            padding: 12px;
-            color: #888;
-            font-size: 12px;
-            text-transform: uppercase;
-            border-bottom: 1px solid #333;
-        }
-        
-        td {
-            padding: 12px;
-            border-bottom: 1px solid #222;
-        }
-        
-        .tx-type {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        
-        .tx-buy {
-            background-color: rgba(76, 175, 80, 0.2);
-            color: #4CAF50;
-        }
-        
-        .tx-sell {
-            background-color: rgba(244, 67, 54, 0.2);
-            color: #f44336;
-        }
-        
-        .address {
-            font-family: monospace;
-            font-size: 13px;
-            color: #66b3ff;
-            cursor: pointer;
-        }
-        
-        .address:hover {
-            text-decoration: underline;
-        }
-        
-        /* External Links */
-        .external-links {
-            display: flex;
-            gap: 15px;
-            margin-top: 20px;
-        }
-        
-        .external-link {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            color: #66b3ff;
-            text-decoration: none;
-            font-size: 14px;
-            transition: color 0.3s;
-        }
-        
-        .external-link:hover {
-            color: #4CAF50;
-        }
-        
-        /* Footer Stats */
-        .footer-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-top: 40px;
-            padding-top: 40px;
-            border-top: 1px solid #333;
-        }
-        
-        .graduated-badge {
-            background: linear-gradient(90deg, #FFD700, #FFA500);
-            color: #000;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            margin-left: 10px;
-        }
-        
-        /* Pagination */
-        .pagination {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-            margin-top: 20px;
-        }
-        
-        .pagination button {
-            padding: 8px 16px;
-            background-color: #2a2a2a;
-            border: none;
-            border-radius: 6px;
-            color: #e0e0e0;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-size: 14px;
-        }
-        
-        .pagination button:hover:not(:disabled) {
-            background-color: #3a3a3a;
-        }
-        
-        .pagination button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .pagination button.active {
-            background-color: #4CAF50;
-            color: white;
-        }
-        
-        .pagination .page-info {
-            color: #888;
-            font-size: 14px;
-        }
-        
-        /* Hide elements initially */
-        .content {
-            display: none;
+        /* Responsive */
+        @media (max-width: 768px) {
+            .score-cards-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+            
+            .grid-4 {
+                grid-template-columns: repeat(2, 1fr);
+            }
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
+    <!-- Header - Exact copy from index.html -->
     <header class="header">
         <div class="header-content">
             <a href="/" class="logo">
@@ -458,591 +458,349 @@
     </header>
 
     <div class="container">
-        <!-- Loading State -->
-        <div class="loading" id="loading">Loading token data...</div>
-        <div class="error" id="error" style="display: none;"></div>
+        <!-- Loading/Error States -->
+        <div id="loading" class="loading">Loading token details...</div>
+        <div id="error" class="error" style="display: none;">Failed to load token details</div>
         
-        <!-- Main Content (hidden initially) -->
-        <div class="content" id="content">
-
+        <!-- Main Content (hidden while loading) -->
+        <div id="content" style="display: none;">
             <!-- Token Header -->
-            <div class="token-header" id="tokenHeader">
-                <!-- Will be populated by JavaScript -->
-            </div>
-
-            <!-- Pool Info Panel -->
-            <div class="info-panel" id="poolInfo" style="margin-bottom: 40px;">
-                <!-- Will be populated by JavaScript -->
-            </div>
-
-            <!-- Info Cards -->
-            <div class="info-grid" id="infoCards">
-                <!-- Will be populated by JavaScript -->
-            </div>
-
-            <!-- Recent Transactions -->
-            <div class="transactions-section">
-                <div class="section-header">
-                    <h3>Recent Transactions</h3>
+            <div class="token-header">
+                <div class="header-top">
+                    <div class="token-title">
+                        <div class="token-icon" id="token-icon">🪙</div>
+                        <div>
+                            <div class="token-name">
+                                <span id="token-name">Loading...</span> <span class="token-symbol">(<span id="token-symbol">...</span>)</span>
+                            </div>
+                            <div class="external-links">
+                                <a href="#" id="pump-link" class="external-link" target="_blank">🟢 Pump.fun ↗</a>
+                                <a href="#" id="dexscreener-link" class="external-link" target="_blank">📊 DexScreener ↗</a>
+                                <a href="#" id="birdeye-link" class="external-link" target="_blank">🦅 Birdeye ↗</a>
+                                <a href="#" id="solscan-link" class="external-link" target="_blank">🔍 Solscan ↗</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="price-display">
+                        <div class="price" id="token-price">$0.00</div>
+                        <div class="price-change" id="price-change">+0.0% (24h)</div>
+                    </div>
                 </div>
-                <div class="table-container">
-                    <table id="transactionsTable">
-                        <thead>
-                            <tr>
-                                <th>Time</th>
-                                <th>Type</th>
-                                <th>Trader</th>
-                                <th>SOL</th>
-                                <th>Tokens</th>
-                                <th>Price</th>
-                                <th>Value USD</th>
-                                <th>Tx</th>
-                            </tr>
-                        </thead>
-                        <tbody id="transactionsBody">
-                            <!-- Will be populated by JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
-                <div class="pagination" id="pagination">
-                    <!-- Will be populated by JavaScript -->
+                <div class="header-stats">
+                    <div>Market Cap: <span id="market-cap">$0</span></div>
+                    <div>24h Volume: <span id="volume-24h">$0</span></div>
+                    <div>Holders: <span id="holder-count">0</span></div>
+                    <div>Liquidity: <span id="liquidity">0 SOL</span></div>
+                    <div>Progress: <span id="progress">0%</span></div>
                 </div>
             </div>
 
-            <!-- Footer Stats -->
-            <div class="footer-stats" id="footerStats">
-                <!-- Will be populated by JavaScript -->
+            <!-- Score Cards - 5 columns -->
+            <div class="score-cards-container">
+                <!-- Total Score -->
+                <div class="score-badge score-total">
+                    <div class="score-header">
+                        <div>
+                            <div class="score-title">Total Score</div>
+                            <div class="score-value"><span id="total-score">0</span>/1000</div>
+                        </div>
+                    </div>
+                    <div class="score-bar">
+                        <div class="score-fill" id="total-score-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <!-- Holder Score -->
+                <div class="score-badge">
+                    <div class="score-header">
+                        <div>
+                            <div class="score-title">Holder Score</div>
+                            <div class="score-value"><span id="holder-score">0</span>/300</div>
+                        </div>
+                    </div>
+                    <div class="score-bar">
+                        <div class="score-fill" id="holder-score-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <!-- BC Curve Score -->
+                <div class="score-badge score-bc">
+                    <div class="score-header">
+                        <div>
+                            <div class="score-title">BC Curve Score</div>
+                            <div class="score-value"><span id="bc-score">0</span>/300</div>
+                        </div>
+                    </div>
+                    <div class="score-bar">
+                        <div class="score-fill" id="bc-score-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <!-- Social Score -->
+                <div class="score-badge score-social">
+                    <div class="score-header">
+                        <div>
+                            <div class="score-title">Social Score</div>
+                            <div class="score-value"><span id="social-score">0</span>/200</div>
+                        </div>
+                    </div>
+                    <div class="score-bar">
+                        <div class="score-fill" id="social-score-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <!-- Technical Score -->
+                <div class="score-badge score-technical">
+                    <div class="score-header">
+                        <div>
+                            <div class="score-title">Technical Score</div>
+                            <div class="score-value"><span id="technical-score">0</span>/200</div>
+                        </div>
+                    </div>
+                    <div class="score-bar">
+                        <div class="score-fill" id="technical-score-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="tabs">
+                <button class="tab" onclick="switchTab('overview')">Overview</button>
+                <button class="tab" onclick="switchTab('chart')">Price Chart</button>
+                <button class="tab active" onclick="switchTab('holders')">Holders</button>
+                <button class="tab" onclick="switchTab('transactions')">Transactions</button>
+                <button class="tab" onclick="switchTab('pool')">Pool</button>
+            </div>
+
+            <!-- Content Area - Dynamic based on tab -->
+            <div class="content-area" id="tab-content">
+                <!-- Content will be loaded dynamically -->
             </div>
         </div>
     </div>
 
     <script>
-        // Get mint address from URL
+        // Get token address from URL
         const urlParams = new URLSearchParams(window.location.search);
-        const mintAddress = urlParams.get('mint') || window.location.pathname.split('/').pop();
-        
-        // Data variables
+        const tokenAddress = urlParams.get('address');
+        let currentTab = 'holders';
         let tokenData = null;
-        let updateInterval = null;
-        let allTrades = [];
-        let currentPage = 1;
-        const tradesPerPage = 10;
-        
-        // Format number utilities
-        function formatNumber(num, decimals = 2) {
-            if (num === null || num === undefined) return '0';
-            // Convert to number if it's a string
-            const n = typeof num === 'string' ? parseFloat(num) : num;
-            if (isNaN(n)) return '0';
-            
-            if (n >= 1e9) return (n / 1e9).toFixed(decimals) + 'B';
-            if (n >= 1e6) return (n / 1e6).toFixed(decimals) + 'M';
-            if (n >= 1e3) return (n / 1e3).toFixed(decimals) + 'K';
-            if (n < 1 && n > 0) {
-                if (n < 0.00001) return n.toExponential(2);
-                return n.toFixed(6);
-            }
-            return n.toFixed(decimals);
+
+        // Switch tabs
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            renderTabContent();
         }
-        
-        function formatAddress(address) {
-            if (!address) return '';
-            return `${address.slice(0, 6)}...${address.slice(-4)}`;
-        }
-        
-        function formatTimeAgo(timestamp) {
-            const seconds = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000);
-            if (seconds < 60) return `${seconds}s ago`;
-            if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-            if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-            return `${Math.floor(seconds / 86400)}d ago`;
-        }
-        
-        function formatAge(seconds) {
-            const days = Math.floor(seconds / 86400);
-            const hours = Math.floor((seconds % 86400) / 3600);
-            const minutes = Math.floor((seconds % 3600) / 60);
+
+        // Render tab content
+        function renderTabContent() {
+            const content = document.getElementById('tab-content');
             
-            if (days > 0) return `${days}d ${hours}h`;
-            if (hours > 0) return `${hours}h ${minutes}m`;
-            return `${minutes}m`;
-        }
-        
-        // Update connection status indicator
-        function updateConnectionStatus(isConnected, text = null) {
-            const statusDot = document.getElementById('status-dot');
-            const statusText = document.getElementById('status-text');
-            
-            if (statusDot) {
-                if (isConnected) {
-                    statusDot.classList.add('connected');
-                } else {
-                    statusDot.classList.remove('connected');
-                }
-            }
-            
-            if (statusText) {
-                if (text) {
-                    statusText.textContent = text;
-                } else {
-                    statusText.textContent = isConnected ? 'Connected' : 'Disconnected';
-                }
+            switch(currentTab) {
+                case 'overview':
+                    content.innerHTML = '<h2 class="section-title">Token Overview</h2><p>Overview content coming soon...</p>';
+                    break;
+                case 'chart':
+                    content.innerHTML = '<h2 class="section-title">Price Chart</h2><p>Chart integration coming soon...</p>';
+                    break;
+                case 'holders':
+                    renderHoldersTab();
+                    break;
+                case 'transactions':
+                    content.innerHTML = '<h2 class="section-title">Recent Transactions</h2><p>Transactions coming soon...</p>';
+                    break;
+                case 'pool':
+                    content.innerHTML = '<h2 class="section-title">Pool Information</h2><p>Pool info coming soon...</p>';
+                    break;
             }
         }
 
-        // Fetch SOL price and status
-        async function updateSolPrice() {
-            try {
-                const response = await fetch('/api/status');
-                const data = await response.json();
-                const solPrice = typeof data.sol_price === 'object' ? data.sol_price.price : data.sol_price;
-                document.getElementById('header-sol-price').textContent = `$${parseFloat(solPrice).toFixed(2)}`;
-                const lastUpdate = data.sol_price.timestamp || data.last_price_update;
-                document.getElementById('header-sol-timestamp').textContent = formatTimeAgo(lastUpdate);
-                document.getElementById('header-sol-timestamp').title = `Last updated: ${new Date(lastUpdate).toLocaleString()}`;
+        // Render holders tab
+        function renderHoldersTab() {
+            const content = document.getElementById('tab-content');
+            content.innerHTML = `
+                <h2 class="section-title">Holder Analytics</h2>
                 
-                // Update connection status based on stream status
-                const isConnected = data.monitors && Object.values(data.monitors).some(m => m.stream_status === 'connected');
-                updateConnectionStatus(isConnected, isConnected ? 'Real-time' : 'Disconnected');
-            } catch (error) {
-                console.error('Error fetching SOL price:', error);
-                updateConnectionStatus(false);
-            }
-        }
-        
-        // Render token header
-        function renderTokenHeader(data) {
-            const graduatedBadge = data.graduated_to_amm ? '<span class="graduated-badge">GRADUATED</span>' : '';
-            const priceChange = parseFloat(data.total_gain_percent) || 0;
-            const priceChangeClass = priceChange >= 0 ? 'positive' : 'negative';
-            const priceChangeSign = priceChange >= 0 ? '+' : '';
-            
-            // Create a placeholder SVG with the first letter of the symbol
-            const firstLetter = data.symbol?.charAt(0) || '?';
-            const placeholderSvg = `<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect width="80" height="80" rx="12" fill="#1a1a1a"/>
-                <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#666">${firstLetter}</text>
-            </svg>`;
-            const placeholderImage = 'data:image/svg+xml;base64,' + btoa(placeholderSvg);
-            
-            const html = `
-                <div class="token-identity">
-                    <img class="token-image" src="${data.image_uri || placeholderImage}" alt="${data.name}" onerror="this.src='${placeholderImage}'">
-                    <div class="token-info">
-                        <h1>${data.name} ${graduatedBadge}</h1>
-                        <div class="symbol">${data.symbol}</div>
-                        ${data.description ? `<div class="description">${data.description}</div>` : ''}
-                        <div class="external-links">
-                            <a href="https://pump.fun/coin/${data.mint_address}" target="_blank" class="external-link">🟢 Pump.fun ↗</a>
-                            <a href="https://solscan.io/token/${data.mint_address}" target="_blank" class="external-link">🔍 Solscan ↗</a>
-                            <a href="https://birdeye.so/token/${data.mint_address}" target="_blank" class="external-link">🦅 Birdeye ↗</a>
-                            <a href="https://dexscreener.com/solana/${data.mint_address}" target="_blank" class="external-link">📊 DexScreener ↗</a>
+                <!-- Score Breakdown and Distribution -->
+                <div class="grid-2" style="margin-bottom: 20px;">
+                    <div class="score-breakdown">
+                        <h3 style="font-size: 14px; margin-bottom: 12px;">Score Breakdown</h3>
+                        <div class="score-item">
+                            <span class="score-label">Distribution</span>
+                            <span class="score-points">45/50</span>
+                        </div>
+                        <div class="score-item">
+                            <span class="score-label">Decentralized</span>
+                            <span class="score-points">40/50</span>
+                        </div>
+                        <div class="score-item">
+                            <span class="score-label">Organic</span>
+                            <span class="score-points">25/30</span>
+                        </div>
+                        <div class="score-item">
+                            <span class="score-label">Dev Ethics</span>
+                            <span class="score-points">15/20</span>
+                        </div>
+                        <div class="score-item" style="border-top: 1px solid #333; padding-top: 8px; margin-top: 8px;">
+                            <span class="score-label">Sniper Risk</span>
+                            <span class="score-points negative">-15</span>
+                        </div>
+                        <div class="score-item">
+                            <span class="score-label">Bot Activity</span>
+                            <span class="score-points negative">-10</span>
+                        </div>
+                        <div class="score-item" style="border-top: 2px solid #333; padding-top: 8px; margin-top: 8px;">
+                            <span class="score-label" style="font-weight: 600;">Total</span>
+                            <span class="score-points" style="font-size: 14px;">245/300</span>
                         </div>
                     </div>
-                </div>
-                
-                <div class="token-stats">
-                    <div class="stat-box">
-                        <div class="stat-label">Price USD</div>
-                        <div class="stat-value">$${formatNumber(data.latest_price_usd)}</div>
-                        <div class="stat-change ${priceChangeClass}">${priceChangeSign}${formatNumber(priceChange, 1)}%</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-label">Market Cap</div>
-                        <div class="stat-value">$${formatNumber(data.latest_market_cap_usd)}</div>
-                        <div class="stat-change">FDV: $${formatNumber(parseFloat(data.latest_market_cap_usd) * 10)}</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-label">Volume 24h</div>
-                        <div class="stat-value">$${formatNumber(data.trade_stats?.volume_24h_usd || data.volume_24h_usd)}</div>
-                        <div class="stat-change">${data.trade_stats?.total_trades || 0} trades</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-label">Liquidity</div>
-                        <div class="stat-value">$${formatNumber(parseFloat(data.latest_virtual_sol_reserves || 0) * parseFloat(data.sol_price || 0) * 2)}</div>
-                        <div class="stat-change">${formatNumber(data.latest_virtual_sol_reserves)} SOL</div>
-                    </div>
-                </div>
-                
-                <div class="action-buttons">
-                    <button class="btn btn-secondary" onclick="refreshData()">🔄 Refresh</button>
-                    <button class="btn btn-secondary">🔔 Set Alert</button>
-                </div>
-            `;
-            
-            document.getElementById('tokenHeader').innerHTML = html;
-        }
-        
-        // Render pool info
-        function renderPoolInfo(data) {
-            const poolType = data.graduated_to_amm ? 'Pump.swap AMM' : 'Bonding Curve';
-            const poolInfo = data.pool_info;
-            
-            let html = '';
-            
-            if (data.graduated_to_amm && poolInfo) {
-                html = `
-                    <div class="info-card">
-                        <h3>Pool Information</h3>
-                        <div class="info-item">
-                            <span class="info-label">Pool Type</span>
-                            <span class="info-value">${poolType}</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Pool Address</span>
-                            <span class="info-value address" onclick="navigator.clipboard.writeText('${poolInfo.pool_address}')">${formatAddress(poolInfo.pool_address)}</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Trading Fee</span>
-                            <span class="info-value">${(parseFloat(poolInfo.swap_fee_numerator) / parseFloat(poolInfo.swap_fee_denominator) * 100).toFixed(1)}%</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">SOL Reserve</span>
-                            <span class="info-value">${formatNumber(parseFloat(poolInfo.virtual_sol_reserves) / 1e9)}</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Token Reserve</span>
-                            <span class="info-value">${formatNumber(parseFloat(poolInfo.virtual_token_reserves) / 1e6)}</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">LP Supply</span>
-                            <span class="info-value">${formatNumber(parseFloat(poolInfo.virtual_lp_supply) / 1e6)}</span>
-                        </div>
-                    </div>
-                `;
-            } else {
-                // Bonding curve info
-                html = `
-                    <div class="info-card">
-                        <h3>Bonding Curve Information</h3>
-                        <div class="info-item">
-                            <span class="info-label">Type</span>
-                            <span class="info-value">${poolType}</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Progress</span>
-                            <span class="info-value">${parseFloat(data.latest_bonding_curve_progress || 0).toFixed(1)}%</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">SOL Reserve</span>
-                            <span class="info-value">${formatNumber(data.latest_virtual_sol_reserves)}</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Token Reserve</span>
-                            <span class="info-value">${formatNumber(data.latest_virtual_token_reserves)}</span>
-                        </div>
-                        <div class="progress-container" style="margin-top: 15px;">
-                            <div class="progress-bar">
-                                <div class="progress-fill" style="width: ${data.latest_bonding_curve_progress || 0}%"></div>
+                    
+                    <div class="distribution-chart">
+                        <div class="chart-placeholder"></div>
+                        <div class="chart-legend">
+                            <div class="legend-item">
+                                <span>🟢 Organic</span>
+                                <span>65%</span>
                             </div>
-                            <div class="progress-text">
-                                <span>0%</span>
-                                <span>Bonding Curve Progress</span>
-                                <span>100%</span>
+                            <div class="legend-item">
+                                <span>🔴 Snipers</span>
+                                <span>15%</span>
+                            </div>
+                            <div class="legend-item">
+                                <span>🤖 Bots</span>
+                                <span>10%</span>
+                            </div>
+                            <div class="legend-item">
+                                <span>🐋 Whales</span>
+                                <span>8%</span>
+                            </div>
+                            <div class="legend-item">
+                                <span>👨‍💻 Dev</span>
+                                <span>2%</span>
                             </div>
                         </div>
                     </div>
-                `;
-            }
-            
-            // Volume stats
-            html += `
-                <div class="info-card">
-                    <h3>Volume Statistics</h3>
-                    <div class="info-item">
-                        <span class="info-label">1h Volume</span>
-                        <span class="info-value">$${formatNumber(data.trade_stats?.volume_1h_usd || 0)}</span>
+                </div>
+
+                <!-- Key Metrics Grid -->
+                <div class="grid-4" style="margin-bottom: 20px;">
+                    <div class="metric-box">
+                        <div class="metric-label">Total Holders</div>
+                        <div class="metric-value" id="metric-holders">0</div>
                     </div>
-                    <div class="info-item">
-                        <span class="info-label">24h Volume</span>
-                        <span class="info-value">$${formatNumber(data.trade_stats?.volume_24h_usd || 0)}</span>
+                    <div class="metric-box">
+                        <div class="metric-label">Top 10 Hold</div>
+                        <div class="metric-value" id="metric-top10">0%</div>
                     </div>
-                    <div class="info-item">
-                        <span class="info-label">7d Volume</span>
-                        <span class="info-value">$${formatNumber(data.trade_stats?.volume_7d_usd || 0)}</span>
+                    <div class="metric-box">
+                        <div class="metric-label">Top 25 Hold</div>
+                        <div class="metric-value" id="metric-top25">0%</div>
                     </div>
-                    <div class="info-item">
-                        <span class="info-label">Total Volume</span>
-                        <span class="info-value">$${formatNumber(data.trade_stats?.volume_total_usd || 0)}</span>
+                    <div class="metric-box">
+                        <div class="metric-label">Gini Coef</div>
+                        <div class="metric-value" id="metric-gini">0.00</div>
                     </div>
                 </div>
+
+                <!-- Tables will be added here if holder data is available -->
+                <div id="holder-tables"></div>
             `;
-            
-            // Holder info if available
-            if (data.holder_score !== undefined) {
-                html += `
-                    <div class="info-card">
-                        <h3>Holder Analysis</h3>
-                        <div class="info-item">
-                            <span class="info-label">Holder Score</span>
-                            <span class="info-value">${data.holder_score || 'N/A'}/300</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Holder Count</span>
-                            <span class="info-value">${formatNumber(data.holder_count || 0, 0)}</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Top Holder %</span>
-                            <span class="info-value">${formatNumber(data.top_holder_percentage || 0, 1)}%</span>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            document.getElementById('poolInfo').innerHTML = html;
         }
-        
-        // Render info cards
-        function renderInfoCards(data) {
-            const cards = [
-                {
-                    title: 'Token Info',
-                    items: [
-                        { label: 'Created', value: formatAge(data.age_seconds) + ' ago' },
-                        { label: 'Creator', value: data.creator ? '<a href="https://solscan.io/account/' + data.creator + '" target="_blank" class="address" style="text-decoration: none;">' + formatAddress(data.creator) + '↗</a>' : 'Unknown', copyable: false },
-                        { label: 'Mint Address', value: formatAddress(data.mint_address), copyable: true },
-                        { label: 'Decimals', value: '6' }
-                    ]
-                },
-                {
-                    title: 'Trading Stats',
-                    items: [
-                        { label: 'Total Trades', value: formatNumber(data.trade_stats?.total_trades || 0, 0) },
-                        { label: 'Buys / Sells', value: `${data.trade_stats?.total_buys || 0} / ${data.trade_stats?.total_sells || 0}` },
-                        { label: 'Unique Traders 24h', value: formatNumber(data.trade_stats?.unique_traders_24h || 0, 0) },
-                        { label: 'Holder Count', value: formatNumber(data.holder_count || 0, 0) }
-                    ]
-                },
-                {
-                    title: data.graduated_to_amm ? 'Graduation Info' : 'Bonding Curve',
-                    items: data.graduated_to_amm ? [
-                        { label: 'Status', value: 'Graduated ✓', class: 'positive' },
-                        { label: 'Graduated At', value: formatAge(Math.floor((Date.now() - new Date(data.graduation_at).getTime()) / 1000)) + ' ago' },
-                        { label: 'Graduation Price', value: '$' + formatNumber(data.threshold_price_usd) },
-                        { label: 'Gains Since', value: (parseFloat(data.gain_since_graduation) >= 0 ? '+' : '') + formatNumber(data.gain_since_graduation, 1) + '%', class: parseFloat(data.gain_since_graduation) >= 0 ? 'positive' : 'negative' }
-                    ] : [
-                        { label: 'Status', value: 'Active' },
-                        { label: 'Progress', value: parseFloat(data.latest_bonding_curve_progress || 0).toFixed(1) + '%' },
-                        { label: 'To Graduate', value: (100 - parseFloat(data.latest_bonding_curve_progress || 0)).toFixed(1) + '%' },
-                        { label: 'Virtual Reserves', value: `${formatNumber(data.latest_virtual_sol_reserves)} SOL` }
-                    ]
-                },
-                {
-                    title: 'Price Performance',
-                    items: [
-                        { label: 'Launch Price', value: '$' + formatNumber(data.first_price_usd) },
-                        { label: 'Current Price', value: '$' + formatNumber(data.latest_price_usd) },
-                        { label: '24h High / Low', value: `$${formatNumber(data.price_high_24h || data.latest_price_usd)} / $${formatNumber(data.price_low_24h || data.latest_price_usd)}` },
-                        { label: 'Total Gain', value: (parseFloat(data.total_gain_percent) >= 0 ? '+' : '') + formatNumber(data.total_gain_percent, 1) + '%', class: parseFloat(data.total_gain_percent) >= 0 ? 'positive' : 'negative' }
-                    ]
-                }
-            ];
-            
-            const html = cards.map(card => `
-                <div class="info-card">
-                    <h3>${card.title}</h3>
-                    ${card.items.map(item => `
-                        <div class="info-item">
-                            <span class="info-label">${item.label}</span>
-                            <span class="info-value ${item.class || ''}" ${item.copyable ? `style="cursor: pointer;" onclick="navigator.clipboard.writeText('${data[item.label.toLowerCase().replace(/ /g, '_')] || ''}')"` : ''}>${item.value}</span>
-                        </div>
-                    `).join('')}
-                </div>
-            `).join('');
-            
-            document.getElementById('infoCards').innerHTML = html;
-        }
-        
-        // Render transactions with pagination
-        function renderTransactions(trades) {
-            allTrades = trades || [];
-            
-            if (allTrades.length === 0) {
-                document.getElementById('transactionsBody').innerHTML = '<tr><td colspan="8" style="text-align: center; color: #666;">No recent transactions</td></tr>';
-                document.getElementById('pagination').innerHTML = '';
-                return;
-            }
-            
-            // Calculate pagination
-            const totalPages = Math.ceil(allTrades.length / tradesPerPage);
-            const startIndex = (currentPage - 1) * tradesPerPage;
-            const endIndex = startIndex + tradesPerPage;
-            const pageTrades = allTrades.slice(startIndex, endIndex);
-            
-            // Render trades for current page
-            const html = pageTrades.map(trade => {
-                const txType = trade.trade_type;
-                const txClass = txType === 'buy' ? 'tx-buy' : 'tx-sell';
-                const solAmount = parseFloat(trade.sol_amount) / 1e9;
-                const tokenAmount = parseFloat(trade.token_amount) / 1e6;
-                const valueUsd = solAmount * tokenData.sol_price;
-                
-                return `
-                    <tr>
-                        <td>${formatTimeAgo(trade.created_at)}</td>
-                        <td><span class="tx-type ${txClass}">${txType.toUpperCase()}</span></td>
-                        <td class="address" onclick="window.open('https://solscan.io/account/${trade.user_address}', '_blank')">${formatAddress(trade.user_address)}</td>
-                        <td>${formatNumber(solAmount)}</td>
-                        <td>${formatNumber(tokenAmount)}</td>
-                        <td>$${formatNumber(trade.price_usd)}</td>
-                        <td>$${formatNumber(valueUsd)}</td>
-                        <td class="address" onclick="window.open('https://solscan.io/tx/${trade.signature}', '_blank')">${formatAddress(trade.signature)}↗</td>
-                    </tr>
-                `;
-            }).join('');
-            
-            document.getElementById('transactionsBody').innerHTML = html;
-            
-            // Render pagination controls
-            renderPagination(totalPages);
-        }
-        
-        // Render pagination controls
-        function renderPagination(totalPages) {
-            if (totalPages <= 1) {
-                document.getElementById('pagination').innerHTML = '';
-                return;
-            }
-            
-            let paginationHtml = '';
-            
-            // Previous button
-            paginationHtml += `<button onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>`;
-            
-            // Page numbers
-            const maxPagesToShow = 5;
-            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
-            let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
-            
-            if (endPage - startPage < maxPagesToShow - 1) {
-                startPage = Math.max(1, endPage - maxPagesToShow + 1);
-            }
-            
-            if (startPage > 1) {
-                paginationHtml += `<button onclick="changePage(1)">1</button>`;
-                if (startPage > 2) {
-                    paginationHtml += `<span class="page-info">...</span>`;
-                }
-            }
-            
-            for (let i = startPage; i <= endPage; i++) {
-                paginationHtml += `<button onclick="changePage(${i})" ${i === currentPage ? 'class="active"' : ''}>${i}</button>`;
-            }
-            
-            if (endPage < totalPages) {
-                if (endPage < totalPages - 1) {
-                    paginationHtml += `<span class="page-info">...</span>`;
-                }
-                paginationHtml += `<button onclick="changePage(${totalPages})">${totalPages}</button>`;
-            }
-            
-            // Next button
-            paginationHtml += `<button onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>`;
-            
-            // Page info
-            paginationHtml += `<span class="page-info">Page ${currentPage} of ${totalPages}</span>`;
-            
-            document.getElementById('pagination').innerHTML = paginationHtml;
-        }
-        
-        // Change page
-        function changePage(page) {
-            const totalPages = Math.ceil(allTrades.length / tradesPerPage);
-            if (page >= 1 && page <= totalPages) {
-                currentPage = page;
-                renderTransactions(allTrades);
-            }
-        }
-        
-        // Render footer stats
-        function renderFooterStats(data) {
-            const stats = [
-                { label: 'First Seen', value: new Date(data.first_seen_at).toLocaleString() },
-                { label: 'Threshold Crossed', value: data.threshold_crossed_at ? new Date(data.threshold_crossed_at).toLocaleString() : 'Not yet' },
-                { label: 'Graduated', value: data.graduation_at ? new Date(data.graduation_at).toLocaleString() : 'Not graduated' },
-                { label: 'Last Update', value: formatTimeAgo(data.updated_at) }
-            ];
-            
-            const html = stats.map(stat => `
-                <div class="stat-box">
-                    <div class="stat-label">${stat.label}</div>
-                    <div class="stat-value">${stat.value}</div>
-                </div>
-            `).join('');
-            
-            document.getElementById('footerStats').innerHTML = html;
-        }
-        
-        
+
         // Load token data
         async function loadTokenData() {
+            if (!tokenAddress) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'No token address provided';
+                return;
+            }
+
             try {
-                const response = await fetch(`/api/tokens/${mintAddress}`);
-                if (!response.ok) {
-                    throw new Error('Token not found');
-                }
+                const response = await fetch(`/api/v1/tokens/${tokenAddress}`);
+                if (!response.ok) throw new Error('Failed to fetch token data');
                 
                 tokenData = await response.json();
                 
-                // Debug: Check if creator field exists
-                console.log('Token data received:', {
-                    mintAddress: tokenData.mint_address,
-                    symbol: tokenData.symbol,
-                    creator: tokenData.creator,
-                    hasCreator: !!tokenData.creator
-                });
-                
-                // Update page title
-                document.title = `${tokenData.symbol} - ${tokenData.name} | Token Detail`;
-                
-                // Hide loading, show content
+                // Update UI with token data
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('content').style.display = 'block';
                 
-                // Render all sections
-                renderTokenHeader(tokenData);
-                renderPoolInfo(tokenData);
-                renderInfoCards(tokenData);
-                renderTransactions(tokenData.recent_trades);
-                renderFooterStats(tokenData);
+                updateTokenDisplay();
+                renderTabContent();
+                
+                // Set page title
+                document.title = `${tokenData.symbol || 'Token'} - Token Detail`;
                 
             } catch (error) {
-                console.error('Error loading token data:', error);
+                console.error('Error loading token:', error);
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('error').style.display = 'block';
-                document.getElementById('error').textContent = error.message || 'Failed to load token data';
             }
         }
-        
-        // Refresh data
-        async function refreshData() {
-            await loadTokenData();
-            await updateSolPrice();
-        }
-        
-        
-        // Initialize
-        if (!mintAddress) {
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('error').style.display = 'block';
-            document.getElementById('error').textContent = 'No token specified. Use ?mint=ADDRESS in the URL.';
-        } else {
-            // Load initial data
-            loadTokenData();
-            updateSolPrice();
+
+        // Update token display
+        function updateTokenDisplay() {
+            // Basic info
+            document.getElementById('token-name').textContent = tokenData.name || 'Unknown';
+            document.getElementById('token-symbol').textContent = tokenData.symbol || '???';
+            document.getElementById('token-price').textContent = `$${formatNumber(tokenData.price_usd || 0, 6)}`;
             
-            // Set up auto-refresh
-            updateInterval = setInterval(() => {
-                refreshData();
-            }, 10000); // Refresh every 10 seconds
-        }
-        
-        // Clean up on page unload
-        window.addEventListener('beforeunload', () => {
-            if (updateInterval) {
-                clearInterval(updateInterval);
+            // Stats
+            document.getElementById('market-cap').textContent = `$${formatNumber(tokenData.market_cap || 0)}`;
+            document.getElementById('volume-24h').textContent = `$${formatNumber(tokenData.volume_24h || 0)}`;
+            document.getElementById('holder-count').textContent = formatNumber(tokenData.holder_count || 0);
+            document.getElementById('liquidity').textContent = `${formatNumber(tokenData.liquidity_sol || 0)} SOL`;
+            document.getElementById('progress').textContent = `${(tokenData.bonding_curve_progress || 0).toFixed(1)}%`;
+            
+            // External links
+            document.getElementById('pump-link').href = `https://pump.fun/${tokenAddress}`;
+            document.getElementById('dexscreener-link').href = `https://dexscreener.com/solana/${tokenAddress}`;
+            document.getElementById('birdeye-link').href = `https://birdeye.so/token/${tokenAddress}`;
+            document.getElementById('solscan-link').href = `https://solscan.io/token/${tokenAddress}`;
+            
+            // Scores (using holder score for now, will expand later)
+            const holderScore = tokenData.holder_score || 0;
+            document.getElementById('holder-score').textContent = holderScore;
+            document.getElementById('holder-score-fill').style.width = `${(holderScore / 300) * 100}%`;
+            
+            // Placeholder scores for now
+            document.getElementById('total-score').textContent = holderScore;
+            document.getElementById('total-score-fill').style.width = `${(holderScore / 1000) * 100}%`;
+            
+            document.getElementById('bc-score').textContent = Math.round(holderScore * 0.8);
+            document.getElementById('bc-score-fill').style.width = `${(holderScore * 0.8 / 300) * 100}%`;
+            
+            document.getElementById('social-score').textContent = Math.round(holderScore * 0.5);
+            document.getElementById('social-score-fill').style.width = `${(holderScore * 0.5 / 200) * 100}%`;
+            
+            document.getElementById('technical-score').textContent = Math.round(holderScore * 0.6);
+            document.getElementById('technical-score-fill').style.width = `${(holderScore * 0.6 / 200) * 100}%`;
+            
+            // Update metrics if available
+            if (tokenData.holder_analysis) {
+                document.getElementById('metric-holders').textContent = formatNumber(tokenData.holder_analysis.total_holders || 0);
+                document.getElementById('metric-top10').textContent = `${(tokenData.holder_analysis.top_10_percentage || 0).toFixed(1)}%`;
+                document.getElementById('metric-top25').textContent = `${(tokenData.holder_analysis.top_25_percentage || 0).toFixed(1)}%`;
+                document.getElementById('metric-gini').textContent = (tokenData.holder_analysis.gini_coefficient || 0).toFixed(2);
             }
-        });
+        }
+
+        // Format number helper
+        function formatNumber(num, decimals = 2) {
+            if (num >= 1e9) return (num / 1e9).toFixed(decimals) + 'B';
+            if (num >= 1e6) return (num / 1e6).toFixed(decimals) + 'M';
+            if (num >= 1e3) return (num / 1e3).toFixed(decimals) + 'K';
+            return num.toFixed(decimals);
+        }
+
+        // Initialize
+        loadTokenData();
+        
+        // Auto refresh every 30 seconds
+        setInterval(loadTokenData, 30000);
     </script>
 </body>
 </html>
