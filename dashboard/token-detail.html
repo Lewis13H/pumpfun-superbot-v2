@@ -580,9 +580,9 @@
     </div>
 
     <script>
-        // Get token address from URL
+        // Get token address from URL (supports both 'address' and 'mint' parameters)
         const urlParams = new URLSearchParams(window.location.search);
-        const tokenAddress = urlParams.get('address');
+        const tokenAddress = urlParams.get('address') || urlParams.get('mint');
         let currentTab = 'holders';
         let tokenData = null;
 
@@ -620,6 +620,10 @@
         // Render holders tab
         function renderHoldersTab() {
             const content = document.getElementById('tab-content');
+            
+            // Check if we have holder analysis data
+            const hasHolderData = false; // API doesn't return detailed holder analysis yet
+            
             content.innerHTML = `
                 <h2 class="section-title">Holder Analytics</h2>
                 
@@ -629,31 +633,31 @@
                         <h3 style="font-size: 14px; margin-bottom: 12px;">Score Breakdown</h3>
                         <div class="score-item">
                             <span class="score-label">Distribution</span>
-                            <span class="score-points">45/50</span>
+                            <span class="score-points">88/100</span>
                         </div>
                         <div class="score-item">
                             <span class="score-label">Decentralized</span>
-                            <span class="score-points">40/50</span>
+                            <span class="score-points">88/100</span>
                         </div>
                         <div class="score-item">
                             <span class="score-label">Organic</span>
-                            <span class="score-points">25/30</span>
+                            <span class="score-points">88/100</span>
                         </div>
                         <div class="score-item">
                             <span class="score-label">Dev Ethics</span>
-                            <span class="score-points">15/20</span>
+                            <span class="score-points">8/50</span>
                         </div>
                         <div class="score-item" style="border-top: 1px solid #333; padding-top: 8px; margin-top: 8px;">
                             <span class="score-label">Sniper Risk</span>
-                            <span class="score-points negative">-15</span>
+                            <span class="score-points negative">-8</span>
                         </div>
                         <div class="score-item">
                             <span class="score-label">Bot Activity</span>
-                            <span class="score-points negative">-10</span>
+                            <span class="score-points negative">-8</span>
                         </div>
                         <div class="score-item" style="border-top: 2px solid #333; padding-top: 8px; margin-top: 8px;">
                             <span class="score-label" style="font-weight: 600;">Total</span>
-                            <span class="score-points" style="font-size: 14px;">245/300</span>
+                            <span class="score-points" style="font-size: 14px;">${tokenData.holder_score || 88}/300</span>
                         </div>
                     </div>
                     
@@ -662,23 +666,23 @@
                         <div class="chart-legend">
                             <div class="legend-item">
                                 <span>🟢 Organic</span>
-                                <span>65%</span>
+                                <span>88.8%</span>
                             </div>
                             <div class="legend-item">
                                 <span>🔴 Snipers</span>
-                                <span>15%</span>
+                                <span>8.8%</span>
                             </div>
                             <div class="legend-item">
                                 <span>🤖 Bots</span>
-                                <span>10%</span>
+                                <span>8.8%</span>
                             </div>
                             <div class="legend-item">
                                 <span>🐋 Whales</span>
-                                <span>8%</span>
+                                <span>8.8%</span>
                             </div>
                             <div class="legend-item">
                                 <span>👨‍💻 Dev</span>
-                                <span>2%</span>
+                                <span>8%</span>
                             </div>
                         </div>
                     </div>
@@ -688,25 +692,143 @@
                 <div class="grid-4" style="margin-bottom: 20px;">
                     <div class="metric-box">
                         <div class="metric-label">Total Holders</div>
-                        <div class="metric-value" id="metric-holders">0</div>
+                        <div class="metric-value" id="metric-holders">${tokenData.holder_count || 888}</div>
                     </div>
                     <div class="metric-box">
                         <div class="metric-label">Top 10 Hold</div>
-                        <div class="metric-value" id="metric-top10">0%</div>
+                        <div class="metric-value" id="metric-top10">88.8%</div>
                     </div>
                     <div class="metric-box">
                         <div class="metric-label">Top 25 Hold</div>
-                        <div class="metric-value" id="metric-top25">0%</div>
+                        <div class="metric-value" id="metric-top25">88.8%</div>
                     </div>
                     <div class="metric-box">
                         <div class="metric-label">Gini Coef</div>
-                        <div class="metric-value" id="metric-gini">0.00</div>
+                        <div class="metric-value" id="metric-gini">0.888</div>
                     </div>
                 </div>
 
-                <!-- Tables will be added here if holder data is available -->
-                <div id="holder-tables"></div>
+                <!-- Holder Classifications Table -->
+                <h3 style="font-size: 14px; margin-bottom: 10px;">Holder Classifications</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Count</th>
+                            <th>% Holders</th>
+                            <th>% Supply</th>
+                            <th>Risk</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Organic</td>
+                            <td>888</td>
+                            <td>88.8%</td>
+                            <td>88.8%</td>
+                            <td class="risk-low">✅ Low</td>
+                        </tr>
+                        <tr>
+                            <td>Snipers</td>
+                            <td>88</td>
+                            <td>8.8%</td>
+                            <td>8.888%</td>
+                            <td class="risk-high">⚠️ High</td>
+                        </tr>
+                        <tr>
+                            <td>Bots</td>
+                            <td>88</td>
+                            <td>8.8%</td>
+                            <td>8.8%</td>
+                            <td class="risk-medium">⚠️ Med</td>
+                        </tr>
+                        <tr>
+                            <td>Whales</td>
+                            <td>8</td>
+                            <td>0.8%</td>
+                            <td>8.888%</td>
+                            <td class="risk-medium">⚠️ Med</td>
+                        </tr>
+                        <tr>
+                            <td>Developer</td>
+                            <td>8</td>
+                            <td>0.8%</td>
+                            <td>8.8%</td>
+                            <td class="risk-low">✅ Low</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Holder Growth Chart -->
+                <div style="background: #222; border-radius: 6px; padding: 15px; margin: 20px 0;">
+                    <h3 style="font-size: 14px; margin-bottom: 10px;">Holder Growth Chart</h3>
+                    <div style="height: 150px; background: #333; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #666;">
+                        Lorem ipsum dolor sit amet, consectetur adipiscing elit
+                    </div>
+                </div>
+
+                <!-- Top Holders Table -->
+                <h3 style="font-size: 14px; margin-bottom: 10px;">Top Holders</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Address</th>
+                            <th>Balance</th>
+                            <th>%</th>
+                            <th>Type</th>
+                            <th>First Buy</th>
+                        </tr>
+                    </thead>
+                    <tbody id="top-holders-tbody">
+                        <tr>
+                            <td>1</td>
+                            <td class="address">Lorem...ipsum</td>
+                            <td>8.888M</td>
+                            <td>8.888%</td>
+                            <td>Lorem</td>
+                            <td>8 days ago</td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td class="address">dolor...sit</td>
+                            <td>8.88M</td>
+                            <td>8.88%</td>
+                            <td>Lorem</td>
+                            <td>8 hours</td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td class="address">amet...cons</td>
+                            <td>8.8M</td>
+                            <td>8.8%</td>
+                            <td>Lorem</td>
+                            <td>88 mins ago</td>
+                        </tr>
+                        <tr>
+                            <td>4</td>
+                            <td class="address">ectetur...adip</td>
+                            <td>8.888M</td>
+                            <td>8.88%</td>
+                            <td>Lorem</td>
+                            <td>8 hours ago</td>
+                        </tr>
+                        <tr>
+                            <td>5</td>
+                            <td class="address">iscing...elit</td>
+                            <td>8.88M</td>
+                            <td>8.8%</td>
+                            <td>Lorem</td>
+                            <td>88 hours ago</td>
+                        </tr>
+                    </tbody>
+                </table>
             `;
+            
+            // Update with live holder count if available
+            if (tokenData.holder_count) {
+                document.getElementById('metric-holders').textContent = formatNumber(tokenData.holder_count);
+            }
         }
 
         // Load token data
@@ -719,10 +841,16 @@
             }
 
             try {
-                const response = await fetch(`/api/v1/tokens/${tokenAddress}`);
-                if (!response.ok) throw new Error('Failed to fetch token data');
+                const response = await fetch(`/api/tokens/${tokenAddress}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
                 
                 tokenData = await response.json();
+                
+                if (!tokenData) {
+                    throw new Error('No data returned from API');
+                }
                 
                 // Update UI with token data
                 document.getElementById('loading').style.display = 'none';
@@ -738,22 +866,71 @@
                 console.error('Error loading token:', error);
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('error').style.display = 'block';
+                document.getElementById('error').innerHTML = `
+                    <div>Failed to load token details</div>
+                    <div style="font-size: 14px; margin-top: 10px; color: #888;">${error.message}</div>
+                    <div style="font-size: 12px; margin-top: 20px;">
+                        <a href="/" style="color: #4CAF50;">← Back to Dashboard</a>
+                    </div>
+                `;
             }
         }
 
         // Update token display
         function updateTokenDisplay() {
-            // Basic info
-            document.getElementById('token-name').textContent = tokenData.name || 'Unknown';
-            document.getElementById('token-symbol').textContent = tokenData.symbol || '???';
-            document.getElementById('token-price').textContent = `$${formatNumber(tokenData.price_usd || 0, 6)}`;
+            // Basic info - LIVE DATA
+            document.getElementById('token-name').textContent = tokenData.name || 'Lorem Ipsum';
+            document.getElementById('token-symbol').textContent = tokenData.symbol || 'LOREM';
             
-            // Stats
-            document.getElementById('market-cap').textContent = `$${formatNumber(tokenData.market_cap || 0)}`;
-            document.getElementById('volume-24h').textContent = `$${formatNumber(tokenData.volume_24h || 0)}`;
+            // Get the best available price - prioritize calculated_price_usd for accuracy
+            const currentPrice = parseFloat(tokenData.calculated_price_usd) || 
+                               parseFloat(tokenData.current_price_usd) || 
+                               parseFloat(tokenData.latest_price_usd) || 0;
+            
+            // Format price with appropriate decimals based on value
+            let priceText;
+            if (currentPrice < 0.00001) {
+                priceText = `$${currentPrice.toFixed(8)}`;
+            } else if (currentPrice < 0.001) {
+                priceText = `$${currentPrice.toFixed(6)}`;
+            } else if (currentPrice < 1) {
+                priceText = `$${currentPrice.toFixed(4)}`;
+            } else {
+                priceText = `$${formatNumber(currentPrice, 2)}`;
+            }
+            document.getElementById('token-price').textContent = priceText;
+            
+            // Price change - Calculate from 24h history if available
+            let priceChange = 0;
+            let priceChangeText = '+0.0% (24h)';
+            if (tokenData.price_history_24h && tokenData.price_history_24h.length > 0) {
+                const oldPrice = parseFloat(tokenData.price_history_24h[tokenData.price_history_24h.length - 1].price_usd);
+                if (oldPrice > 0) {
+                    priceChange = ((currentPrice - oldPrice) / oldPrice) * 100;
+                    priceChangeText = `${priceChange >= 0 ? '+' : ''}${priceChange.toFixed(1)}% (24h)`;
+                }
+            }
+            const priceChangeEl = document.getElementById('price-change');
+            priceChangeEl.textContent = priceChangeText;
+            priceChangeEl.className = priceChange >= 0 ? 'price-change positive' : 'price-change negative';
+            
+            // Stats - LIVE DATA
+            document.getElementById('market-cap').textContent = `$${formatNumber(tokenData.current_market_cap_usd || tokenData.latest_market_cap_usd || 0)}`;
+            document.getElementById('volume-24h').textContent = `$${formatNumber(tokenData.volume_24h_usd || 0)}`;
             document.getElementById('holder-count').textContent = formatNumber(tokenData.holder_count || 0);
-            document.getElementById('liquidity').textContent = `${formatNumber(tokenData.liquidity_sol || 0)} SOL`;
-            document.getElementById('progress').textContent = `${(tokenData.bonding_curve_progress || 0).toFixed(1)}%`;
+            
+            // Liquidity - Calculate from virtual reserves if available
+            let liquiditySol = 0;
+            if (tokenData.latest_virtual_sol_reserves) {
+                liquiditySol = tokenData.latest_virtual_sol_reserves;
+            } else if (tokenData.pool_info && tokenData.pool_info.virtual_sol_reserves) {
+                liquiditySol = tokenData.pool_info.virtual_sol_reserves;
+            }
+            document.getElementById('liquidity').textContent = `${formatNumber(liquiditySol)} SOL`;
+            
+            // Progress - LIVE DATA
+            const progress = parseFloat(tokenData.latest_bonding_curve_progress) || 0;
+            document.getElementById('progress').textContent = `${progress.toFixed(1)}%`;
             
             // External links
             document.getElementById('pump-link').href = `https://pump.fun/${tokenAddress}`;
@@ -761,46 +938,99 @@
             document.getElementById('birdeye-link').href = `https://birdeye.so/token/${tokenAddress}`;
             document.getElementById('solscan-link').href = `https://solscan.io/token/${tokenAddress}`;
             
-            // Scores (using holder score for now, will expand later)
-            const holderScore = tokenData.holder_score || 0;
-            document.getElementById('holder-score').textContent = holderScore;
+            // Scores - LIVE holder score, PLACEHOLDER others
+            const holderScore = parseFloat(tokenData.holder_score) || 88;
+            document.getElementById('holder-score').textContent = Math.round(holderScore);
             document.getElementById('holder-score-fill').style.width = `${(holderScore / 300) * 100}%`;
             
-            // Placeholder scores for now
-            document.getElementById('total-score').textContent = holderScore;
-            document.getElementById('total-score-fill').style.width = `${(holderScore / 1000) * 100}%`;
+            // PLACEHOLDER scores - marked with 8.888 pattern
+            const totalScore = Math.round(holderScore) + 88 + 88 + 88; // Placeholder calculation
+            document.getElementById('total-score').textContent = totalScore;
+            document.getElementById('total-score-fill').style.width = `${(totalScore / 1000) * 100}%`;
             
-            document.getElementById('bc-score').textContent = Math.round(holderScore * 0.8);
-            document.getElementById('bc-score-fill').style.width = `${(holderScore * 0.8 / 300) * 100}%`;
+            document.getElementById('bc-score').textContent = 88;
+            document.getElementById('bc-score-fill').style.width = `${(88 / 300) * 100}%`;
             
-            document.getElementById('social-score').textContent = Math.round(holderScore * 0.5);
-            document.getElementById('social-score-fill').style.width = `${(holderScore * 0.5 / 200) * 100}%`;
+            document.getElementById('social-score').textContent = 88;
+            document.getElementById('social-score-fill').style.width = `${(88 / 200) * 100}%`;
             
-            document.getElementById('technical-score').textContent = Math.round(holderScore * 0.6);
-            document.getElementById('technical-score-fill').style.width = `${(holderScore * 0.6 / 200) * 100}%`;
+            document.getElementById('technical-score').textContent = 88;
+            document.getElementById('technical-score-fill').style.width = `${(88 / 200) * 100}%`;
             
-            // Update metrics if available
-            if (tokenData.holder_analysis) {
-                document.getElementById('metric-holders').textContent = formatNumber(tokenData.holder_analysis.total_holders || 0);
-                document.getElementById('metric-top10').textContent = `${(tokenData.holder_analysis.top_10_percentage || 0).toFixed(1)}%`;
-                document.getElementById('metric-top25').textContent = `${(tokenData.holder_analysis.top_25_percentage || 0).toFixed(1)}%`;
-                document.getElementById('metric-gini').textContent = (tokenData.holder_analysis.gini_coefficient || 0).toFixed(2);
+            // Update token icon if image available
+            if (tokenData.image_uri) {
+                document.getElementById('token-icon').innerHTML = `<img src="${tokenData.image_uri}" alt="${tokenData.symbol}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">`;
             }
         }
 
         // Format number helper
         function formatNumber(num, decimals = 2) {
-            if (num >= 1e9) return (num / 1e9).toFixed(decimals) + 'B';
-            if (num >= 1e6) return (num / 1e6).toFixed(decimals) + 'M';
-            if (num >= 1e3) return (num / 1e3).toFixed(decimals) + 'K';
-            return num.toFixed(decimals);
+            // Ensure num is a valid number
+            const value = parseFloat(num) || 0;
+            
+            if (value >= 1e9) return (value / 1e9).toFixed(decimals) + 'B';
+            if (value >= 1e6) return (value / 1e6).toFixed(decimals) + 'M';
+            if (value >= 1e3) return (value / 1e3).toFixed(decimals) + 'K';
+            return value.toFixed(decimals);
         }
 
+        // Initialize SOL price and connection status
+        async function updateSystemStatus() {
+            try {
+                const response = await fetch('/api/status');
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Update SOL price
+                    if (data.sol_price) {
+                        document.getElementById('header-sol-price').textContent = `$${data.sol_price.price.toFixed(2)}`;
+                        const timestamp = new Date(data.sol_price.timestamp);
+                        const timeAgo = Math.floor((Date.now() - timestamp) / 1000);
+                        let timeText = '';
+                        if (timeAgo < 60) {
+                            timeText = `${timeAgo}s`;
+                        } else if (timeAgo < 3600) {
+                            timeText = `${Math.floor(timeAgo / 60)}m`;
+                        } else {
+                            timeText = `${Math.floor(timeAgo / 3600)}h`;
+                        }
+                        document.getElementById('header-sol-timestamp').textContent = timeText;
+                    }
+                    
+                    // Update connection status
+                    const statusDot = document.getElementById('status-dot');
+                    const statusText = document.getElementById('status-text');
+                    const streamIcon = document.getElementById('stream-icon');
+                    
+                    if (data.monitors && data.monitors.stream_status === 'connected') {
+                        statusDot.style.backgroundColor = '#4CAF50';
+                        statusText.textContent = 'Connected';
+                        statusText.style.color = '#4CAF50';
+                        streamIcon.style.color = '#4CAF50';
+                    } else {
+                        statusDot.style.backgroundColor = '#666';
+                        statusText.textContent = 'Disconnected';
+                        statusText.style.color = '#666';
+                        streamIcon.style.color = '#666';
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating system status:', error);
+                // Set disconnected state on error
+                document.getElementById('status-dot').style.backgroundColor = '#666';
+                document.getElementById('status-text').textContent = 'Disconnected';
+                document.getElementById('status-text').style.color = '#666';
+                document.getElementById('stream-icon').style.color = '#666';
+            }
+        }
+        
         // Initialize
         loadTokenData();
+        updateSystemStatus();
         
-        // Auto refresh every 30 seconds
+        // Auto refresh
         setInterval(loadTokenData, 30000);
+        setInterval(updateSystemStatus, 10000);
     </script>
 </body>
 </html>

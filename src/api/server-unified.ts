@@ -14,6 +14,7 @@ import { RealtimePriceCache } from '../services/pricing/realtime-price-cache';
 import { setupNewEndpoints } from './setup-new-endpoints';
 import { createHolderAnalysisRoutes } from './routes/holder-analysis-routes';
 import { createHolderAnalysisHistoricalRoutes } from './holder-analysis-historical-routes';
+import { createParsingMetricsRoutes } from './routes/parsing-metrics.routes';
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;
@@ -77,6 +78,9 @@ app.use('/api', createHolderAnalysisRoutes(pool));
 
 // Register holder analysis historical endpoints
 app.use('/api/v1', createHolderAnalysisHistoricalRoutes(pool));
+
+// Register parsing metrics endpoints
+app.use('/', createParsingMetricsRoutes());
 
 // Get realtime price cache instance
 const realtimePriceCache = RealtimePriceCache.getInstance();

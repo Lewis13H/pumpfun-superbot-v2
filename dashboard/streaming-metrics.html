@@ -3,105 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Metrics - Pump Monitor</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="css/enhanced-components.css">
+    <title>Streaming & Parsing Metrics - Pump Monitor</title>
     <style>
-        /* System Metrics Specific Styles */
-        body {
-            background-color: #0a0a0a;
-            color: #e0e0e0;
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #252525;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --accent-green: #00ff88;
+            --accent-red: #ff4444;
+            --accent-yellow: #ffaa00;
+            --accent-blue: #00aaff;
+            --border-color: #333;
         }
 
-        .metrics-container {
-            max-width: 1800px;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
         }
 
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border-radius: 20px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
         .metrics-grid {
             display: grid;
-            grid-template-columns: 1fr 350px;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
 
-        .main-content {
-            display: flex;
-            flex-direction: column;
-            gap: 30px;
-        }
-
-        .side-panel {
-            position: sticky;
-            top: 20px;
-            height: fit-content;
-        }
-
-        .section-divider {
-            height: 1px;
-            background: #334155;
-            margin: 30px 0;
-        }
-
-        /* System Vitals Grid */
-        .vitals-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .vital-card {
-            background: #1e293b;
-            border: 1px solid #334155;
+        .metric-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 20px;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
 
-        .vital-card:hover {
+        .metric-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.2);
-            border-color: #3b82f6;
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.1);
         }
 
-        .vital-icon {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            font-size: 24px;
-            opacity: 0.3;
+        .metric-title {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        .vital-value {
+        .metric-value {
             font-size: 32px;
             font-weight: 700;
-            margin-bottom: 5px;
+            color: var(--text-primary);
+            margin-bottom: 8px;
         }
 
-        .vital-label {
+        .metric-change {
             font-size: 14px;
-            color: #94a3b8;
-            margin-bottom: 10px;
-        }
-
-        .vital-trend {
             display: flex;
             align-items: center;
             gap: 5px;
-            font-size: 12px;
         }
 
-        .trend-up { color: #10b981; }
-        .trend-down { color: #ef4444; }
-        .trend-neutral { color: #94a3b8; }
+        .positive { color: var(--accent-green); }
+        .negative { color: var(--accent-red); }
+        .neutral { color: var(--text-secondary); }
 
-        /* Monitor Cards */
-        .monitors-section {
-            margin-bottom: 30px;
+        .section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
         }
 
         .section-header {
@@ -112,816 +139,826 @@
         }
 
         .section-title {
-            font-size: 24px;
-            font-weight: 700;
-            color: #f1f5f9;
-        }
-
-        .monitors-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 20px;
-        }
-
-        .monitor-card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 12px;
-            padding: 24px;
-            transition: all 0.3s ease;
-        }
-
-        .monitor-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-        }
-
-        .monitor-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .monitor-name {
-            font-size: 18px;
-            font-weight: 600;
-            color: #f1f5f9;
-        }
-
-        .monitor-status {
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .status-healthy { background: #10b981; color: white; }
-        .status-degraded { background: #f59e0b; color: white; }
-        .status-unhealthy { background: #ef4444; color: white; }
-        .status-disconnected { background: #6b7280; color: white; }
-
-        .monitor-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-        }
-
-        .stat-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .stat-label {
-            font-size: 12px;
-            color: #94a3b8;
-            margin-bottom: 4px;
-        }
-
-        .stat-value {
             font-size: 20px;
             font-weight: 600;
-            color: #f1f5f9;
         }
 
-        .monitor-progress {
-            margin-top: 16px;
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .progress-bar {
             width: 100%;
             height: 8px;
-            background: #334155;
+            background: var(--bg-tertiary);
             border-radius: 4px;
             overflow: hidden;
         }
 
         .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #3b82f6 0%, #10b981 100%);
-            transition: width 0.5s ease;
+            background: var(--accent-green);
+            transition: width 0.3s ease;
         }
 
-        .progress-good { background: linear-gradient(90deg, #10b981 0%, #059669 100%); }
-        .progress-warning { background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%); }
-        .progress-danger { background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%); }
-
-        /* Charts Section */
-        .charts-section {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
-            gap: 20px;
-        }
-
-        .chart-card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 12px;
-            padding: 24px;
-        }
-
-        .chart-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .chart-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #f1f5f9;
-        }
-
-        .chart-controls {
-            display: flex;
-            gap: 8px;
-        }
-
-        .chart-control {
-            padding: 6px 12px;
-            background: #334155;
-            color: #94a3b8;
-            border: 1px solid #475569;
-            border-radius: 8px;
+        .error-tag {
+            display: inline-block;
+            padding: 4px 8px;
+            background: rgba(255, 68, 68, 0.1);
+            color: var(--accent-red);
+            border-radius: 4px;
             font-size: 12px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .chart-control:hover {
-            background: #475569;
-            color: #e2e8f0;
-        }
-
-        .chart-control.active {
-            background: #3b82f6;
-            color: white;
-            border-color: #3b82f6;
+            margin-right: 8px;
         }
 
         .chart-container {
             height: 300px;
+            margin-top: 20px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 20px;
             position: relative;
         }
 
-        /* Toast Notification */
-        .toast {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            padding: 16px 24px;
-            background: #1e293b;
-            color: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            transform: translateY(100px);
-            opacity: 0;
-            transition: all 0.3s ease;
-            max-width: 400px;
-            z-index: 1000;
-        }
-
-        .toast.show {
-            transform: translateY(0);
-            opacity: 1;
-        }
-
-        .toast.success { background: #10b981; }
-        .toast.error { background: #ef4444; }
-        .toast.warning { background: #f59e0b; }
-        .toast.info { background: #3b82f6; }
-
-        /* Memory Cleanup Button */
-        .cleanup-btn {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            padding: 4px 8px;
-            background: #3b82f6;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-size: 11px;
-            cursor: pointer;
-            transition: all 0.2s;
+        .tabs {
             display: flex;
+            gap: 20px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 0;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            color: var(--text-secondary);
+        }
+
+        .tab.active {
+            color: var(--text-primary);
+            border-bottom-color: var(--accent-green);
+        }
+
+        .failure-item {
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 4px;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            margin-bottom: 8px;
         }
 
-        .cleanup-btn:hover {
-            background: #2563eb;
+        .failure-signature {
+            font-family: monospace;
+            font-size: 12px;
+            color: var(--accent-blue);
+            text-decoration: none;
         }
 
-        .cleanup-btn:disabled {
-            background: #64748b;
+        .failure-signature:hover {
+            text-decoration: underline;
+        }
+
+        .refresh-button {
+            padding: 8px 16px;
+            background: var(--accent-green);
+            color: var(--bg-primary);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: opacity 0.2s;
+        }
+
+        .refresh-button:hover {
+            opacity: 0.8;
+        }
+
+        .refresh-button:disabled {
+            opacity: 0.5;
             cursor: not-allowed;
         }
 
-        .cleanup-btn .spinner {
-            width: 10px;
-            height: 10px;
-            border: 2px solid transparent;
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            display: none;
+        .alert-box {
+            padding: 16px;
+            background: rgba(255, 170, 0, 0.1);
+            border: 1px solid rgba(255, 170, 0, 0.3);
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
-        .cleanup-btn.loading .spinner {
-            display: block;
+        .alert-icon {
+            font-size: 20px;
         }
 
-        .cleanup-btn.loading .btn-text {
-            display: none;
+        .venue-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .venue-card {
+            background: var(--bg-tertiary);
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
         }
 
-        @media (max-width: 1400px) {
-            .metrics-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .side-panel {
-                position: relative;
-            }
+        .venue-name {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
         }
 
-        @media (max-width: 768px) {
-            .monitors-grid, .charts-section {
-                grid-template-columns: 1fr;
-            }
-            
-            .monitor-stats {
-                grid-template-columns: 1fr;
-            }
+        .venue-rate {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .mini-chart {
+            height: 60px;
+            margin-top: 12px;
+            opacity: 0.6;
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
-    <header class="header">
-        <div class="header-content">
-            <a href="/" class="logo">
-                🚀 PumpMonitor
-            </a>
-            <nav class="nav-links">
-                <a href="/" class="nav-link">Tokens</a>
-                <a href="/streaming-metrics.html" class="nav-link active">System Metrics</a>
-            </nav>
-            <div class="header-right">
-                <div class="sol-price-display">
-                    <span class="sol-price-label">SOL</span>
-                    <span class="sol-price-value" id="header-sol-price">$0.00</span>
-                    <span class="sol-price-timestamp" id="header-sol-timestamp" title="Last updated"></span>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>📊 Streaming & Parsing Metrics</h1>
+            <div style="display: flex; gap: 16px; align-items: center;">
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span>Live Monitoring</span>
                 </div>
-                <div class="connection-status" id="connection-status">
-                    <div class="status-dot" id="status-dot"></div>
-                    <span class="stream-icon" id="stream-icon">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </span>
-                    <span class="status-text" id="status-text">Disconnected</span>
-                </div>
-                <div class="realtime-indicator" id="realtimeIndicator">Offline</div>
+                <button class="refresh-button" onclick="refreshMetrics()">
+                    Refresh Now
+                </button>
             </div>
         </div>
-    </header>
 
-    <!-- Main Container -->
-    <div class="metrics-container">
+        <!-- Alerts -->
+        <div id="alerts-container">
+            <!-- Alert Example (hidden by default) -->
+            <div class="alert-box" style="display: none;">
+                <span class="alert-icon">⚠️</span>
+                <span>AMM parse rate dropped below 90% threshold (currently 87.3%)</span>
+            </div>
+        </div>
+
+        <!-- Overall Metrics -->
         <div class="metrics-grid">
-            <!-- Main Content Area -->
-            <div class="main-content">
-                <!-- Enhanced Health Score -->
-                <div id="enhancedHealthScore"></div>
+            <div class="metric-card">
+                <div class="metric-title">Overall Parse Rate</div>
+                <div class="metric-value">94.6%</div>
+                <div class="metric-change positive">
+                    <span>↑ 2.3%</span>
+                    <span>vs last hour</span>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Transactions/Second</div>
+                <div class="metric-value">38.2</div>
+                <div class="metric-change neutral">
+                    <span>→ 0.1</span>
+                    <span>vs last hour</span>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Parse Latency</div>
+                <div class="metric-value">12ms</div>
+                <div class="metric-change positive">
+                    <span>↓ 3ms</span>
+                    <span>vs last hour</span>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Failed Parses (24h)</div>
+                <div class="metric-value">2,468</div>
+                <div class="metric-change negative">
+                    <span>↑ 145</span>
+                    <span>vs yesterday</span>
+                </div>
+            </div>
+        </div>
 
-                <!-- System Vitals -->
-                <div class="vitals-grid">
-                    <div class="vital-card">
-                        <div class="vital-icon">💻</div>
-                        <div class="vital-value" id="cpuUsage">--%</div>
-                        <div class="vital-label">CPU Usage</div>
-                        <div class="vital-trend" id="cpuTrend">
-                            <span>--</span>
-                        </div>
+        <!-- Parse Success by Venue -->
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">Parse Success by Venue</h2>
+                <span style="color: var(--text-secondary);">Last 5 minutes</span>
+            </div>
+            <div class="venue-stats">
+                <div class="venue-card">
+                    <div class="venue-name">Pump.fun BC</div>
+                    <div class="venue-rate positive">98.2%</div>
+                    <div class="mini-chart">📈</div>
+                </div>
+                <div class="venue-card">
+                    <div class="venue-name">Pump.swap AMM</div>
+                    <div class="venue-rate" style="color: var(--accent-yellow);">87.3%</div>
+                    <div class="mini-chart">📊</div>
+                </div>
+                <div class="venue-card">
+                    <div class="venue-name">Raydium</div>
+                    <div class="venue-rate positive">92.1%</div>
+                    <div class="mini-chart">📈</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Strategy Performance -->
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">Parser Strategy Performance</h2>
+                <span style="color: var(--text-secondary);">Sorted by success rate</span>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Strategy</th>
+                            <th>Success Rate</th>
+                            <th>Attempts (24h)</th>
+                            <th>Avg Parse Time</th>
+                            <th>Top Errors</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>BCTradeStrategy</td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span class="positive">98.5%</span>
+                                    <div class="progress-bar" style="width: 100px;">
+                                        <div class="progress-fill" style="width: 98.5%;"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>34,567</td>
+                            <td>8ms</td>
+                            <td>
+                                <span class="error-tag">Invalid mint (23)</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>UnifiedAmmTradeStrategy</td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span class="positive">92.1%</span>
+                                    <div class="progress-bar" style="width: 100px;">
+                                        <div class="progress-fill" style="width: 92.1%;"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>8,234</td>
+                            <td>15ms</td>
+                            <td>
+                                <span class="error-tag">No swap event (67)</span>
+                                <span class="error-tag">Missing inner ix (45)</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>AmmTradeHeuristicStrategy</td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span style="color: var(--accent-yellow);">71.3%</span>
+                                    <div class="progress-bar" style="width: 100px;">
+                                        <div class="progress-fill" style="width: 71.3%; background: var(--accent-yellow);"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>2,877</td>
+                            <td>22ms</td>
+                            <td>
+                                <span class="error-tag">Pattern not found (234)</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>RaydiumSwapStrategy</td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span class="positive">91.8%</span>
+                                    <div class="progress-bar" style="width: 100px;">
+                                        <div class="progress-fill" style="width: 91.8%;"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>1,234</td>
+                            <td>18ms</td>
+                            <td>
+                                <span class="error-tag">No ray_log (12)</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Data Quality Metrics -->
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">Data Quality Metrics</h2>
+            </div>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-title">AMM Trades with Reserves</div>
+                    <div class="metric-value">87.6%</div>
+                    <div class="metric-change positive">
+                        <span>↑ 45.2%</span>
+                        <span>since virtual calculator</span>
                     </div>
-                    <div class="vital-card" style="position: relative;">
-                        <div class="vital-icon">🧠</div>
-                        <div class="vital-value" id="memoryUsage">--%</div>
-                        <div class="vital-label">Memory Usage</div>
-                        <div class="vital-trend" id="memoryTrend">
-                            <span>--</span>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Reserve Data Sources</div>
+                    <div style="margin-top: 12px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span>Virtual Calculator</span>
+                            <span>62%</span>
                         </div>
-                        <button class="cleanup-btn" id="cleanupBtn" onclick="performMemoryCleanup()" title="Clean up memory caches">
-                            <span class="spinner"></span>
-                            <span class="btn-text">Clean</span>
-                        </button>
-                    </div>
-                    <div class="vital-card">
-                        <div class="vital-icon">⏱️</div>
-                        <div class="vital-value" id="uptime">--</div>
-                        <div class="vital-label">System Uptime</div>
-                        <div class="vital-trend">
-                            <span class="trend-neutral">Running smoothly</span>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span>Pool State</span>
+                            <span>25%</span>
                         </div>
-                    </div>
-                    <div class="vital-card">
-                        <div class="vital-icon">📊</div>
-                        <div class="vital-value" id="totalMessages">--</div>
-                        <div class="vital-label">Messages/Second</div>
-                        <div class="vital-trend" id="messageTrend">
-                            <span>--</span>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Inner Instructions</span>
+                            <span>13%</span>
                         </div>
                     </div>
                 </div>
-
-                <!-- Circuit Breaker Visualization -->
-                <div id="circuitBreakerVisualization"></div>
-
-                <div class="section-divider"></div>
-
-                <!-- Performance Optimization Dashboard -->
-                <div id="performanceOptimizationDashboard"></div>
-
-                <div class="section-divider"></div>
-
-                <!-- Monitors Section -->
-                <div class="monitors-section">
-                    <div class="section-header">
-                        <h2 class="section-title">Monitor Performance</h2>
-                    </div>
-                    <div class="monitors-grid" id="monitorsGrid">
-                        <!-- Monitor cards will be dynamically inserted here -->
-                    </div>
-                </div>
-
-                <!-- Charts Section -->
-                <div class="charts-section">
-                    <!-- Message Rate Chart -->
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <h3 class="chart-title">Message Rate Over Time</h3>
-                            <div class="chart-controls">
-                                <button class="chart-control active" data-range="1h">1H</button>
-                                <button class="chart-control" data-range="6h">6H</button>
-                                <button class="chart-control" data-range="24h">24H</button>
-                            </div>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="messageRateChart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Parse Success Rate Chart -->
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <h3 class="chart-title">Parse Success Rate</h3>
-                            <div class="chart-controls">
-                                <button class="chart-control active" data-type="line">Line</button>
-                                <button class="chart-control" data-type="bar">Bar</button>
-                            </div>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="parseRateChart"></canvas>
-                        </div>
+                <div class="metric-card">
+                    <div class="metric-title">Cross-Venue Correlation</div>
+                    <div class="metric-value">94.2%</div>
+                    <div style="font-size: 14px; color: var(--text-secondary); margin-top: 8px;">
+                        Graduations matched to pools
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Side Panel -->
-            <div class="side-panel">
-                <!-- Live Alerts Feed -->
-                <div id="liveAlertsFeed"></div>
+        <!-- Real-time Failures -->
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">Recent Parse Failures</h2>
+                <span style="color: var(--text-secondary);">Last 10 failures</span>
+            </div>
+            <div id="failures-list">
+                <div class="failure-item">
+                    <div>
+                        <a href="https://solscan.io/tx/5xKv..." class="failure-signature" target="_blank">
+                            5xKv3n2Y...8mNp
+                        </a>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+                            pump.swap • No swap event found • 2 min ago
+                        </div>
+                    </div>
+                    <span class="error-tag">UnifiedAmmTradeStrategy</span>
+                </div>
+                <div class="failure-item">
+                    <div>
+                        <a href="https://solscan.io/tx/2bHj..." class="failure-signature" target="_blank">
+                            2bHj9kL4...3xRt
+                        </a>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+                            pump.swap • Missing inner instructions • 3 min ago
+                        </div>
+                    </div>
+                    <span class="error-tag">UnifiedAmmTradeStrategy</span>
+                </div>
+                <div class="failure-item">
+                    <div>
+                        <a href="https://solscan.io/tx/7mNx..." class="failure-signature" target="_blank">
+                            7mNx4pQ8...9kLm
+                        </a>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+                            Raydium • Invalid discriminator • 5 min ago
+                        </div>
+                    </div>
+                    <span class="error-tag">RaydiumSwapStrategy</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Charts -->
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">Performance Trends</h2>
+            </div>
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('parse-rate')">Parse Rate</div>
+                <div class="tab" onclick="switchTab('latency')">Latency</div>
+                <div class="tab" onclick="switchTab('volume')">Volume</div>
+                <div class="tab" onclick="switchTab('errors')">Error Rate</div>
+            </div>
+            <div class="chart-container">
+                <div style="text-align: center; color: var(--text-secondary); margin-top: 100px;">
+                    📊 Parse Rate Chart (24h)
+                    <div style="margin-top: 20px; font-size: 14px;">
+                        [Chart would show parse rate over time with venue breakdown]
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Performance -->
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">System Performance</h2>
+            </div>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-title">Parse Queue Depth</div>
+                    <div class="metric-value">234</div>
+                    <div class="progress-bar" style="margin-top: 12px;">
+                        <div class="progress-fill" style="width: 23.4%;"></div>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+                        23.4% of capacity
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Memory Usage</div>
+                    <div class="metric-value">1.2GB</div>
+                    <div class="progress-bar" style="margin-top: 12px;">
+                        <div class="progress-fill" style="width: 60%;"></div>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+                        60% of allocated
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Event Bus Messages/sec</div>
+                    <div class="metric-value">142</div>
+                    <div class="metric-change positive">
+                        <span>↑ 12</span>
+                        <span>vs avg</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">DB Write Throughput</div>
+                    <div class="metric-value">89/s</div>
+                    <div class="metric-change neutral">
+                        <span>→ Normal</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Toast Container -->
-    <div id="toast" class="toast"></div>
-
-    <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="js/enhanced-health-score.js"></script>
-    <script src="js/circuit-breaker-visualization.js"></script>
-    <script src="js/performance-optimization-dashboard.js"></script>
-    <script src="js/live-alerts-feed.js"></script>
-    <script src="js/realtime-data-manager.js"></script>
-    
     <script>
-        // Global components
-        let realtimeManager;
-        let healthScoreComponent;
-        let circuitBreakerViz;
-        let performanceDashboard;
-        let alertsFeed;
-        let messageRateChart;
-        let parseRateChart;
-
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeComponents();
-            setupRealtimeData();
-            initializeCharts();
-            startDataPolling();
-        });
-
-        function initializeComponents() {
-            // Initialize enhanced health score
-            const healthContainer = document.getElementById('enhancedHealthScore');
-            healthScoreComponent = new EnhancedHealthScore(healthContainer);
-
-            // Initialize circuit breaker visualization
-            const cbContainer = document.getElementById('circuitBreakerVisualization');
-            circuitBreakerViz = new CircuitBreakerVisualization(cbContainer);
-
-            // Initialize performance optimization dashboard
-            const perfContainer = document.getElementById('performanceOptimizationDashboard');
-            performanceDashboard = new PerformanceOptimizationDashboard(perfContainer);
-            performanceDashboard.initialize();
-
-            // Initialize live alerts feed
-            const alertsContainer = document.getElementById('liveAlertsFeed');
-            alertsFeed = new LiveAlertsFeed(alertsContainer, { soundEnabled: false });
+        // Auto-refresh every 10 seconds
+        let refreshInterval;
+        let metricsCache = {
+            overview: null,
+            strategies: null,
+            dataQuality: null,
+            system: null,
+            alerts: []
+        };
+        
+        function startAutoRefresh() {
+            refreshInterval = setInterval(() => {
+                refreshMetrics();
+            }, 10000);
         }
 
-        function setupRealtimeData() {
-            // Initialize realtime data manager
-            realtimeManager = new RealtimeDataManager();
-
-            // Set up event listeners
-            realtimeManager.on('metrics', (data) => {
-                updateMetrics(data);
-            });
-
-            realtimeManager.on('alert', (alert) => {
-                alertsFeed.addAlert(alert);
-            });
-
-            realtimeManager.on('circuit-breakers', (data) => {
-                circuitBreakerViz.update(data);
-            });
-
-            realtimeManager.on('optimization-status', (data) => {
-                updateOptimizationStatus(data);
-            });
-
-            realtimeManager.on('fault-tolerance-status', (data) => {
-                updateFaultToleranceStatus(data);
-            });
-
-            realtimeManager.on('suggestions', (suggestions) => {
-                performanceDashboard.update({ suggestions });
-            });
-
-            // Connect to SSE stream
-            realtimeManager.connect();
-        }
-
-        function updateMetrics(data) {
-            // Update vitals
-            if (data.resources) {
-                document.getElementById('cpuUsage').textContent = `${Math.round(data.resources.cpu)}%`;
-                document.getElementById('memoryUsage').textContent = `${Math.round(data.resources.memory)}%`;
-            }
-
-            // Update performance dashboard
-            performanceDashboard.update({
-                batching: data.batch,
-                cache: data.cache,
-                optimization: data.optimization,
-                resources: data.resources
-            });
-
-            // Update health score
-            const healthData = {
-                monitors: [],
-                circuitBreakers: realtimeManager.getCache().faultTolerance.circuitBreakers || [],
-                optimization: data.optimization,
-                cache: data.cache,
-                errorRate: 0,
-                system: { uptime: Date.now() - window.startTime }
-            };
+        async function refreshMetrics() {
+            const button = document.querySelector('.refresh-button');
+            button.disabled = true;
+            button.textContent = 'Refreshing...';
             
-            healthScoreComponent.render(healthData);
-        }
-
-        function updateOptimizationStatus(data) {
-            const statusEl = document.getElementById('optimizationStatus');
-            if (statusEl && data.enabled) {
-                statusEl.querySelector('.opt-text').textContent = 
-                    `Auto-Optimization Active (${Math.round(data.efficiency * 100)}% efficient)`;
-            }
-        }
-
-        function updateFaultToleranceStatus(data) {
-            // Update health summary
-            if (data.health) {
-                const total = data.health.healthy + data.health.degraded + data.health.failed;
-                console.log(`Fault tolerance: ${data.health.healthy}/${total} healthy connections`);
-            }
-        }
-
-        function initializeCharts() {
-            // Message Rate Chart
-            const messageCtx = document.getElementById('messageRateChart').getContext('2d');
-            messageRateChart = new Chart(messageCtx, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Total',
-                        data: [],
-                        borderColor: '#3b82f6',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: true, labels: { color: '#94a3b8' } }
-                    },
-                    scales: {
-                        x: { display: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
-                        y: { display: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
-                    }
-                }
-            });
-
-            // Parse Rate Chart
-            const parseCtx = document.getElementById('parseRateChart').getContext('2d');
-            parseRateChart = new Chart(parseCtx, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: []
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: true, labels: { color: '#94a3b8' } }
-                    },
-                    scales: {
-                        x: { display: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
-                        y: { 
-                            display: true, 
-                            grid: { color: '#334155' }, 
-                            ticks: { color: '#94a3b8' },
-                            min: 0,
-                            max: 100
-                        }
-                    }
-                }
-            });
-        }
-
-        function startDataPolling() {
-            // Track start time for uptime
-            window.startTime = Date.now();
-
-            // Load initial data
-            loadMetrics();
-            loadStatus();
-
-            // Set up polling intervals
-            setInterval(loadMetrics, 5000);
-            setInterval(loadStatus, 10000);
-        }
-
-        async function loadMetrics() {
             try {
-                const response = await fetch('/api/v1/performance/metrics');
-                if (!response.ok) throw new Error('Failed to fetch metrics');
-                
-                const data = await response.json();
-                updateSystemMetrics(data);
+                await Promise.all([
+                    updateOverviewMetrics(),
+                    updateStrategyMetrics(),
+                    updateDataQualityMetrics(),
+                    updateSystemMetrics(),
+                    checkAlerts()
+                ]);
             } catch (error) {
-                console.error('Error loading metrics:', error);
+                console.error('Error refreshing metrics:', error);
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Refresh Now';
             }
         }
 
-        function updateSystemMetrics(data) {
-            // Update uptime
-            const uptimeMs = data.system?.uptime || 0;
-            document.getElementById('uptime').textContent = formatUptime(uptimeMs);
-
-            // Update messages/second
-            const totalMessages = data.monitors?.reduce((sum, m) => sum + m.messagesPerSecond, 0) || 0;
-            document.getElementById('totalMessages').textContent = totalMessages.toFixed(1);
-
-            // Update monitors grid
-            if (data.monitors) {
-                displayMonitors(data.monitors);
+        async function updateOverviewMetrics() {
+            try {
+                const response = await fetch('/api/parsing-metrics/overview');
+                const data = await response.json();
+                
+                if (data.success) {
+                    metricsCache.overview = data.data;
+                    
+                    // Update overall metrics
+                    document.querySelector('.metrics-grid .metric-card:nth-child(1) .metric-value').textContent = 
+                        `${(data.data.overall.parseRate * 100).toFixed(1)}%`;
+                    document.querySelector('.metrics-grid .metric-card:nth-child(2) .metric-value').textContent = 
+                        data.data.overall.tps;
+                    document.querySelector('.metrics-grid .metric-card:nth-child(3) .metric-value').textContent = 
+                        `${data.data.overall.avgParseTime}ms`;
+                    document.querySelector('.metrics-grid .metric-card:nth-child(4) .metric-value').textContent = 
+                        data.data.overall.failedCount.toLocaleString();
+                    
+                    // Update venue stats
+                    updateVenueStats(data.data.byProgram);
+                    
+                    // Update recent failures
+                    updateRecentFailures(data.data.recentFailures);
+                }
+            } catch (error) {
+                console.error('Error fetching overview metrics:', error);
             }
-
-            // Update charts
-            updateCharts(data);
         }
 
-        function displayMonitors(monitors) {
-            const container = document.getElementById('monitorsGrid');
-            container.innerHTML = monitors.map(monitor => `
-                <div class="monitor-card">
-                    <div class="monitor-header">
-                        <h3 class="monitor-name">${monitor.name}</h3>
-                        <span class="monitor-status status-${monitor.status}">${monitor.status}</span>
-                    </div>
-                    <div class="monitor-stats">
-                        <div class="stat-group">
-                            <div class="stat-label">Messages/sec</div>
-                            <div class="stat-value">${monitor.messagesPerSecond.toFixed(1)}</div>
+        function updateVenueStats(byProgram) {
+            const venueCards = document.querySelectorAll('.venue-card');
+            
+            // Pump.fun BC
+            if (venueCards[0] && byProgram['pump.fun']) {
+                const rate = (byProgram['pump.fun'].parseRate * 100).toFixed(1);
+                venueCards[0].querySelector('.venue-rate').textContent = `${rate}%`;
+                venueCards[0].querySelector('.venue-rate').className = `venue-rate ${getColorClass(rate)}`;
+            }
+            
+            // Pump.swap AMM
+            if (venueCards[1] && byProgram['pump.swap']) {
+                const rate = (byProgram['pump.swap'].parseRate * 100).toFixed(1);
+                venueCards[1].querySelector('.venue-rate').textContent = `${rate}%`;
+                venueCards[1].querySelector('.venue-rate').className = `venue-rate ${getColorClass(rate)}`;
+            }
+            
+            // Raydium
+            if (venueCards[2] && byProgram['raydium']) {
+                const rate = (byProgram['raydium'].parseRate * 100).toFixed(1);
+                venueCards[2].querySelector('.venue-rate').textContent = `${rate}%`;
+                venueCards[2].querySelector('.venue-rate').className = `venue-rate ${getColorClass(rate)}`;
+            }
+        }
+
+        function getColorClass(rate) {
+            const numRate = parseFloat(rate);
+            if (numRate >= 90) return 'positive';
+            if (numRate >= 80) return '';
+            return 'negative';
+        }
+
+        function updateRecentFailures(failures) {
+            const failuresList = document.getElementById('failures-list');
+            failuresList.innerHTML = failures.map(f => `
+                <div class="failure-item">
+                    <div>
+                        <a href="https://solscan.io/tx/${f.signature}" class="failure-signature" target="_blank">
+                            ${f.signature.slice(0, 8)}...${f.signature.slice(-6)}
+                        </a>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+                            ${getProgramName(f.programId)} • ${f.error} • ${getTimeAgo(f.timestamp)}
                         </div>
-                        <div class="stat-group">
-                            <div class="stat-label">Parse Rate</div>
-                            <div class="stat-value">${(monitor.parseRate * 100).toFixed(1)}%</div>
-                        </div>
                     </div>
-                    <div class="monitor-progress">
-                        <div class="progress-bar">
-                            <div class="progress-fill ${getProgressClass(monitor.parseRate)}" 
-                                 style="width: ${monitor.parseRate * 100}%"></div>
-                        </div>
-                    </div>
+                    <span class="error-tag">${f.strategy}</span>
                 </div>
             `).join('');
         }
 
-        function updateCharts(data) {
-            // Update message rate chart
-            if (messageRateChart && data.monitors) {
-                const timestamp = new Date().toLocaleTimeString();
-                const totalRate = data.monitors.reduce((sum, m) => sum + m.messagesPerSecond, 0);
-                
-                messageRateChart.data.labels.push(timestamp);
-                messageRateChart.data.datasets[0].data.push(totalRate);
-                
-                // Keep last 20 points
-                if (messageRateChart.data.labels.length > 20) {
-                    messageRateChart.data.labels.shift();
-                    messageRateChart.data.datasets[0].data.shift();
-                }
-                
-                messageRateChart.update('none');
-            }
-
-            // Update parse rate chart
-            if (parseRateChart && data.monitors) {
-                const timestamp = new Date().toLocaleTimeString();
-                
-                // Ensure we have datasets for each monitor
-                data.monitors.forEach((monitor, index) => {
-                    let dataset = parseRateChart.data.datasets.find(d => d.label === monitor.name);
-                    
-                    if (!dataset) {
-                        dataset = {
-                            label: monitor.name,
-                            data: [],
-                            borderColor: getChartColor(index),
-                            backgroundColor: getChartColor(index, 0.1),
-                            tension: 0.4,
-                            pointRadius: 0
-                        };
-                        parseRateChart.data.datasets.push(dataset);
-                    }
-                    
-                    dataset.data.push(monitor.parseRate * 100);
-                    
-                    // Keep last 20 points
-                    if (dataset.data.length > 20) {
-                        dataset.data.shift();
-                    }
-                });
-                
-                parseRateChart.data.labels = Array(20).fill('').map((_, i) => '');
-                parseRateChart.update('none');
-            }
+        function getProgramName(programId) {
+            const programMap = {
+                '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P': 'pump.fun',
+                'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA': 'pump.swap',
+                '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8': 'Raydium'
+            };
+            return programMap[programId] || 'Unknown';
         }
 
-        async function loadStatus() {
+        function getTimeAgo(timestamp) {
+            const now = Date.now();
+            const time = new Date(timestamp).getTime();
+            const diff = now - time;
+            
+            if (diff < 60000) return 'just now';
+            if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
+            if (diff < 86400000) return `${Math.floor(diff / 3600000)} hours ago`;
+            return `${Math.floor(diff / 86400000)} days ago`;
+        }
+
+        async function updateStrategyMetrics() {
             try {
-                const response = await fetch('/api/status');
-                if (!response.ok) throw new Error('Failed to fetch status');
-                
+                const response = await fetch('/api/parsing-metrics/strategies');
                 const data = await response.json();
                 
-                // Update SOL price
-                const solPrice = typeof data.sol_price === 'object' ? data.sol_price.price : data.sol_price;
-                document.getElementById('header-sol-price').textContent = `$${solPrice.toFixed(2)}`;
-                
-                // Update connection status
-                const isConnected = data.monitors && data.monitors.stream_status === 'connected';
-                updateConnectionStatus(isConnected);
-            } catch (error) {
-                console.error('Error loading status:', error);
-                updateConnectionStatus(false);
-            }
-        }
-
-        function updateConnectionStatus(isConnected) {
-            const statusDot = document.getElementById('status-dot');
-            const statusText = document.getElementById('status-text');
-            
-            if (statusDot) {
-                if (isConnected) {
-                    statusDot.classList.add('connected');
-                } else {
-                    statusDot.classList.remove('connected');
+                if (data.success) {
+                    metricsCache.strategies = data.data;
+                    updateStrategyTable(data.data);
                 }
-            }
-            
-            if (statusText) {
-                statusText.textContent = isConnected ? 'Connected' : 'Disconnected';
+            } catch (error) {
+                console.error('Error fetching strategy metrics:', error);
             }
         }
 
-        // Memory cleanup function
-        async function performMemoryCleanup() {
-            const btn = document.getElementById('cleanupBtn');
-            btn.classList.add('loading');
-            btn.disabled = true;
+        function updateStrategyTable(strategies) {
+            const tbody = document.querySelector('.section:nth-child(4) tbody');
+            tbody.innerHTML = strategies.map(s => `
+                <tr>
+                    <td>${s.name}</td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span class="${getColorClass(s.successRate * 100)}">${(s.successRate * 100).toFixed(1)}%</span>
+                            <div class="progress-bar" style="width: 100px;">
+                                <div class="progress-fill" style="width: ${s.successRate * 100}%; background: ${getProgressColor(s.successRate)}"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>${s.attempts.toLocaleString()}</td>
+                    <td>${s.avgParseTime}ms</td>
+                    <td>${renderTopErrors(s.topErrors)}</td>
+                </tr>
+            `).join('');
+        }
 
+        function getProgressColor(rate) {
+            if (rate >= 0.9) return 'var(--accent-green)';
+            if (rate >= 0.8) return 'var(--accent-yellow)';
+            return 'var(--accent-red)';
+        }
+
+        function renderTopErrors(errors) {
+            return errors.slice(0, 2).map(([error, count]) => 
+                `<span class="error-tag">${error.slice(0, 20)}... (${count})</span>`
+            ).join(' ');
+        }
+
+        async function updateDataQualityMetrics() {
             try {
-                const response = await fetch('/api/v1/performance/cleanup-memory', {
-                    method: 'POST'
-                });
+                const response = await fetch('/api/parsing-metrics/data-quality');
+                const data = await response.json();
                 
-                if (!response.ok) throw new Error('Cleanup failed');
-                
-                const result = await response.json();
-                showToast('Memory cleanup completed successfully', 'success');
-                
-                // Update memory display if available
-                if (result.after && result.after.heapUsed) {
-                    const memoryPercent = (result.after.heapUsed / result.after.heapTotal) * 100;
-                    document.getElementById('memoryUsage').textContent = `${Math.round(memoryPercent)}%`;
+                if (data.success) {
+                    metricsCache.dataQuality = data.data;
+                    
+                    // Update AMM trades with reserves
+                    const ammCard = document.querySelector('.section:nth-child(5) .metric-card:nth-child(1)');
+                    ammCard.querySelector('.metric-value').textContent = `${(data.data.ammTradesWithReserves * 100).toFixed(1)}%`;
+                    
+                    // Update reserve data sources
+                    const sourcesCard = document.querySelector('.section:nth-child(5) .metric-card:nth-child(2)');
+                    sourcesCard.innerHTML = `
+                        <div class="metric-title">Reserve Data Sources</div>
+                        <div style="margin-top: 12px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span>Virtual Calculator</span>
+                                <span>${(data.data.reserveDataSources.virtualCalculator * 100).toFixed(0)}%</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span>Pool State</span>
+                                <span>${(data.data.reserveDataSources.poolState * 100).toFixed(0)}%</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Inner Instructions</span>
+                                <span>${(data.data.reserveDataSources.innerInstructions * 100).toFixed(0)}%</span>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Update cross-venue correlation
+                    const corrCard = document.querySelector('.section:nth-child(5) .metric-card:nth-child(3)');
+                    corrCard.querySelector('.metric-value').textContent = `${(data.data.crossVenueCorrelation * 100).toFixed(1)}%`;
                 }
             } catch (error) {
-                console.error('Cleanup error:', error);
-                showToast('Memory cleanup failed', 'error');
-            } finally {
-                btn.classList.remove('loading');
-                btn.disabled = false;
+                console.error('Error fetching data quality metrics:', error);
             }
         }
 
-        // Apply optimization suggestion
-        window.applyOptimization = function(suggestionId) {
-            console.log('Applying optimization:', suggestionId);
-            showToast('Optimization applied successfully', 'success');
-            // In production, would send request to apply the optimization
-        };
+        async function updateSystemMetrics() {
+            try {
+                const response = await fetch('/api/parsing-metrics/system');
+                const data = await response.json();
+                
+                if (data.success) {
+                    metricsCache.system = data.data;
+                    
+                    // Update parse queue depth
+                    const queueCard = document.querySelector('.section:last-child .metric-card:nth-child(1)');
+                    queueCard.querySelector('.metric-value').textContent = data.data.parseQueueDepth;
+                    const queuePercent = Math.min((data.data.parseQueueDepth / 1000) * 100, 100);
+                    queueCard.querySelector('.progress-fill').style.width = `${queuePercent}%`;
+                    queueCard.querySelector('div:last-child').textContent = `${queuePercent.toFixed(1)}% of capacity`;
+                    
+                    // Update memory usage
+                    const memCard = document.querySelector('.section:last-child .metric-card:nth-child(2)');
+                    const memGB = (data.data.memoryUsage.heapUsed / 1024 / 1024 / 1024).toFixed(1);
+                    const memPercent = (data.data.memoryUsage.heapUsed / data.data.memoryUsage.heapTotal * 100);
+                    memCard.querySelector('.metric-value').textContent = `${memGB}GB`;
+                    memCard.querySelector('.progress-fill').style.width = `${memPercent}%`;
+                    memCard.querySelector('div:last-child').textContent = `${memPercent.toFixed(0)}% of allocated`;
+                    
+                    // Update event bus rate
+                    const eventCard = document.querySelector('.section:last-child .metric-card:nth-child(3)');
+                    eventCard.querySelector('.metric-value').textContent = Math.round(data.data.eventBusMessagesPerSec);
+                    
+                    // Update DB write throughput
+                    const dbCard = document.querySelector('.section:last-child .metric-card:nth-child(4)');
+                    dbCard.querySelector('.metric-value').textContent = `${Math.round(data.data.dbWriteThroughput)}/s`;
+                }
+            } catch (error) {
+                console.error('Error fetching system metrics:', error);
+            }
+        }
 
-        // Utility functions
-        function formatUptime(ms) {
-            const days = Math.floor(ms / 86400000);
-            const hours = Math.floor((ms % 86400000) / 3600000);
-            const minutes = Math.floor((ms % 3600000) / 60000);
+        async function checkAlerts() {
+            try {
+                const response = await fetch('/api/parsing-metrics/alerts');
+                const data = await response.json();
+                
+                if (data.success) {
+                    metricsCache.alerts = data.data;
+                    updateAlerts(data.data);
+                }
+            } catch (error) {
+                console.error('Error checking alerts:', error);
+            }
+        }
+
+        function updateAlerts(alerts) {
+            const alertsContainer = document.getElementById('alerts-container');
+            alertsContainer.innerHTML = alerts.map(alert => `
+                <div class="alert-box" style="display: flex; background: ${getAlertBackground(alert.severity)}">
+                    <span class="alert-icon">${getAlertIcon(alert.severity)}</span>
+                    <span>${alert.message}</span>
+                </div>
+            `).join('');
+        }
+
+        function getAlertBackground(severity) {
+            return severity === 'critical' 
+                ? 'rgba(255, 68, 68, 0.1)' 
+                : 'rgba(255, 170, 0, 0.1)';
+        }
+
+        function getAlertIcon(severity) {
+            return severity === 'critical' ? '🚨' : '⚠️';
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
             
-            if (days > 0) return `${days}d ${hours}h`;
-            if (hours > 0) return `${hours}h ${minutes}m`;
-            return `${minutes}m`;
-        }
-
-        function getProgressClass(value) {
-            if (value >= 0.95) return 'progress-good';
-            if (value >= 0.85) return 'progress-warning';
-            return 'progress-danger';
-        }
-
-        function getChartColor(index, alpha = 1) {
-            const colors = [
-                `rgba(59, 130, 246, ${alpha})`,   // Blue
-                `rgba(16, 185, 129, ${alpha})`,   // Green
-                `rgba(245, 158, 11, ${alpha})`,   // Amber
-                `rgba(239, 68, 68, ${alpha})`,    // Red
-                `rgba(139, 92, 246, ${alpha})`,   // Purple
-                `rgba(236, 72, 153, ${alpha})`    // Pink
-            ];
-            return colors[index % colors.length];
-        }
-
-        function showToast(message, type = 'info') {
-            const toast = document.getElementById('toast');
-            toast.className = `toast ${type}`;
-            toast.textContent = message;
-            toast.classList.add('show');
+            // Update chart placeholder
+            const chartContainer = document.querySelector('.chart-container');
+            const chartTitles = {
+                'parse-rate': '📊 Parse Rate Chart (24h)',
+                'latency': '📈 Latency Trend (24h)', 
+                'volume': '📊 Transaction Volume (24h)',
+                'errors': '📉 Error Rate (24h)'
+            };
             
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 4000);
+            chartContainer.innerHTML = `
+                <div style="text-align: center; color: var(--text-secondary); margin-top: 100px;">
+                    ${chartTitles[tab]}
+                    <div style="margin-top: 20px; font-size: 14px;">
+                        [Chart would show ${tab.replace('-', ' ')} over time]
+                    </div>
+                </div>
+            `;
         }
+
+        // Initialize and start auto-refresh
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshMetrics(); // Initial load
+            startAutoRefresh();
+        });
+        
+        // Link back to main dashboard
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                window.location.href = '/';
+            }
+        });
     </script>
 </body>
 </html>

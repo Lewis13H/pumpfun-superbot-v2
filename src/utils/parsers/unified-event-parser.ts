@@ -15,6 +15,7 @@ import { LiquidityStrategy } from './strategies/liquidity-strategy';
 import { AmmLiquidityStrategy } from './strategies/amm-liquidity-strategy';
 import { Logger } from '../../core/logger';
 import { EventBus } from '../../core/event-bus';
+import { ParsingMetricsService } from '../../services/monitoring/parsing-metrics-service';
 import bs58 from 'bs58';
 
 export interface ParserOptions {
@@ -28,6 +29,7 @@ export class UnifiedEventParser {
   private strategies: ParseStrategy[];
   private eventBus?: EventBus;
   private logger: Logger;
+  private metricsService: ParsingMetricsService;
   private stats = {
     total: 0,
     parsed: 0,
@@ -53,6 +55,7 @@ export class UnifiedEventParser {
       context: 'UnifiedEventParser',
       level: options.logErrors ? 0 : 2 // DEBUG if logErrors, else WARN
     });
+    this.metricsService = ParsingMetricsService.getInstance();
 
     // Initialize strategy stats
     this.strategies.forEach(s => this.stats.byStrategy.set(s.name || 'unnamed', 0));
@@ -64,14 +67,28 @@ export class UnifiedEventParser {
   parse(context: ParseContext): ParsedEvent | null {
     this.stats.total++;
 
+    // Extract program ID from context
+    const programId = this.extractProgramId(context);
+
     // Try each strategy in order
     for (const strategy of this.strategies) {
+      const startTime = Date.now();
       try {
         if (strategy.canParse(context)) {
           const result = strategy.parse(context);
           // Handle both single event and array of events
           const events = Array.isArray(result) ? result : (result ? [result] : []);
           const event = events.length > 0 ? events[0] : null;
+          
+          // Track metrics
+          this.metricsService.trackParseAttempt({
+            strategy: strategy.name || 'unnamed',
+            programId: programId || 'unknown',
+            success: event !== null,
+            signature: context.signature,
+            parseTime: Date.now() - startTime
+          });
+          
           if (event) {
             this.stats.parsed++;
             const strategyName = strategy.name || 'unnamed';
@@ -95,6 +112,16 @@ export class UnifiedEventParser {
       } catch (error) {
         this.logger.error(`Strategy ${strategy.name || 'unnamed'} failed`, error as Error, {
           signature: context.signature
+        });
+        
+        // Track failed attempt
+        this.metricsService.trackParseAttempt({
+          strategy: strategy.name || 'unnamed',
+          programId: programId || 'unknown',
+          success: false,
+          error: error as Error,
+          signature: context.signature,
+          parseTime: Date.now() - startTime
         });
       }
     }
@@ -169,6 +196,50 @@ export class UnifiedEventParser {
     this.stats.parsed = 0;
     this.stats.failed = 0;
     this.strategies.forEach(s => this.stats.byStrategy.set(s.name || 'unnamed', 0));
+  }
+
+  /**
+   * Extract program ID from parse context
+   */
+  private extractProgramId(context: ParseContext): string | null {
+    // Check logs for program ID
+    if (context.logs?.length > 0) {
+      for (const log of context.logs) {
+        // Look for "Program X invoke" or "Program X success" patterns
+        const match = log.match(/Program (\w+) (invoke|success)/);
+        if (match) {
+          const programId = match[1];
+          // Check if it's one of our known programs
+          if (programId === '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P' || // Pump BC
+              programId === 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA' || // Pump AMM
+              programId === '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8') { // Raydium
+            return programId;
+          }
+        }
+      }
+    }
+    
+    // Try to extract from full transaction data
+    if (context.fullTransaction?.transaction?.transaction?.message?.accountKeys) {
+      const accountKeys = context.fullTransaction.transaction.transaction.message.accountKeys;
+      const instructions = context.fullTransaction.transaction.transaction.message.instructions || [];
+      
+      for (const ix of instructions) {
+        if (ix.programIdIndex < accountKeys.length) {
+          const programKey = accountKeys[ix.programIdIndex];
+          const programId = Buffer.isBuffer(programKey) ? bs58.encode(programKey) : programKey;
+          
+          // Check if it's one of our known programs
+          if (programId === '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P' || // Pump BC
+              programId === 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA' || // Pump AMM
+              programId === '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8') { // Raydium
+            return programId;
+          }
+        }
+      }
+    }
+    
+    return null;
   }
 
   /**
