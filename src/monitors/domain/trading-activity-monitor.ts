@@ -23,7 +23,7 @@ import { UnifiedEventParser } from '../../utils/parsers/unified-event-parser';
 import { TradeHandler } from '../../handlers/trade-handler';
 import { MonitorGroup } from '../../services/core/subscription-builder';
 import { MonitorStats } from '../../core/base-monitor';
-import { TradeEvent, TradeType, EventType } from '../../utils/parsers/types';
+import { TradeEvent, TradeType, EventType, ParseContext } from '../../utils/parsers/types';
 
 interface TradingStats extends MonitorStats {
   totalTrades: number;
@@ -257,14 +257,19 @@ export class TradingActivityMonitor extends BaseMonitor {
     if (event) {
       const eventType = event.type as string;
       if (eventType === EventType.BC_TRADE || eventType === EventType.AMM_TRADE || eventType === EventType.RAYDIUM_SWAP || eventType === 'raydium_swap') {
-        await this.processTrade(event, venue);
+        await this.processTrade(event, venue, context);
       }
     }
   }
 
-  private async processTrade(event: any, venue: 'bc' | 'amm' | 'raydium'): Promise<void> {
+  private async processTrade(event: any, venue: 'bc' | 'amm' | 'raydium', context?: ParseContext): Promise<void> {
     // The event IS the trade data, not wrapped in a data property
     const trade = event as TradeEvent;
+    
+    // Add context to trade for enrichment
+    if (context) {
+      trade.context = context;
+    }
     
     // Update stats
     this.stats.totalTrades++;

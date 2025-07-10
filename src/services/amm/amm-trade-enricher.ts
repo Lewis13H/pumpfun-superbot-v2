@@ -6,17 +6,23 @@
 import { EventBus, EVENTS } from '../../core/event-bus';
 import { Logger } from '../../core/logger';
 import { AmmPoolStateService } from './amm-pool-state-service';
-import { TradeEvent, EventType } from '../../utils/parsers/types';
+import { TradeEvent, EventType, TradeType } from '../../utils/parsers/types';
+import { VirtualReserveCalculator } from './virtual-reserve-calculator';
+import { SolPriceService } from '../pricing/sol-price-service';
 
 export class AmmTradeEnricher {
   private logger: Logger;
   private ammPoolStateService: AmmPoolStateService;
   private eventBus: EventBus;
+  private virtualReserveCalculator: VirtualReserveCalculator;
+  private solPriceService: SolPriceService;
 
   constructor(eventBus: EventBus) {
     this.logger = new Logger({ context: 'AmmTradeEnricher' });
     this.eventBus = eventBus;
     this.ammPoolStateService = AmmPoolStateService.getInstance();
+    this.virtualReserveCalculator = new VirtualReserveCalculator();
+    this.solPriceService = SolPriceService.getInstance();
     
     this.subscribeToEvents();
   }
@@ -40,43 +46,82 @@ export class AmmTradeEnricher {
    */
   private async enrichTradeWithReserves(event: TradeEvent): Promise<void> {
     try {
-      // Skip if reserves already present
+      // Skip if reserves already present and valid
       if (event.virtualSolReserves && event.virtualTokenReserves) {
-        return;
+        const reserves = {
+          solReserves: event.virtualSolReserves,
+          tokenReserves: event.virtualTokenReserves
+        };
+        if (this.virtualReserveCalculator.validateReserves(reserves)) {
+          return;
+        }
       }
 
-      // Get pool state from the service
-      const poolState = this.ammPoolStateService.getPoolStateByMint(event.mintAddress);
+      // Update virtual reserves based on the trade
+      const isBuy = event.tradeType === TradeType.BUY || event.tradeType === 'buy';
+      const solAmount = event.solAmount || 0n;
+      const tokenAmount = event.tokenAmount || 0n;
       
-      if (poolState && poolState.reserves) {
-        // Add reserves to the event
-        event.virtualSolReserves = BigInt(poolState.reserves.virtualSolReserves);
-        event.virtualTokenReserves = BigInt(poolState.reserves.virtualTokenReserves);
+      if (solAmount > 0n && tokenAmount > 0n) {
+        // Calculate virtual reserves
+        const reserves = this.virtualReserveCalculator.updateReserves(
+          event.mintAddress,
+          solAmount,
+          tokenAmount,
+          isBuy
+        );
         
-        this.logger.debug('Enriched AMM trade with pool reserves', {
+        // Add reserves to the event
+        event.virtualSolReserves = reserves.solReserves;
+        event.virtualTokenReserves = reserves.tokenReserves;
+        
+        // Calculate market cap
+        const solPrice = await this.solPriceService.getPrice();
+        const marketCap = this.virtualReserveCalculator.calculateMarketCap(reserves, solPrice);
+        
+        // Add market cap to event (if supported)
+        if ('marketCapUsd' in event) {
+          (event as any).marketCapUsd = marketCap;
+        }
+        
+        this.logger.info('Enriched AMM trade with virtual reserves', {
           mintAddress: event.mintAddress,
-          solReserves: poolState.reserves.virtualSolReserves,
-          tokenReserves: poolState.reserves.virtualTokenReserves
+          solReserves: (Number(reserves.solReserves) / 1e9).toFixed(2),
+          tokenReserves: (Number(reserves.tokenReserves) / 1e6).toLocaleString(),
+          marketCap: marketCap.toFixed(2)
         });
         
-        // Emit event that reserves were added
+        // Update pool state service
+        await this.ammPoolStateService.updatePoolReserves(
+          event.mintAddress,
+          Number(reserves.solReserves) / 1e9,
+          Number(reserves.tokenReserves),
+          Number(event.slot)
+        );
+        
         this.eventBus.emit('AMM_TRADE_ENRICHED', {
           mintAddress: event.mintAddress,
           signature: event.signature,
-          hasReserves: true
+          hasReserves: true,
+          source: 'virtual_calculator',
+          marketCap
         });
-      } else {
-        this.logger.debug('No pool state found for AMM trade', {
-          mintAddress: event.mintAddress
-        });
-        
-        // Emit event to fetch pool data
-        this.eventBus.emit('FETCH_POOL_DATA_NEEDED', {
-          mintAddress: event.mintAddress,
-          signature: event.signature,
-          priority: 'high'
-        });
+        return;
       }
+
+      // If we can't calculate virtual reserves, try other methods
+      this.logger.debug('Cannot calculate virtual reserves - missing trade amounts', {
+        mintAddress: event.mintAddress,
+        solAmount: solAmount.toString(),
+        tokenAmount: tokenAmount.toString()
+      });
+      
+      // Emit event to fetch pool data
+      this.eventBus.emit('FETCH_POOL_DATA_NEEDED', {
+        mintAddress: event.mintAddress,
+        signature: event.signature,
+        priority: 'high'
+      });
     } catch (error) {
       this.logger.error('Failed to enrich AMM trade with reserves', error as Error, {
         mintAddress: event.mintAddress,
@@ -84,6 +129,7 @@ export class AmmTradeEnricher {
       });
     }
   }
+
 
   /**
    * Get pool state by mint address (public method for external use)

@@ -53,6 +53,8 @@ export interface TradeEvent extends BaseEvent {
   volumeUsd?: number;
   // Additional fields for flexibility
   program?: string;
+  // Context for enrichment
+  context?: ParseContext;
 }
 
 export interface BCTradeEvent extends TradeEvent {

@@ -40,7 +40,7 @@ export class UnifiedEventParser {
     this.strategies = options.strategies || [
       new BCTradeIDLStrategy(),          // BC trades using IDL (most accurate)
       new BCTradeStrategy(),             // BC trades fallback
-      new AMMTradeInnerIxStrategy(),     // AMM trades from inner instructions (most accurate but not available in gRPC)
+      new AMMTradeInnerIxStrategy(),     // AMM trades from inner instructions (most accurate)
       new AMMTradeHeuristicStrategy(),   // AMM trades with heuristics to get reasonable amounts
       new AMMTradeInstructionStrategy(), // AMM trades from instruction data (has slippage issue)
       new AMMTradeStrategy(),            // AMM trades from logs (last resort)

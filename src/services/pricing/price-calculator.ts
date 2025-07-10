@@ -78,9 +78,19 @@ export class PriceCalculator {
     let marketCapUsd: number;
     
     if (isAmmToken) {
-      // For AMM tokens, use the tokens in the pool as circulating supply
-      // This is more accurate than assuming a fixed percentage
-      marketCapUsd = priceInUsd * tokenReserves;
+      // For pump.fun graduated tokens:
+      // Circulating supply = Total supply - Tokens locked in pool
+      const totalSupplyTokens = this.TOTAL_SUPPLY; // 1B tokens
+      
+      // Simple and accurate: what's not in the pool is circulating
+      const circulatingSupply = Math.max(0, totalSupplyTokens - tokenReserves);
+      
+      // Sanity check: if pool has >99% of supply, use typical 46% circulating
+      if (tokenReserves > totalSupplyTokens * 0.99) {
+        marketCapUsd = priceInUsd * (totalSupplyTokens * 0.46);
+      } else {
+        marketCapUsd = priceInUsd * circulatingSupply;
+      }
     } else if (totalSupply) {
       // If we have the actual total supply, use 100% as circulating for BC tokens
       const totalSupplyNum = Number(totalSupply) / Math.pow(10, this.TOKEN_DECIMALS);

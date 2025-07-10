@@ -192,58 +192,15 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
         
-        /* Main Grid Layout */
-        .main-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 30px;
-            margin-bottom: 40px;
-        }
-        
-        /* Chart Section */
-        .chart-section {
-            background-color: #1a1a1a;
-            border-radius: 12px;
-            padding: 20px;
-        }
-        
-        .chart-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        
-        .time-selector {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .time-btn {
-            padding: 6px 12px;
-            background-color: #2a2a2a;
-            border: none;
-            border-radius: 6px;
-            color: #888;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .time-btn.active {
-            background-color: #4CAF50;
-            color: white;
-        }
-        
-        .chart-container {
-            height: 400px;
-            position: relative;
-        }
         
         /* Pool Info Panel */
         .info-panel {
             background-color: #1a1a1a;
             border-radius: 12px;
             padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
         }
         
         .info-panel h3 {
@@ -423,14 +380,50 @@
             margin-left: 10px;
         }
         
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .pagination button {
+            padding: 8px 16px;
+            background-color: #2a2a2a;
+            border: none;
+            border-radius: 6px;
+            color: #e0e0e0;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        
+        .pagination button:hover:not(:disabled) {
+            background-color: #3a3a3a;
+        }
+        
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .pagination button.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .pagination .page-info {
+            color: #888;
+            font-size: 14px;
+        }
+        
         /* Hide elements initially */
         .content {
             display: none;
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.30.0/index.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
 <body>
     <!-- Header -->
@@ -477,27 +470,9 @@
                 <!-- Will be populated by JavaScript -->
             </div>
 
-            <!-- Main Grid -->
-            <div class="main-grid">
-                <!-- Chart Section -->
-                <div class="chart-section">
-                    <div class="chart-header">
-                        <h3>Price Chart</h3>
-                        <div class="time-selector">
-                            <button class="time-btn" data-period="1h">1h</button>
-                            <button class="time-btn active" data-period="24h">24h</button>
-                            <button class="time-btn" data-period="7d">7d</button>
-                        </div>
-                    </div>
-                    <div class="chart-container">
-                        <canvas id="priceChart"></canvas>
-                    </div>
-                </div>
-                
-                <!-- Pool Info Panel -->
-                <div class="info-panel" id="poolInfo">
-                    <!-- Will be populated by JavaScript -->
-                </div>
+            <!-- Pool Info Panel -->
+            <div class="info-panel" id="poolInfo" style="margin-bottom: 40px;">
+                <!-- Will be populated by JavaScript -->
             </div>
 
             <!-- Info Cards -->
@@ -529,6 +504,9 @@
                         </tbody>
                     </table>
                 </div>
+                <div class="pagination" id="pagination">
+                    <!-- Will be populated by JavaScript -->
+                </div>
             </div>
 
             <!-- Footer Stats -->
@@ -543,10 +521,12 @@
         const urlParams = new URLSearchParams(window.location.search);
         const mintAddress = urlParams.get('mint') || window.location.pathname.split('/').pop();
         
-        // Chart instance
-        let priceChart = null;
+        // Data variables
         let tokenData = null;
         let updateInterval = null;
+        let allTrades = [];
+        let currentPage = 1;
+        const tradesPerPage = 10;
         
         // Format number utilities
         function formatNumber(num, decimals = 2) {
@@ -698,11 +678,12 @@
             const poolType = data.graduated_to_amm ? 'Pump.swap AMM' : 'Bonding Curve';
             const poolInfo = data.pool_info;
             
-            let html = `<h3>Pool Information</h3>`;
+            let html = '';
             
             if (data.graduated_to_amm && poolInfo) {
-                html += `
-                    <div class="info-card" style="margin-top: 20px;">
+                html = `
+                    <div class="info-card">
+                        <h3>Pool Information</h3>
                         <div class="info-item">
                             <span class="info-label">Pool Type</span>
                             <span class="info-value">${poolType}</span>
@@ -731,8 +712,9 @@
                 `;
             } else {
                 // Bonding curve info
-                html += `
-                    <div class="info-card" style="margin-top: 20px;">
+                html = `
+                    <div class="info-card">
+                        <h3>Bonding Curve Information</h3>
                         <div class="info-item">
                             <span class="info-label">Type</span>
                             <span class="info-value">${poolType}</span>
@@ -749,15 +731,15 @@
                             <span class="info-label">Token Reserve</span>
                             <span class="info-value">${formatNumber(data.latest_virtual_token_reserves)}</span>
                         </div>
-                    </div>
-                    <div class="progress-container">
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: ${data.latest_bonding_curve_progress || 0}%"></div>
-                        </div>
-                        <div class="progress-text">
-                            <span>0%</span>
-                            <span>Bonding Curve Progress</span>
-                            <span>100%</span>
+                        <div class="progress-container" style="margin-top: 15px;">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${data.latest_bonding_curve_progress || 0}%"></div>
+                            </div>
+                            <div class="progress-text">
+                                <span>0%</span>
+                                <span>Bonding Curve Progress</span>
+                                <span>100%</span>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -765,8 +747,8 @@
             
             // Volume stats
             html += `
-                <div class="info-card" style="margin-top: 20px;">
-                    <h3>Volume Stats</h3>
+                <div class="info-card">
+                    <h3>Volume Statistics</h3>
                     <div class="info-item">
                         <span class="info-label">1h Volume</span>
                         <span class="info-value">$${formatNumber(data.trade_stats?.volume_1h_usd || 0)}</span>
@@ -785,6 +767,27 @@
                     </div>
                 </div>
             `;
+            
+            // Holder info if available
+            if (data.holder_score !== undefined) {
+                html += `
+                    <div class="info-card">
+                        <h3>Holder Analysis</h3>
+                        <div class="info-item">
+                            <span class="info-label">Holder Score</span>
+                            <span class="info-value">${data.holder_score || 'N/A'}/300</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Holder Count</span>
+                            <span class="info-value">${formatNumber(data.holder_count || 0, 0)}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Top Holder %</span>
+                            <span class="info-value">${formatNumber(data.top_holder_percentage || 0, 1)}%</span>
+                        </div>
+                    </div>
+                `;
+            }
             
             document.getElementById('poolInfo').innerHTML = html;
         }
@@ -850,14 +853,24 @@
             document.getElementById('infoCards').innerHTML = html;
         }
         
-        // Render transactions
+        // Render transactions with pagination
         function renderTransactions(trades) {
-            if (!trades || trades.length === 0) {
+            allTrades = trades || [];
+            
+            if (allTrades.length === 0) {
                 document.getElementById('transactionsBody').innerHTML = '<tr><td colspan="8" style="text-align: center; color: #666;">No recent transactions</td></tr>';
+                document.getElementById('pagination').innerHTML = '';
                 return;
             }
             
-            const html = trades.map(trade => {
+            // Calculate pagination
+            const totalPages = Math.ceil(allTrades.length / tradesPerPage);
+            const startIndex = (currentPage - 1) * tradesPerPage;
+            const endIndex = startIndex + tradesPerPage;
+            const pageTrades = allTrades.slice(startIndex, endIndex);
+            
+            // Render trades for current page
+            const html = pageTrades.map(trade => {
                 const txType = trade.trade_type;
                 const txClass = txType === 'buy' ? 'tx-buy' : 'tx-sell';
                 const solAmount = parseFloat(trade.sol_amount) / 1e9;
@@ -879,6 +892,66 @@
             }).join('');
             
             document.getElementById('transactionsBody').innerHTML = html;
+            
+            // Render pagination controls
+            renderPagination(totalPages);
+        }
+        
+        // Render pagination controls
+        function renderPagination(totalPages) {
+            if (totalPages <= 1) {
+                document.getElementById('pagination').innerHTML = '';
+                return;
+            }
+            
+            let paginationHtml = '';
+            
+            // Previous button
+            paginationHtml += `<button onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>`;
+            
+            // Page numbers
+            const maxPagesToShow = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+            let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+            
+            if (endPage - startPage < maxPagesToShow - 1) {
+                startPage = Math.max(1, endPage - maxPagesToShow + 1);
+            }
+            
+            if (startPage > 1) {
+                paginationHtml += `<button onclick="changePage(1)">1</button>`;
+                if (startPage > 2) {
+                    paginationHtml += `<span class="page-info">...</span>`;
+                }
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                paginationHtml += `<button onclick="changePage(${i})" ${i === currentPage ? 'class="active"' : ''}>${i}</button>`;
+            }
+            
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    paginationHtml += `<span class="page-info">...</span>`;
+                }
+                paginationHtml += `<button onclick="changePage(${totalPages})">${totalPages}</button>`;
+            }
+            
+            // Next button
+            paginationHtml += `<button onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>`;
+            
+            // Page info
+            paginationHtml += `<span class="page-info">Page ${currentPage} of ${totalPages}</span>`;
+            
+            document.getElementById('pagination').innerHTML = paginationHtml;
+        }
+        
+        // Change page
+        function changePage(page) {
+            const totalPages = Math.ceil(allTrades.length / tradesPerPage);
+            if (page >= 1 && page <= totalPages) {
+                currentPage = page;
+                renderTransactions(allTrades);
+            }
         }
         
         // Render footer stats
@@ -900,128 +973,6 @@
             document.getElementById('footerStats').innerHTML = html;
         }
         
-        // Initialize price chart
-        function initChart(priceHistory, period = '24h') {
-            // Destroy existing chart if it exists
-            if (priceChart) {
-                priceChart.destroy();
-                priceChart = null;
-            }
-            
-            const canvas = document.getElementById('priceChart');
-            const ctx = canvas.getContext('2d');
-            
-            // Filter data based on period
-            let data = priceHistory || [];
-            
-            // Check if we have data
-            if (!data || data.length === 0) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.font = '14px Arial';
-                ctx.fillStyle = '#666';
-                ctx.textAlign = 'center';
-                ctx.fillText('No price history available', canvas.width / 2, canvas.height / 2);
-                return;
-            }
-            
-            if (period === '1h') {
-                const oneHourAgo = Date.now() - 3600000;
-                data = data.filter(p => new Date(p.created_at).getTime() > oneHourAgo);
-            } else if (period === '7d') {
-                // Use 7d data if available
-                data = tokenData.price_history_7d || data;
-            }
-            
-            // Check if we have data after filtering
-            if (!data || data.length === 0) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.font = '14px Arial';
-                ctx.fillStyle = '#666';
-                ctx.textAlign = 'center';
-                ctx.fillText('No data available for this time period', canvas.width / 2, canvas.height / 2);
-                return;
-            }
-            
-            // Sort data by date (oldest first)
-            data = data.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-            
-            const chartData = {
-                labels: data.map(p => new Date(p.created_at)),
-                datasets: [{
-                    label: 'Price USD',
-                    data: data.map(p => parseFloat(p.price_usd) || 0),
-                    borderColor: '#4CAF50',
-                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    tension: 0.4
-                }]
-            };
-            
-            const options = {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false,
-                        callbacks: {
-                            label: function(context) {
-                                return `$${formatNumber(context.parsed.y)}`;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        type: 'time',
-                        time: {
-                            unit: period === '1h' ? 'minute' : period === '24h' ? 'hour' : 'day',
-                            displayFormats: {
-                                minute: 'HH:mm',
-                                hour: 'HH:mm',
-                                day: 'MMM d'
-                            }
-                        },
-                        grid: {
-                            color: '#333'
-                        },
-                        ticks: {
-                            color: '#888'
-                        }
-                    },
-                    y: {
-                        grid: {
-                            color: '#333'
-                        },
-                        ticks: {
-                            color: '#888',
-                            callback: function(value) {
-                                return '$' + formatNumber(value);
-                            }
-                        }
-                    }
-                }
-            };
-            
-            try {
-                priceChart = new Chart(ctx, {
-                    type: 'line',
-                    data: chartData,
-                    options: options
-                });
-            } catch (error) {
-                console.error('Error creating chart:', error);
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.font = '14px Arial';
-                ctx.fillStyle = '#666';
-                ctx.textAlign = 'center';
-                ctx.fillText('Error loading chart', canvas.width / 2, canvas.height / 2);
-            }
-        }
         
         // Load token data
         async function loadTokenData() {
@@ -1055,9 +1006,6 @@
                 renderTransactions(tokenData.recent_trades);
                 renderFooterStats(tokenData);
                 
-                // Initialize chart
-                initChart(tokenData.price_history_24h);
-                
             } catch (error) {
                 console.error('Error loading token data:', error);
                 document.getElementById('loading').style.display = 'none';
@@ -1072,14 +1020,6 @@
             await updateSolPrice();
         }
         
-        // Time selector handlers
-        document.addEventListener('click', function(e) {
-            if (e.target.classList.contains('time-btn')) {
-                document.querySelectorAll('.time-btn').forEach(btn => btn.classList.remove('active'));
-                e.target.classList.add('active');
-                initChart(tokenData.price_history_24h, e.target.dataset.period);
-            }
-        });
         
         // Initialize
         if (!mintAddress) {
