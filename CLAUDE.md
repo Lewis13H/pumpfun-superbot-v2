@@ -129,6 +129,13 @@ Main tables:
 - ✅ API rate limiting (5 req/s Helius)
 - ✅ Reduced logging verbosity
 - ✅ Dashboard shows numeric scores (0-300)
+- ✅ Metadata & Transaction History (Session 10):
+  - Enabled automatic metadata enricher for $8,888+ tokens
+  - Added Shyft GraphQL client for efficient batch operations
+  - Integrated transaction history fetching with GraphQL
+  - Enhanced caching: 1-hour for metadata, 5-min for GraphQL
+  - COALESCE protection prevents metadata overwrites
+  - Holder count now syncs properly to tokens_unified
 
 ### System Performance
 - **Total TPS**: ~38 combined
@@ -141,6 +148,8 @@ Main tables:
 1. **Shyft gRPC limit**: Wait 5-10 minutes
 2. **Missed graduations**: Auto-fixed by GraduationFixerService
 3. **Price precision**: API calculates from SOL price
+4. **Shyft holder endpoints return 404**: Using Helius RPC for complete holder data
+5. **20 holder RPC limit**: Resolved by using HeliusCompleteHolderFetcher
 
 ## Scripts & Utilities
 
@@ -158,10 +167,15 @@ npx tsx src/scripts/test-session-[1-10].ts
 # Holder analysis
 npx tsx src/scripts/test-holder-analysis-session[1-9].ts
 npx tsx src/scripts/analyze-tokens-with-rate-limits.ts
+npx tsx src/scripts/test-complete-holder-fetching.ts
 
 # AMM parsing analysis
 npx tsx src/scripts/analyze-parse-rates.ts
 npx tsx src/scripts/test-pool-state-coordinator.ts
+
+# Metadata enrichment
+npx tsx src/scripts/test-metadata-enrichment.ts
+npx tsx src/scripts/enrich-high-value-tokens.ts
 ```
 
 ## Code Structure
@@ -173,6 +187,8 @@ src/
 │   ├── core/                # Smart streaming
 │   ├── pipeline/            # Event processing
 │   ├── holder-analysis/     # Holder analysis
+│   ├── metadata/            # Token metadata enrichment
+│   │   └── providers/       # Shyft, Helius, GraphQL clients
 │   └── [other services]
 ├── utils/                   # Utilities
 └── scripts/                 # Test scripts
@@ -189,11 +205,15 @@ Knowledge files in `.knowledge/` directories contain deep insights:
 
 - BC save threshold: $8,888
 - AMM save threshold: $1,000
+- Metadata enrichment threshold: $8,888
 - Dashboard updates every 10 seconds
 - FDV = Market Cap × 10
 - Holder analysis threshold: $18,888
 - All monitors use dependency injection
 - Events drive cross-component communication
+- Metadata is protected from overwrites via COALESCE
+- Shyft GraphQL preferred for batch operations
+- Helius RPC provides complete holder lists (all holders)
 
 ## Architecture Benefits
 

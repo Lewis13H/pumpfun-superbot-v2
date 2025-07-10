@@ -7,6 +7,7 @@
 import axios from 'axios';
 import chalk from 'chalk';
 import { db } from '../../../database';
+import { ShyftGraphQLClient } from './shyft-graphql-client';
 
 // Standard metadata interface (from shyft-metadata-service)
 interface ShyftTokenMetadata {
@@ -85,12 +86,14 @@ export class ShyftProvider {
   private static instance: ShyftProvider;
   private readonly apiKey: string;
   private readonly baseUrl = 'https://api.shyft.to/sol/v1';
+  private graphqlClient: ShyftGraphQLClient;
   private cache = new Map<string, { data: TokenInfoDAS; timestamp: number }>();
   private readonly CACHE_TTL = 3600000; // 1 hour
   private readonly RATE_LIMIT_DELAY = 200; // 200ms between requests
   private lastRequestTime = 0;
   private requestCount = 0;
   private readonly MAX_REQUESTS_PER_MINUTE = 100;
+  private readonly USE_GRAPHQL = true; // Feature flag for GraphQL
   
   // Stats tracking
   private stats = {
@@ -107,6 +110,7 @@ export class ShyftProvider {
     if (!this.apiKey) {
       console.warn(chalk.yellow('⚠️ SHYFT_API_KEY not found'));
     }
+    this.graphqlClient = ShyftGraphQLClient.getInstance();
   }
   
   static getInstance(): ShyftProvider {
@@ -129,7 +133,40 @@ export class ShyftProvider {
         return this.convertToBasicMetadata(cached.data);
       }
       
-      // Try to get from DAS first (more comprehensive)
+      // Try GraphQL first if enabled
+      if (this.USE_GRAPHQL) {
+        const graphqlData = await this.graphqlClient.getTokenMetadata(mintAddress);
+        if (graphqlData) {
+          // Convert GraphQL data to DAS format for caching
+          const dasData: TokenInfoDAS = {
+            address: graphqlData.address,
+            symbol: graphqlData.symbol,
+            name: graphqlData.name,
+            decimals: graphqlData.decimals,
+            supply: graphqlData.supply,
+            description: graphqlData.description,
+            image: graphqlData.image,
+            uri: graphqlData.uri,
+            update_authority: graphqlData.update_authority,
+            freeze_authority: graphqlData.freeze_authority,
+            mint_authority: graphqlData.mint_authority,
+            is_mutable: graphqlData.is_mutable,
+            current_holder_count: graphqlData.holder_count,
+            top_holders: graphqlData.top_holders,
+            creators: graphqlData.creators
+          };
+          
+          // Cache the result
+          this.cache.set(mintAddress, {
+            data: dasData,
+            timestamp: Date.now()
+          });
+          
+          return this.convertToBasicMetadata(dasData);
+        }
+      }
+      
+      // Try to get from DAS API (fallback)
       const dasInfo = await this.getTokenInfoDAS(mintAddress);
       if (dasInfo) {
         return this.convertToBasicMetadata(dasInfo);
@@ -320,10 +357,66 @@ export class ShyftProvider {
       return results;
     }
     
-    // Process uncached tokens with DAS API for comprehensive data
     console.log(chalk.yellow(`🔄 Fetching ${uncachedAddresses.length} tokens from Shyft API...`));
     
-    // Process in parallel batches to speed up fetching
+    // Use GraphQL for efficient batch fetching if enabled
+    if (this.USE_GRAPHQL && uncachedAddresses.length > 1) {
+      try {
+        const graphqlResults = await this.graphqlClient.getTokenMetadataBatch(uncachedAddresses);
+        
+        for (const [address, metadata] of graphqlResults) {
+          if (metadata) {
+            // Convert GraphQL data to DAS format
+            const dasData: TokenInfoDAS = {
+              address: metadata.address,
+              symbol: metadata.symbol,
+              name: metadata.name,
+              decimals: metadata.decimals,
+              supply: metadata.supply,
+              description: metadata.description,
+              image: metadata.image,
+              uri: metadata.uri,
+              update_authority: metadata.update_authority,
+              freeze_authority: metadata.freeze_authority,
+              mint_authority: metadata.mint_authority,
+              is_mutable: metadata.is_mutable,
+              current_holder_count: metadata.holder_count,
+              top_holders: metadata.top_holders,
+              creators: metadata.creators,
+              metadata_score: this.calculateMetadataScore({
+                symbol: metadata.symbol,
+                name: metadata.name,
+                description: metadata.description,
+                image: metadata.image
+              })
+            };
+            
+            // Cache and add to results
+            this.cache.set(address, {
+              data: dasData,
+              timestamp: Date.now()
+            });
+            results.set(address, dasData);
+          }
+        }
+        
+        console.log(chalk.green(`✅ GraphQL batch fetched ${results.size - mintAddresses.length + uncachedAddresses.length} tokens`));
+        
+        // Get addresses that GraphQL couldn't fetch
+        const stillMissing = uncachedAddresses.filter(addr => !results.has(addr));
+        if (stillMissing.length > 0) {
+          console.log(chalk.yellow(`⚠️ ${stillMissing.length} tokens not found via GraphQL, trying REST API...`));
+          uncachedAddresses.length = 0;
+          uncachedAddresses.push(...stillMissing);
+        } else {
+          return results;
+        }
+      } catch (error) {
+        console.error(chalk.red('GraphQL batch fetch failed, falling back to REST:'), error);
+      }
+    }
+    
+    // Fallback to REST API with parallel batching
     const PARALLEL_BATCH_SIZE = 5; // Process 5 tokens simultaneously
     
     for (let i = 0; i < uncachedAddresses.length; i += PARALLEL_BATCH_SIZE) {

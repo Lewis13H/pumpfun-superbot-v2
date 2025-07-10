@@ -7,6 +7,7 @@ import axios from 'axios';
 import chalk from 'chalk';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { db } from '../../database';
+import { ShyftGraphQLClient } from '../metadata/providers/shyft-graphql-client';
 
 interface TokenCreationInfo {
   mintAddress: string;
@@ -21,14 +22,17 @@ export class TokenCreationTimeService {
   private connection: Connection;
   private shyftApiKey: string;
   private heliusApiKey: string;
+  private graphqlClient: ShyftGraphQLClient;
   private cache = new Map<string, TokenCreationInfo>();
   // private readonly CACHE_TTL = 86400000; // 24 hours - unused for now
+  private readonly USE_GRAPHQL = true; // Feature flag for GraphQL
   
   private constructor() {
     const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
     this.connection = new Connection(rpcUrl, 'confirmed');
     this.shyftApiKey = process.env.SHYFT_API_KEY || process.env.SHYFT_GRPC_TOKEN || '';
     this.heliusApiKey = process.env.HELIUS_API_KEY || '';
+    this.graphqlClient = ShyftGraphQLClient.getInstance();
   }
   
   static getInstance(): TokenCreationTimeService {
@@ -86,7 +90,21 @@ export class TokenCreationTimeService {
     if (!this.shyftApiKey) return null;
     
     try {
-      // Get transaction history for the token
+      // Try GraphQL first if enabled
+      if (this.USE_GRAPHQL) {
+        const creationTx = await this.graphqlClient.getTokenCreationTransaction(mintAddress);
+        if (creationTx) {
+          return {
+            mintAddress,
+            creationTime: new Date(creationTx.timestamp * 1000),
+            creationSlot: 0, // GraphQL doesn't provide slot info
+            creator: creationTx.from,
+            source: 'shyft'
+          };
+        }
+      }
+      
+      // Fallback to REST API
       const response = await axios.get('https://api.shyft.to/sol/v1/transaction/history', {
         params: {
           network: 'mainnet-beta',

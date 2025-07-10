@@ -229,6 +229,16 @@ async function startMonitors() {
     
     // Graduation fixer is now integrated into TokenLifecycleService
     
+    // Start metadata enricher
+    try {
+      const metadataEnricher = await container.resolve(TOKENS.MetadataEnricher);
+      stats.activeMonitors.add('MetadataEnricher');
+      logger.debug('Metadata enricher started');
+    } catch (error) {
+      logger.error('Failed to start metadata enricher', error as Error);
+      // Non-critical, continue without metadata enricher
+    }
+    
     // Start holder analysis integration
     let holderAnalysis: HolderAnalysisIntegration | null = null;
     try {
